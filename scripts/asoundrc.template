@@ -1,0 +1,3 @@
+# Referenzkopie der ALSA-Konfiguration (installiert als ~/.asoundrc).
+# Bei Bedarf erneut anwenden:  cp scripts/asoundrc.template ~/.asoundrc
+# (Inhalt identisch mit ~/.asoundrc — siehe dort.)

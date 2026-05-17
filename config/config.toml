@@ -1,0 +1,85 @@
+# Storyteller — zentrale Konfiguration. Alle Modellnamen sind hier änderbar.
+
+[models]
+story_llm        = "gpt-5.4-mini"            # Erzähler + Story-Generierung
+stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
+tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper kann KEIN TTS)
+tts_voice        = "ballad"
+embedding        = "text-embedding-3-small"  # RAG-Embeddings
+embedding_dim    = 512                       # Matryoshka-Trunkierung (kleiner = sparsamer)
+llm_temperature  = 0.9
+
+[stt]
+provider = "openai"   # openai | local_whisper  (local => Phase 10, nur Pi 5 + AI HAT)
+language = "de"
+
+[tts]
+provider    = "openai"  # openai | local  (local => Phase 10, nur Pi 5 + AI HAT)
+format      = "pcm"     # 24 kHz mono s16le — ideal für Reverb
+sample_rate = 24000
+
+[audio]
+backend            = "alsa_softvol"          # alsa_softvol | pipewire (Phase 8: Bluetooth)
+output_alsa_pcm    = "plug:respeaker_softvol" # aplay/speaker-test Ziel (softvol => Lautstärke)
+input_alsa_pcm     = "respeaker_capture"      # arecord Quelle (ReSpeaker, 16 kHz mono)
+sd_output_device   = ""                       # sounddevice-Gerät; leer => ALSA default (~/.asoundrc => softvol)
+mixer_card         = "ArrayUAC10"             # ALSA-Card-Name des ReSpeaker
+mixer_control      = "Master"                 # softvol-Control
+default_volume_pct = 15   # ReSpeaker Line-Out ist sehr "heiß"; bei Bedarf hoch (amixer -c ArrayUAC10 sset Master 25%)
+input_sample_rate  = 16000
+pw_sink            = ""   # Phase 8: PipeWire-Sink (leer = Default-Sink, z.B. Bluetooth)
+
+[wakeword]
+engine    = "openwakeword"
+model     = ""        # Pfad zum eigenen DE-Wake-Word-Modell (Phase 3)
+threshold = 0.5
+
+[fx]
+enabled              = true
+# Dezenter Hall (pedalboard Reverb). Pro Welt überschreibbar (world.fx_preset).
+reverb_room_size     = 0.55
+reverb_damping       = 0.55
+reverb_wet_level     = 0.18
+reverb_dry_level     = 0.85
+distortion_drive_db  = 0.0   # 0 = aus; leichte Verzerrung ~4–8
+
+[story]
+short_term_memory_turns   = 12
+rag_top_k                 = 4    # weniger Fakten -> weniger Detailflut
+cost_cap_usd_per_session  = 2.0
+max_substory_beats        = 5    # Länge des Mini-Spannungsbogens pro Substory
+dynamic_event_prob        = 0.15 # Wahrsch. pro Zug für eine abstrakte Story-Dynamik (subtil)
+dynamics_in_planning      = true # Architekt darf (dezent) abstrakte Wendungen einplanen
+# Erzählstil-Leitlinie (frei editierbar): steuert Einfachheit/Länge.
+narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
+
+[voice_prompts]
+# Statische Menü-/System-Ansagen werden EINMALIG via TTS gerendert und als
+# Audio gecacht -> Abspielen ohne API-Aufruf (spart Tokens + Latenz).
+enabled             = true
+allow_live_fallback = true   # fehlt ein Cache-Eintrag: einmalig live via TTS + nachcachen
+voice               = ""     # leer = config.models.tts_voice; Cache neu bauen bei Änderung
+
+[cost]
+# Grobe Kostenschätzung (USD pro 1 Mio. Tokens) — bitte an aktuelle Preise
+# anpassen. Bei Überschreiten von story.cost_cap_usd_per_session leitet der
+# Erzähler einen ruhigen Abschluss ein.
+enforce                 = true
+usd_per_1m_input        = 0.30
+usd_per_1m_output       = 1.20
+usd_per_1m_embedding    = 0.02
+
+[logging]
+level = "INFO"          # DEBUG | INFO | WARNING | ERROR
+file  = "data/storyteller.log"
+
+[web]
+host = "0.0.0.0"
+port = 8080
+
+[paths]
+worlds_dir         = "data/worlds"
+saves_dir          = "data/saves"
+rag_db             = "data/rag.db"
+wait_sounds_dir    = "data/wait_sounds"
+voice_prompts_dir  = "data/voice_prompts"

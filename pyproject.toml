@@ -1,0 +1,44 @@
+[project]
+name = "storyteller"
+version = "0.1.0"
+description = "Interaktiver sprachgesteuerter Geschichtenerzähler (Raspberry Pi + OpenAI + ReSpeaker)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12",
+    "pyusb>=1.2",
+    "rich>=13.7",
+    "openai>=1.40",
+]
+
+# Phasen-spezifische Extras werden erst bei Bedarf installiert, z.B.:
+#   uv sync --extra audiofx --extra rag --extra wakeword --extra web
+[project.optional-dependencies]
+audiofx = ["pedalboard>=0.9.14"]           # Phase 2: Reverb/Distortion auf der Stimme
+rag = ["sqlite-vec>=0.1.6"]                # Phase 4: per-Welt-RAG
+# Phase 3 Wake-Word (openWakeWord) ist NICHT als Extra gelistet:
+#   openwakeword 0.6.0 verlangt tflite-runtime, das KEINE cp313-Wheels hat.
+#   Lösung in Phase 3: `uv pip install --no-deps openwakeword` + onnxruntime
+#   (ONNX-Inferenz statt tflite), oder Wake-Word in separatem py3.11-venv.
+web = [                                    # Phase 7: Admin-Frontend
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+]
+# Phase 10 (optional, NUR Pi 5 + AI HAT): lokales STT/TTS
+# localmodels = ["faster-whisper>=1.0", "piper-tts>=1.2"]
+
+[project.scripts]
+storyteller = "storyteller.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/storyteller"]

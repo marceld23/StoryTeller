@@ -1,0 +1,202 @@
+{
+  "id": "immerwald",
+  "name": "Das Immerwald-Reich",
+  "genre": "High-Fantasy",
+  "description": "Eine epische High-Fantasy-Welt: uralte Wälder, zerfallende Königreiche, schlafende Mächte. Magie ist selten, gefährlich, teuer.",
+  "player_role": "Waldläufer:in im Dienst eines bedrohten Grenzlandes",
+  "starting_situation": "Im Immerwald schweigt plötzlich alles Getier. Hauptmann Eldra Vunn schickt dich von der Graufeste los, um herauszufinden, wer die alten Pakte bricht — bevor der Aschenkönig erwacht.",
+  "narration_style": "Episch, bildreich, mit Sagen-Ton; sinnliche Naturbeschreibung, bedrohliche Untertöne. Du-Anrede an den Waldläufer.",
+  "mood": "Ehrfürchtig, schwermütig, von lauernder Bedrohung durchzogen.",
+  "ambience": "Moos und nasses Laub, Harzduft, fernes Knacken, gedämpftes Licht durch uralte Kronen, Stille, in der man den eigenen Herzschlag hört.",
+  "magic_physics": "Magie speist sich aus alten Pakten mit dem Wald und der Anderswelt. Jeder Zauber fordert einen Preis (Erinnerung, Zeit, Blut). Eisen stört Feenmagie; Mondsteinorte machen die Grenze zur Anderswelt dünn.",
+  "places": [
+    {
+      "name": "Die Graufeste",
+      "description": "Letzte Grenzbastion vor dem Immerwald; müde Garnison, alte Geheimnisse.",
+      "tags": [
+        "start",
+        "festung"
+      ]
+    },
+    {
+      "name": "Der Immerwald",
+      "description": "Endloser, uralter Wald, der sich zu erinnern und zu beobachten scheint.",
+      "tags": [
+        "wildnis",
+        "mystisch"
+      ]
+    },
+    {
+      "name": "Mondsteinlichtung",
+      "description": "Ort alter Riten, wo die Grenze zur Anderswelt dünn ist.",
+      "tags": [
+        "magie",
+        "gefahr"
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "name": "Hauptmann Eldra Vunn",
+      "role": "Mentor",
+      "description": "Vernarbte Kommandantin der Graufeste.",
+      "relations": "schickt den Waldläufer auf gefährliche Pfade.",
+      "tags": []
+    },
+    {
+      "name": "Der Aschenkönig",
+      "role": "Antagonist",
+      "description": "Wiederkehrende, halb vergessene Macht aus dem Herzen des Waldes.",
+      "relations": "will die alten Pakte brechen.",
+      "tags": []
+    }
+  ],
+  "items": [
+    {
+      "name": "Eisendolch der Graufeste",
+      "description": "Schlichte alte Klinge.",
+      "properties": "Stört Feenmagie; bricht kleine Bann.",
+      "tags": [
+        "waffe"
+      ]
+    },
+    {
+      "name": "Mondstein-Amulett",
+      "description": "Bleich schimmernder Stein.",
+      "properties": "Zeigt nahe Anderswelt-Grenzen; zieht aber Blicke von dort an.",
+      "tags": [
+        "magie",
+        "hinweis"
+      ]
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Die Pakte",
+      "definition": "Uralte Verträge zwischen Menschen, Wald und Anderswelt, die die Mächte binden."
+    },
+    {
+      "term": "Anderswelt",
+      "definition": "Geisterhafte Parallelwelt hinter dünnen Grenzorten."
+    },
+    {
+      "term": "Waldläufer",
+      "definition": "Grenzkundschafter, Vermittler zwischen Feste und Wildnis."
+    },
+    {
+      "term": "Aschenkönig",
+      "definition": "Schlafende Macht im Herzen des Immerwalds; erwacht, wenn die Pakte brechen."
+    }
+  ],
+  "history": [
+    {
+      "when": "im Ersten Zeitalter",
+      "title": "Der Große Pakt",
+      "description": "Mensch und Wald schlossen Frieden; der Aschenkönig wurde gebunden."
+    },
+    {
+      "when": "vor drei Generationen",
+      "title": "Der Brand der Westmark",
+      "description": "Ein gebrochener Pakt ließ ein Königreich in Asche fallen."
+    }
+  ],
+  "fragments": [
+    {
+      "title": "Die verstummten Vögel",
+      "text": "Im Immerwald schweigt alles Getier — etwas Altes erwacht.",
+      "tags": [
+        "hook",
+        "omen"
+      ]
+    },
+    {
+      "title": "Der gebrochene Pakt",
+      "text": "Ein Grenzstein der alten Verträge wurde zerschlagen.",
+      "tags": [
+        "stakes"
+      ]
+    }
+  ],
+  "blueprint": {
+    "premise": "Der Waldläufer muss herausfinden, wer die alten Pakte bricht, bevor der Aschenkönig erwacht.",
+    "beats": [
+      {
+        "name": "Ruf",
+        "goal": "Grenzland & Omen etablieren",
+        "tension": 2
+      },
+      {
+        "name": "Schwelle",
+        "goal": "Aufbruch in den Immerwald",
+        "tension": 4
+      },
+      {
+        "name": "Prüfung",
+        "goal": "Verbündete/Feinde, Spur des Paktbruchs",
+        "tension": 6
+      },
+      {
+        "name": "Abgrund",
+        "goal": "Mondsteinlichtung, Verrat/Opfer",
+        "tension": 8
+      },
+      {
+        "name": "Höhepunkt",
+        "goal": "Konfrontation mit dem Aschenkönig",
+        "tension": 10
+      },
+      {
+        "name": "Heimkehr",
+        "goal": "Preis des Sieges, neue Bedrohung",
+        "tension": 3
+      }
+    ],
+    "escalation_rule": "Steigere Spannung pro Beat; greife Spieler-Ideen auf und webe sie ein, ohne den Spieler auf Schienen zu setzen."
+  },
+  "random_tables": [
+    {
+      "name": "Waldzeichen",
+      "description": "Beim Reisen im Immerwald",
+      "entries": [
+        {
+          "weight": 3,
+          "text": "Frische Spuren, die im Kreis führen."
+        },
+        {
+          "weight": 2,
+          "text": "Ein Schrein mit frischer Opfergabe."
+        },
+        {
+          "weight": 1,
+          "text": "Eine Stimme ruft deinen wahren Namen."
+        }
+      ]
+    },
+    {
+      "name": "Begegnung am Pfad",
+      "description": "",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "Eine fliehende Familie aus dem Wald."
+        },
+        {
+          "weight": 2,
+          "text": "Ein Späher des Aschenkönigs."
+        },
+        {
+          "weight": 1,
+          "text": "Ein sprechendes Tier mit einer Bitte."
+        }
+      ]
+    }
+  ],
+  "wait_sound": "fantasy_ambient.wav",
+  "fx_preset": {
+    "reverb_room_size": 0.7,
+    "reverb_damping": null,
+    "reverb_wet_level": 0.22,
+    "reverb_dry_level": null,
+    "distortion_drive_db": null
+  }
+}

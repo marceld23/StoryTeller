@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Laufzeitdaten
+data/saves/
+data/rag.db
+data/rag.db-*
+data/*.log
+*.wav
+*.tmp
+# Voice-Prompt-Cache ist gewollt persistent (Token-Ersparnis):
+!data/voice_prompts/
+!data/voice_prompts/*.wav
+!data/voice_prompts/manifest.json
+
+# OS
+.DS_Store

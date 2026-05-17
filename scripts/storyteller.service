@@ -1,0 +1,24 @@
+# systemd SYSTEM-Service: Sprach-Geschichtenerzähler (Autostart, robust).
+# Installation: bash scripts/install_services.sh
+# Logs: journalctl -u storyteller -f   (zusätzlich data/storyteller.log)
+
+[Unit]
+Description=Storyteller — interaktiver Sprach-Geschichtenerzähler
+After=network-online.target sound.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+SupplementaryGroups=audio
+WorkingDirectory=/home/pi/storyteller
+Environment=HOME=/home/pi
+Environment=PATH=/home/pi/.local/bin:/usr/bin:/bin
+ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli run
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

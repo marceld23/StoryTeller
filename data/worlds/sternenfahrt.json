@@ -1,0 +1,202 @@
+{
+  "id": "sternenfahrt",
+  "name": "Sternenfahrt",
+  "genre": "Science-Fiction",
+  "description": "Die Menschheit reist mit Hyperraum-Technologie durch ein Netz aus vielen besiedelten und unentdeckten Welten. Sprünge sind riskant, Treibstoff und Crew-Vertrauen sind knapp.",
+  "player_role": "Raumschiffkapitän:in eines unabhängigen Sprungschiffs",
+  "starting_situation": "Die 'Wanderfalke' liegt mit fast leeren Tanks an Driftstation Kells. Ein altes, unmögliches Notsignal pulst aus dem Schlund — und Konsul Mox' Leute sind bereits unterwegs.",
+  "narration_style": "Cineastisch, nüchtern-technisch mit Wonder-Momenten; kurze Sätze in Spannung, ruhiger im Schiffsalltag. Du-Anrede an den Kapitän.",
+  "mood": "Einsam, angespannt, von kalter Ehrfurcht vor dem Unbekannten durchzogen.",
+  "ambience": "Brummen der Reaktoren, Ozon und kalter Kabelstaub, das Ticken abkühlender Hüllenplatten, sterile Notbeleuchtung, Funken im All.",
+  "magic_physics": "Keine Magie. Hyperraumsprünge brauchen Helium-3 und exakte Navigationsfenster; Fehlsprünge altern Materie oder verschlucken Schiffe. Der 'Schlund' verletzt diese Regeln — niemand weiß, warum.",
+  "places": [
+    {
+      "name": "Brücke der 'Wanderfalke'",
+      "description": "Kommandozentrale; Hyperraumkonsole, Sternenkarte.",
+      "tags": [
+        "schiff",
+        "start"
+      ]
+    },
+    {
+      "name": "Driftstation Kells",
+      "description": "Heruntergekommene Handels- und Schmugglerstation am Rand des kartierten Raums.",
+      "tags": [
+        "station",
+        "handel"
+      ]
+    },
+    {
+      "name": "Der Schlund",
+      "description": "Anomales Hyperraum-Gebiet, aus dem Schiffe verändert oder gar nicht zurückkehren.",
+      "tags": [
+        "anomalie",
+        "gefahr"
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "name": "Navigatorin Suri Vael",
+      "role": "Crew",
+      "description": "Brillante, sarkastische Hyperraum-Navigatorin.",
+      "relations": "vertraut dem Kapitän, misstraut der Reederei.",
+      "tags": []
+    },
+    {
+      "name": "Konsul Adran Mox",
+      "role": "Antagonist",
+      "description": "Einflussreicher Reederei-Konsul mit verdeckter Agenda.",
+      "relations": "will die Route zum Schlund.",
+      "tags": []
+    }
+  ],
+  "items": [
+    {
+      "name": "Helium-3-Zelle",
+      "description": "Treibstoffkanister für Sprünge.",
+      "properties": "1 Zelle = 1 sicherer Sprung; knapp und teuer.",
+      "tags": [
+        "ressource"
+      ]
+    },
+    {
+      "name": "Echo-Rekorder",
+      "description": "Speichert das stille Signal.",
+      "properties": "Spielt eine Sprache ab, die es nicht geben dürfte.",
+      "tags": [
+        "hinweis",
+        "mystery"
+      ]
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Sprung",
+      "definition": "Hyperraum-Reise zwischen Sternen; benötigt Helium-3 und ein Navigationsfenster."
+    },
+    {
+      "term": "Der Schlund",
+      "definition": "Anomalie, in der die Hyperraum-Regeln versagen."
+    },
+    {
+      "term": "Reederei",
+      "definition": "Mächtiges Konsortium, das Routen und Treibstoff kontrolliert."
+    },
+    {
+      "term": "Driftstation",
+      "definition": "Frei treibender Handelsposten am Rand des kartierten Raums."
+    }
+  ],
+  "history": [
+    {
+      "when": "vor 200 Jahren",
+      "title": "Die Erste Expansion",
+      "description": "Hyperraumantrieb erfunden; Hunderte Welten besiedelt."
+    },
+    {
+      "when": "vor 12 Jahren",
+      "title": "Das Kells-Unglück",
+      "description": "Eine Sprungflotte verschwand nahe dem Schlund; seither Sperrgebiet."
+    }
+  ],
+  "fragments": [
+    {
+      "title": "Das stille Signal",
+      "text": "Ein uraltes Notsignal pulst aus dem Schlund — in einer Sprache, die es nicht geben dürfte.",
+      "tags": [
+        "hook",
+        "mystery"
+      ]
+    },
+    {
+      "title": "Treibstoff-Knappheit",
+      "text": "Ohne Helium-3 von Kells kein weiterer Sprung.",
+      "tags": [
+        "stakes"
+      ]
+    }
+  ],
+  "blueprint": {
+    "premise": "Der Kapitän muss dem stillen Signal folgen, bevor Konsul Mox den Schlund für sich vereinnahmt.",
+    "beats": [
+      {
+        "name": "Aufbruch",
+        "goal": "Schiff & Crew etablieren, Hook setzen",
+        "tension": 2
+      },
+      {
+        "name": "Komplikation",
+        "goal": "Treibstoffnot, Mox' Druck",
+        "tension": 4
+      },
+      {
+        "name": "Wendung",
+        "goal": "Wahrheit hinter dem Signal andeuten",
+        "tension": 6
+      },
+      {
+        "name": "Krise",
+        "goal": "Sprung in den Schlund, Verrat",
+        "tension": 8
+      },
+      {
+        "name": "Höhepunkt",
+        "goal": "Entscheidung mit Konsequenzen",
+        "tension": 10
+      },
+      {
+        "name": "Ausklang",
+        "goal": "Folgen, Haken für Fortsetzung",
+        "tension": 3
+      }
+    ],
+    "escalation_rule": "Steigere Spannung pro Beat; greife Spieler-Ideen auf und webe sie ein, ohne den Spieler auf Schienen zu setzen."
+  },
+  "random_tables": [
+    {
+      "name": "Hyperraum-Anomalie",
+      "description": "Beim Sprung",
+      "entries": [
+        {
+          "weight": 3,
+          "text": "Zeitdilatation: Stunden werden Tage."
+        },
+        {
+          "weight": 2,
+          "text": "Geisterecho eines fremden Schiffs."
+        },
+        {
+          "weight": 1,
+          "text": "Der Schlund flüstert einen Namen."
+        }
+      ]
+    },
+    {
+      "name": "Stationsbegegnung",
+      "description": "Auf Kells",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "Ein Informant mit halber Wahrheit."
+        },
+        {
+          "weight": 2,
+          "text": "Kopfgeldjäger im Auftrag von Mox."
+        },
+        {
+          "weight": 1,
+          "text": "Ein gestrandeter Xeno-Archäologe."
+        }
+      ]
+    }
+  ],
+  "wait_sound": "scifi_ambient.wav",
+  "fx_preset": {
+    "reverb_room_size": 0.45,
+    "reverb_damping": null,
+    "reverb_wet_level": 0.15,
+    "reverb_dry_level": null,
+    "distortion_drive_db": null
+  }
+}
