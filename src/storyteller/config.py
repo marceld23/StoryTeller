@@ -56,7 +56,9 @@ class AudioCfg(BaseModel):
 
 class WakeWordCfg(BaseModel):
     engine: str = "openwakeword"
-    model: str = ""
+    model: str = ""        # built-in name or path to a custom .onnx
+    model_de: str = ""     # optional per-locale override (de)
+    model_en: str = ""     # optional per-locale override (en)
     threshold: float = 0.5
     # After the narrator speaks, listen once WITHOUT the wake word so the
     # player can reply directly; only after silence is the wake word needed.

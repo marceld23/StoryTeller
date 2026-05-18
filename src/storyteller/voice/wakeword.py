@@ -26,7 +26,11 @@ class WakeWord:
         try:
             from openwakeword.model import Model
 
-            name = cfg.wakeword.model or DEFAULT_MODEL
+            from ..i18n import norm
+
+            loc = norm(cfg.general.locale)
+            name = (getattr(cfg.wakeword, f"model_{loc}", "")
+                    or cfg.wakeword.model or DEFAULT_MODEL)
             self.model = Model(inference_framework="onnx",
                                wakeword_models=[name])
             self.available = True

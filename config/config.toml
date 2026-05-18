@@ -39,8 +39,10 @@ pw_sink            = ""   # Phase 8: PipeWire-Sink (leer = Default-Sink, z.B. Bl
 
 [wakeword]
 engine    = "openwakeword"
-model     = ""        # Pfad zum eigenen DE-Wake-Word-Modell (Phase 3)
-threshold = 0.5
+model     = ""        # eingebauter Name (z.B. "alexa") ODER Pfad zu eigener .onnx
+model_de  = ""        # optional: eigenes Wake-Word für Locale de (Pfad/.onnx)
+model_en  = ""        # optional: eigenes Wake-Word für Locale en
+threshold = 0.5       # höher = weniger Fehlauslöser
 follow_up = true      # nach dem Sprechen 1x ohne Wake-Word weiter zuhören
 
 [fx]
