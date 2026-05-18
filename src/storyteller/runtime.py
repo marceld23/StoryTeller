@@ -63,6 +63,27 @@ def _respeaker_present() -> bool:
     return False
 
 
+def settings_path(cfg: Config):
+    return cfg.path("data/settings.json")
+
+
+def load_settings(cfg: Config) -> dict:
+    """Persisted user settings (e.g. {"intro_enabled": bool})."""
+    p = settings_path(cfg)
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def save_settings(cfg: Config, data: dict) -> None:
+    p = settings_path(cfg)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
 def resolve_profile(cfg: Config) -> str:
     """Liefert 'pi' oder 'pc' (auto-erkannt, falls profile=auto)."""
     p = (cfg.runtime.profile or "auto").lower()

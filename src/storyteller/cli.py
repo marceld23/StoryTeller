@@ -325,6 +325,30 @@ def cmd_run(cfg, args) -> int:
         else:
             rp("[yellow]Wake-Word nicht verfügbar -> Push-to-talk[/yellow]")
 
+    # --- start greeting + optional intro (cached, offline-safe) ---
+    if speak and not text_mode:
+        from .runtime import load_settings, save_settings
+
+        prompts.play("greeting", backend)
+        st = load_settings(cfg)
+        if st.get("intro_enabled", True):
+            prompts.play("intro", backend)
+            prompts.play("intro_ask", backend)
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".wav",
+                                                 delete=False) as t:
+                    aw = t.name
+                backend.record_wav(aw, 4)
+                ans = stt.transcribe(aw).strip().lower()
+            except Exception:
+                ans = ""
+            if any(k in ans for k in ("nein", "no", "nicht", "stop",
+                                      "aus", "skip")):
+                st["intro_enabled"] = False
+                save_settings(cfg, st)
+                prompts.play("intro_off", backend)
+            prompts.play("intro_hint", backend)
+
     restore_state = None
     wid = args.world
     if args.load:
@@ -402,6 +426,7 @@ def cmd_run(cfg, args) -> int:
                 ("undo", "Spielzug zurück / undo the last turn"),
                 ("load", "Spielstand laden / load the latest save"),
                 ("audio", "Audio/Bluetooth umschalten / switch audio output"),
+                ("intro", "Einführung an oder aus / toggle the intro"),
                 ("close", "Menü schließen / close menu and continue")]
         ch = _classify(cfg, pick, opts)
         if ch == "unknown":
@@ -417,6 +442,9 @@ def cmd_run(cfg, args) -> int:
             elif any(k in lw for k in ("audio", "bluetooth", "blue tooth",
                                        "lautsprecher", "ausgabe")):
                 ch = "audio"
+            elif any(k in lw for k in ("einführ", "einfuehr", "intro",
+                                       "einleitung", "tutorial")):
+                ch = "intro"
             elif any(k in lw for k in ("lad", "load")):
                 ch = "close" if "spielstand" not in lw and "save" in lw \
                     else "load"
@@ -448,6 +476,20 @@ def cmd_run(cfg, args) -> int:
                     pass
             else:
                 rp(f"[dim]({amsg})[/dim]")
+            last = engine.last_narration()
+            if last:
+                _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                     speak=speak)
+            return None
+        if ch == "intro":
+            from .runtime import load_settings, save_settings
+
+            st = load_settings(cfg)
+            new = not st.get("intro_enabled", True)
+            st["intro_enabled"] = new
+            save_settings(cfg, st)
+            imsg = "intro_on" if new else "intro_off"
+            prompts.play(imsg, backend) if speak else rp(f"[dim]({imsg})[/dim]")
             last = engine.last_narration()
             if last:
                 _say(cfg, world, backend, tts, fx, leds, (lambda: last),

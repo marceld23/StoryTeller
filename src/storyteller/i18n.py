@@ -38,8 +38,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "goodbye": "Bis zum nächsten Mal.",
         "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
         "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
-                    "Spielstand laden, Audio umschalten, oder Menü "
-                    "schließen.",
+                    "Spielstand laden, Audio umschalten, Einführung, oder "
+                    "Menü schließen.",
         "undone": "Der letzte Spielzug wurde zurückgenommen.",
         "closed": "Menü geschlossen. Weiter geht's.",
         "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
@@ -50,6 +50,20 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                       "Passwort eingeben kannst. Danach starte ich neu.",
         "audio_bt_on": "Audioausgabe auf Bluetooth umgestellt.",
         "audio_bt_off": "Audioausgabe zurück auf den Standard.",
+        "greeting": "Hey, Du. Ich bin dein Geschichtenerzähler.",
+        "intro": "So funktioniert's: Sag Hey Jarvis, warte kurz, dann "
+                 "sprich frei, was du tun willst — ich erzähle die "
+                 "Geschichte und beziehe dich ein. Direkt nach meiner "
+                 "Antwort kannst du ohne Weckwort weiterreden. Für "
+                 "Einstellungen sag Hey Jarvis, dann System: dort kannst "
+                 "du speichern, laden, einen Zug zurücknehmen, die "
+                 "Audioausgabe oder diese Einführung ändern.",
+        "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
+                     "wieder hören? Sage ja oder nein.",
+        "intro_hint": "Du kannst das jederzeit im Systemmenü unter "
+                      "Einführung wieder umstellen.",
+        "intro_on": "Einführung wird künftig wieder abgespielt.",
+        "intro_off": "Einführung wird künftig übersprungen.",
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
@@ -66,7 +80,7 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "goodbye": "Until next time.",
         "error_retry": "There was a glitch. Please say it again.",
         "sys_menu": "System menu. Say: save, quit, undo turn, load game, "
-                    "switch audio, or close menu.",
+                    "switch audio, intro, or close menu.",
         "undone": "The last turn was undone.",
         "closed": "Menu closed. Let's continue.",
         "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
@@ -77,6 +91,19 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                       "Then I will restart.",
         "audio_bt_on": "Audio output switched to Bluetooth.",
         "audio_bt_off": "Audio output back to the default.",
+        "greeting": "Hey there. I'm your storyteller.",
+        "intro": "Here's how it works: say Hey Jarvis, wait a moment, then "
+                 "speak freely what you want to do — I tell the story and "
+                 "weave you in. Right after my reply you can keep talking "
+                 "without the wake word. For settings say Hey Jarvis, then "
+                 "System: there you can save, load, undo a turn, switch the "
+                 "audio output or this intro.",
+        "intro_ask": "Would you like to hear this intro again next time? "
+                     "Say yes or no.",
+        "intro_hint": "You can change this any time in the system menu "
+                      "under Intro.",
+        "intro_on": "The intro will be played again from now on.",
+        "intro_off": "The intro will be skipped from now on.",
     },
 }
 

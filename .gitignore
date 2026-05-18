@@ -32,3 +32,4 @@ data/worlds/*
 !data/worlds/immerwald.json
 !data/worlds/immerwald.en.json
 data/audio.json
+data/settings.json
