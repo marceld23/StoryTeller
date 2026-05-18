@@ -1,6 +1,6 @@
-"""Storyteller — interaktiver sprachgesteuerter Geschichtenerzähler.
+"""Storyteller — interactive voice-controlled storyteller.
 
-Siehe ../../PLAN.md für Architektur und Phasenplan.
+See ../../PLAN.md for architecture and roadmap.
 """
 
 __version__ = "0.1.0"

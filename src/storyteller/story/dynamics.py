@@ -1,11 +1,13 @@
-"""Abstrakte, welt-unabhängige Story-Dynamik.
+"""Abstract, world-independent story dynamic.
 
-Eine gecodete Zufallsfunktion, die abstrakt beschriebene Wendungen liefert
-(„ein weiterer Antagonist taucht auf", „etwas Negatives/Positives Unvorher-
-gesehenes" …). Wird sowohl beim PLANEN einer Substory als auch im VERLAUF
-genutzt (Tool roll_story_dynamic + dezente Auto-Injection). Wichtig: immer
-nur als organisch einzuwebende Komplikation — der Makro-/Substory-Bogen wird
-NICHT verworfen oder zurückgesetzt.
+A coded random function returning abstractly described twists ("another
+antagonist appears", "something negative/positive unforeseen happens" …).
+Used both when PLANNING a substory and DURING play (tool roll_story_dynamic
++ subtle auto-injection). Important: always only as an organically woven
+complication — the macro/substory arc is NOT discarded or reset.
+
+The German strings below are localized data (see i18n usage); they stay
+German for the de locale.
 """
 
 from __future__ import annotations

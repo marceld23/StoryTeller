@@ -1,12 +1,12 @@
-"""Substory-System: dynamischer Mini-Spannungsbogen innerhalb des Makro-Bogens.
+"""Substory system: a dynamic mini arc inside the macro arc.
 
 NarrativeState:
-  IN_SUBSTORY      – der Erzähler ist mitten in einer Substory
-  SUBSTORY_COMPLETE – die aktuelle Substory ist aufgelöst -> Architekt plant neu
-  PLANNING         – der Architekt "überlegt" eine neue Substory (RAG + Kontext)
+  IN_SUBSTORY       – the narrator is mid-substory
+  SUBSTORY_COMPLETE – the current substory is resolved -> architect replans
+  PLANNING          – the architect "thinks up" a new substory (RAG + context)
 
-SubstoryPlan wird per Prompt-Injection in den Erzähler-Systemprompt gegeben und
-ist über Tools abfragbar/anpassbar (get_/adjust_substory_plan).
+The SubstoryPlan is prompt-injected into the narrator system prompt and is
+queryable/adjustable via tools (get_/adjust_substory_plan).
 """
 
 from __future__ import annotations
@@ -95,12 +95,16 @@ class SubstoryPlanner:
 
     def plan_next(self, world, rag, macro_guidance: str, known_summary: str,
                   recent: str, previous_summary: str = "",
-                  dynamic_hint: str = "") -> SubstoryPlan:
+                  dynamic_hint: str = "", locale: str = "de") -> SubstoryPlan:
+        from ..i18n import LANG_INSTRUCTION, norm
+
+        loc = norm(locale)
         grounding = ""
         if rag is not None:
             try:
                 q = f"{macro_guidance} {recent} {previous_summary}".strip()
-                hits = rag.retrieve(world.id, q or world.description)
+                hits = rag.retrieve(world.id, q or world.description,
+                                    locale=loc)
                 grounding = "\n".join(f"- [{h['fact_type']}] {h['content']}"
                                       for h in hits)
             except Exception:
@@ -119,7 +123,8 @@ class SubstoryPlanner:
                f"Beat oder im resolution_hint): {dynamic_hint}. {INTEGRATION_RULE}\n\n"
                if dynamic_hint else "")
             + f"Plane jetzt die nächste Substory "
-            f"(max. {self.cfg.story.max_substory_beats} Beats)."
+            f"(max. {self.cfg.story.max_substory_beats} Beats).\n"
+            f"{LANG_INSTRUCTION[loc]}"
         )
         client = get_client(self.cfg)
         try:

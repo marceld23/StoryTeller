@@ -1,16 +1,16 @@
-"""Story-Engine v2.
+"""Story engine v2.
 
-Der Erzähler weiß: Er erzählt NICHT für sich, sondern um den Spieler aktiv
-einzubinden — dessen Aktionen werden mitgedacht, aufgegriffen und wirken auf
-die Welt. Er folgt einem MAKRO-Spannungsbogen (Blueprint) und einer dynamisch
-geplanten SUBSTORY (Mini-Bogen).
+The narrator knows: it does NOT narrate for itself but to actively involve
+the player — the player's actions are anticipated, taken up and change the
+world. It follows a MACRO arc (blueprint) and a dynamically planned SUBSTORY
+(mini arc).
 
-Statusmaschine (siehe substory.NarrativeState):
-- IN_SUBSTORY: Substory vorantreiben, Spieler einbinden.
-- SUBSTORY_COMPLETE: Erzähler hat complete_substory aufgerufen.
-- PLANNING: Architekt (SubstoryPlanner) "überlegt" via RAG+Kontext eine neue
-  Substory; sie wird per Prompt-Injection eingespeist und ist über Tools
-  abfragbar/anpassbar (get_/adjust_substory_plan).
+State machine (see substory.NarrativeState):
+- IN_SUBSTORY: drive the substory forward, involve the player.
+- SUBSTORY_COMPLETE: the narrator called complete_substory.
+- PLANNING: the architect (SubstoryPlanner) "thinks up" a new substory via
+  RAG+context; it is prompt-injected and is queryable/adjustable via tools
+  (get_/adjust_substory_plan).
 """
 
 from __future__ import annotations
@@ -97,17 +97,12 @@ CO_CREATION = (
     "lebendige, offene Situationen, auf die er frei reagieren kann."
 )
 
-_Q_PREFIXES = (
-    "was ", "wer ", "wo ", "wie ", "warum", "wieso", "welche", "welcher",
-    "welches", "wann", "wozu", "kann ich", "darf ich", "habe ich", "hab ich",
-    "gibt es", "gibt's", "wisst ihr", "weißt du", "weisst du", "erinner",
-)
+def _is_query(text: str, locale: str = "de") -> bool:
+    """Heuristic: is the player asking a question (instead of acting)?"""
+    from ..i18n import Q_PREFIXES, norm
 
-
-def _is_query(text: str) -> bool:
-    """Heuristik: stellt der Spieler eine Rückfrage (statt zu handeln)?"""
     t = text.strip().lower()
-    return t.endswith("?") or t.startswith(_Q_PREFIXES)
+    return t.endswith("?") or t.startswith(Q_PREFIXES[norm(locale)])
 
 
 BRIEF_RULE = (
@@ -123,7 +118,10 @@ class StoryEngine:
                  macro: BlueprintTracker | None = None,
                  memory: list[dict] | None = None,
                  cost: CostTracker | None = None):
+        from ..i18n import norm
+
         self.cfg = cfg
+        self.loc = norm(cfg.general.locale)
         self.world = world
         self.rag = rag
         self.known = known or KnownFacts()
@@ -162,7 +160,8 @@ class StoryEngine:
             dyn_hint = self.dynamics.roll()
         self.substory = self.planner.plan_next(
             self.world, self.rag, self.macro.guidance(),
-            self.known.summary(), self._recent(), prev, dyn_hint)
+            self.known.summary(), self._recent(), prev, dyn_hint,
+            locale=self.loc)
         self._transition = bool(prev)
 
     # --- Prompt ---
@@ -196,7 +195,7 @@ class StoryEngine:
             f"Dem Spieler bereits bekannt: {self.known.summary()}\n\n"
             f"Hintergrundwissen (nur einbauen, wenn es JETZT zur Szene passt; "
             f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
-            f"{self.cfg.story.narration_guidance}\n"
+            f"{self._guidance()}\n{self._lang_rule()}\n"
             "Tools bei Bedarf still nutzen (get_world_overview, "
             "retrieve_world_fact, lookup_glossary, roll_random_event, "
             "roll_story_dynamic) — das Ergebnis IMMER in einfache, kurze "
@@ -204,12 +203,27 @@ class StoryEngine:
             + (BRIEF_RULE if brief else "")
         )
 
+    def _guidance(self) -> str:
+        # DE: konfigurierbare Leitlinie (unverändert). EN: i18n-Leitlinie.
+        from ..i18n import NARRATION_GUIDANCE
+
+        if self.loc == "de":
+            return self.cfg.story.narration_guidance
+        return NARRATION_GUIDANCE["en"]
+
+    def _lang_rule(self) -> str:
+        from ..i18n import LANG_INSTRUCTION
+
+        return LANG_INSTRUCTION[self.loc]
+
     def _exec_tool(self, name: str, args: dict) -> str:
         s = self.substory
         if name == "retrieve_world_fact" and self.rag:
             rows = self.rag.retrieve(self.world.id, args.get("query", ""),
-                                     fact_type=args.get("fact_type"))
-            return json.dumps([r["content"] for r in rows], ensure_ascii=False)
+                                     fact_type=args.get("fact_type"),
+                                     locale=self.loc)
+            return json.dumps([r["content"] for r in rows],
+                              ensure_ascii=False)
         if name == "lookup_glossary":
             term = (args.get("term") or "").strip().lower()
             for g in getattr(self.world, "glossary", []):
@@ -217,7 +231,8 @@ class StoryEngine:
                     return f"{g.term}: {g.definition}"
             if self.rag:
                 rows = self.rag.retrieve(self.world.id, args.get("term", ""),
-                                         fact_type="glossary")
+                                         fact_type="glossary",
+                                         locale=self.loc)
                 if rows:
                     return rows[0]["content"]
             return "(kein Glossareintrag gefunden)"
@@ -264,10 +279,11 @@ class StoryEngine:
         retrieved: list[dict] = []
         if self.rag:
             try:
-                retrieved = self.rag.retrieve(self.world.id, user_text)
+                retrieved = self.rag.retrieve(self.world.id, user_text,
+                                              locale=self.loc)
             except Exception:
                 retrieved = []
-        brief = _is_query(user_text)
+        brief = _is_query(user_text, self.loc)
         dyn = None if brief else self.dynamics.maybe(
             self.cfg.story.dynamic_event_prob)
         self.memory.append({"role": "user", "content": user_text})
@@ -326,11 +342,9 @@ class StoryEngine:
 
     # --- API ---
     def opening(self) -> str:
-        return self._complete(
-            "[Beginne EINFACH und kurz: 3–5 kurze Sätze zur Ausgangslage, "
-            "höchstens ein, zwei konkrete Dinge nennen, keine Infoflut. Ende "
-            "mit EINER klaren, offenen Lage oder Frage, auf die der Spieler "
-            "direkt reagieren kann.]")
+        from ..i18n import OPENING_DIRECTIVE
+
+        return self._complete(OPENING_DIRECTIVE[self.loc])
 
     def turn(self, player_utterance: str) -> str:
         return self._complete(player_utterance)

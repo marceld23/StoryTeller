@@ -1,73 +1,100 @@
 # Storyteller
 
-Interaktiver, sprachgesteuerter Geschichtenerzähler auf Raspberry Pi 4 mit
-ReSpeaker USB Mic Array v2.0 + OpenAI.
+Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
+ReSpeaker USB Mic Array v2.0, or on a normal PC (no special hardware). Powered
+by the OpenAI API. Localized for German and English.
 
-➡ **Architektur, Entscheidungen & Phasenplan: [PLAN.md](PLAN.md)**
+➡ **Architecture, decisions & roadmap: [PLAN.md](PLAN.md)**
 
-## Schnellstart
+## Quick start
 
 ```bash
 cd /home/pi/storyteller
 
-# einmalig: udev-Regel (für LED-Ring & DSP-Tuning), danach ReSpeaker neu einstecken
+# Pi only, once: udev rule (LED ring & DSP tuning); replug the ReSpeaker after
 sudo bash scripts/setup_system.sh
 
-# Abhängigkeiten (Core)
+# core dependencies
 uv sync
 
-# Konfiguration prüfen
+# check configuration
 uv run storyteller info
 
-# Seed-Welten schreiben (Sci-Fi "Sternenfahrt" + Fantasy "Immerwald")
+# write seed worlds (de + en): Sci-Fi "Starfaring" + Fantasy "Everwood Realm"
 uv run storyteller seed
 
-# Hardware testen: Lautstärke, Line-Out, Mikrofon, LED-Ring, DSP-Tuning
+# Pi only: test hardware (volume, line-out, mic, LED ring, DSP tuning)
 uv run storyteller hw-test
 ```
 
-## Lautstärke (ALSA softvol)
+## Running on a PC (no Pi / no ReSpeaker)
 
-Der ReSpeaker hat keinen Hardware-Regler -> Software-Volume via `~/.asoundrc`:
-
-```bash
-amixer -c ArrayUAC10 sset Master 60%
-```
-
-## Befehle
+The runtime profile is auto-detected (`config [runtime] profile = auto`):
+Linux + ReSpeaker ⇒ `pi` (ALSA softvol, LED ring); anything else ⇒ `pc`
+(portable `sounddevice` backend, software volume, no LED needed).
 
 ```bash
-uv run storyteller info                       # Konfiguration
-uv run storyteller seed                       # 2 Seed-Welten schreiben
-uv run storyteller hw-test                    # Hardware (leise)
-uv run storyteller rag build [--force]        # Welten in sqlite-vec indexieren
-uv run storyteller voice-prompts build        # feste Menü-Ansagen cachen
-uv run storyteller demo --world sternenfahrt --text "…"   # 1 Zug (Test)
-uv run storyteller run [--world ID] [--ptt] [--load NAME] # voller Sprach-Loop
-uv run storyteller admin                      # Web-Admin (uv sync --extra web)
+uv run storyteller run --profile pc            # PC mic + speakers
+uv run storyteller run --text                  # keyboard input (no mic)
+uv run storyteller run --text --silent         # pure text, no audio at all
 ```
 
-`run` ohne `--world` startet das Sprachmenü; ohne Wake-Word automatisch
-Push-to-talk (Enter). Im Loop per Sprache: „speichern", „laden", „beenden".
-Wake-Word installieren: `bash scripts/install_wakeword.sh`.
-Bluetooth später: `bash scripts/setup_bluetooth.sh` + `[audio] backend="pipewire"`.
+## Volume
 
-## Story-Logik
+- Pi (ALSA softvol — the ReSpeaker has no hardware control):
+  `amixer -c ArrayUAC10 sset Master 60%`
+- PC: software gain via `config [audio] default_volume_pct`.
 
-Der Erzähler bindet den Spieler aktiv ein (freie Sprache, kein Menü), folgt
-einem **Makro-Spannungsbogen** und einer dynamisch geplanten **Substory**:
-ist sie aufgelöst, plant der Architekt (RAG+Kontext) die nächste; der Plan ist
-per Tool/Prompt-Injection anpassbar. Eine abstrakte **Story-Dynamik**
-(Antagonist/Unvorhergesehenes …) würzt Planung & Verlauf, ohne den Bogen zu
-kippen. Kostendeckel je Sitzung (sanfter Abschluss).
+## Localization (de / en)
+
+`config [general] locale = de | en` (override per run with `--locale`).
+It controls the narration language, the static voice-prompt audio, the menu
+keywords, STT language and the world content. **German prompts are kept
+verbatim**; English equivalents were added. Worlds exist in both languages
+(`data/worlds/<id>.json` for de, `<id>.en.json` for en) with isolated RAG.
+
+```bash
+uv run storyteller voice-prompts build --all-locales   # render de + en audio
+uv run storyteller run --locale en                     # play in English
+```
+
+## Commands
+
+```bash
+uv run storyteller info                          # configuration
+uv run storyteller seed                          # write seed worlds (de+en)
+uv run storyteller hw-test                        # Pi hardware (quiet)
+uv run storyteller rag build [--force]            # index worlds (per locale)
+uv run storyteller voice-prompts build [--all-locales]
+uv run storyteller wait-sounds build              # per-world ambience loops
+uv run storyteller demo --world sternenfahrt [--locale en] --text "…"
+uv run storyteller run [--world ID] [--ptt] [--text] [--silent] \
+                       [--profile pi|pc] [--locale de|en] [--load NAME]
+uv run storyteller admin                          # web admin (uv sync --extra web)
+```
+
+`run` without `--world` starts the voice menu; without a wake word it falls
+back to push-to-talk (Enter). In-loop voice commands: save / load / quit
+(localized). Install the wake word: `bash scripts/install_wakeword.sh`.
+Bluetooth (later): `bash scripts/setup_bluetooth.sh` + `[audio] backend="pipewire"`.
+
+## Story logic
+
+The narrator actively involves the player (free speech, no menu), follows a
+**macro arc** and a dynamically planned **substory**: once resolved, the
+architect plans the next one (RAG + context); the plan is adjustable via
+tool / prompt injection. An abstract **story dynamic** (new antagonist /
+unforeseen event …) spices planning and play without derailing the arc.
+Per-session cost cap (graceful wrap-up). Follow-up questions get short answers.
 
 ## Status
 
-Erledigt & getestet: **Phase 0–9** — Setup/HW, Voice-Pipeline (STT→LLM→TTS→
-Reverb→Line-Out, Wartesound, LED), Wake-Word (Default + PTT-Fallback), RAG,
-**Story-Engine v2** (Substory-Statusmaschine, Co-Creation, Story-Dynamik,
-Tools), Sprachmenü, Spielstände, Web-Admin, Kostendeckel, Logging, systemd.
+Done & tested: **Phases 0–9** — setup/HW, voice pipeline (STT→LLM→TTS→reverb→
+output, wait sound, LED), wake word (default + PTT fallback), RAG, **story
+engine v2** (substory state machine, co-creation, story dynamic, tools),
+voice menu, save games, web admin, cost cap, logging, systemd autostart,
+**PC mode** and **de/en localization**.
 
-🟡 **Phase 8 (Bluetooth)** ist implementiert, aber auf diesem Pi nicht testbar
-(kein PipeWire aktiv). ⏳ **Phase 10** (lokale Modelle) braucht Pi 5 + AI HAT.
+🟡 **Phase 8 (Bluetooth)** is implemented but not testable on this Pi (no
+PipeWire active). ⏳ **Phase 10** (local STT/TTS models) needs a Pi 5 + AI HAT.
 Details: [PLAN.md](PLAN.md).

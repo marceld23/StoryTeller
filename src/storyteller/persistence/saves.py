@@ -1,4 +1,4 @@
-"""Spielstände: Welt-Id, Blueprint-Index, Kurzzeitgedächtnis, Known-Facts."""
+"""Save games: world id, blueprint index, short-term memory, known facts."""
 
 from __future__ import annotations
 

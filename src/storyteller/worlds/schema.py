@@ -1,10 +1,10 @@
-"""Datenmodell einer Spielwelt.
+"""Data model of a game world.
 
-Alle inhaltlichen Teile (Orte, Personen, Gegenstände, Fragmente, Historie,
-Glossar) werden in sqlite-vec embeddet und beim Erzählen per RAG (gefiltert
-nach world_id + Typ) eingespeist. Blueprint hält den Makro-Spannungsbogen
-(„Bauplan"). random_tables sind KONKRETE, welt-spezifische Zufallslisten, die
-der Erzähler aktiv per Tool zieht (NICHT die abstrakte Story-Dynamik).
+All content parts (places, persons, items, fragments, history, glossary) are
+embedded in sqlite-vec and injected at narration time via RAG (filtered by
+world_id + type). The blueprint holds the macro arc. random_tables are
+CONCRETE, world-specific random lists the narrator actively rolls via a tool
+(NOT the abstract story dynamic).
 """
 
 from __future__ import annotations

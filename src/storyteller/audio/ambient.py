@@ -1,11 +1,11 @@
-"""Prozedurale, nahtlos loopende Wartesound-Ambiences pro Welt (offline, 0 Tokens).
+"""Procedural, seamlessly looping per-world wait ambiences (offline, 0 tokens).
 
-Zwei Moods:
-  - "space"  (Sci-Fi): tiefe Drone + Schwebung + leises Rauschen + Shimmer
-  - "forest" (Fantasy): weicher Wind + warmer Pad-Akkord + sanftes LFO
+Two moods:
+  - "space"  (Sci-Fi): deep drone + beating + faint noise + shimmer
+  - "forest" (Fantasy): soft wind + warm pad chord + gentle LFO
 
-Bewusst leise (Amplitude ~0.05). Die Datei ist durch eine End-zu-Anfang-
-Überblendung in sich gapless loopbar.
+Deliberately quiet (amplitude ~0.05). An end-to-start crossfade makes the
+file gapless-loopable on its own.
 """
 
 from __future__ import annotations

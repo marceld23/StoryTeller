@@ -1,5 +1,13 @@
 # Storyteller — zentrale Konfiguration. Alle Modellnamen sind hier änderbar.
 
+[general]
+locale = "de"        # de | en  (Sprache für Prompts/Menü/STT/TTS)
+
+[runtime]
+profile = "auto"     # auto | pi | pc
+# auto: Linux + ReSpeaker erkannt => pi (ALSA softvol, LED-Ring),
+#       sonst => pc (portables sounddevice-Backend, kein LED nötig).
+
 [models]
 story_llm        = "gpt-5.4-mini"            # Erzähler + Story-Generierung
 stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
@@ -19,7 +27,7 @@ format      = "pcm"     # 24 kHz mono s16le — ideal für Reverb
 sample_rate = 24000
 
 [audio]
-backend            = "alsa_softvol"          # alsa_softvol | pipewire (Phase 8: Bluetooth)
+backend            = "auto"                  # auto | alsa_softvol | portable | pipewire
 output_alsa_pcm    = "plug:respeaker_softvol" # aplay/speaker-test Ziel (softvol => Lautstärke)
 input_alsa_pcm     = "respeaker_capture"      # arecord Quelle (ReSpeaker, 16 kHz mono)
 sd_output_device   = ""                       # sounddevice-Gerät; leer => ALSA default (~/.asoundrc => softvol)

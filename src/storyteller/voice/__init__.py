@@ -1,1 +1,1 @@
-"""Voice: Wake-Word, STT, TTS, Stimm-Effekt, Wartesound (Phase 2/3)."""
+"""Voice: wake word, STT, TTS, voice FX, wait sound."""

@@ -1,4 +1,4 @@
-"""Konfiguration: liest config/config.toml + .env. Alle Modellnamen änderbar."""
+"""Configuration: reads config/config.toml + .env. All model names editable."""
 
 from __future__ import annotations
 
@@ -34,8 +34,16 @@ class TTSCfg(BaseModel):
     sample_rate: int = 24000
 
 
+class GeneralCfg(BaseModel):
+    locale: str = "de"  # de | en
+
+
+class RuntimeCfg(BaseModel):
+    profile: str = "auto"  # auto | pi | pc
+
+
 class AudioCfg(BaseModel):
-    backend: str = "alsa_softvol"  # alsa_softvol | pipewire (Phase 8)
+    backend: str = "auto"  # auto | alsa_softvol | portable | pipewire
     output_alsa_pcm: str = "plug:respeaker_softvol"
     input_alsa_pcm: str = "respeaker_capture"
     sd_output_device: str = ""
@@ -98,7 +106,7 @@ class WebCfg(BaseModel):
 class VoicePromptsCfg(BaseModel):
     enabled: bool = True
     allow_live_fallback: bool = True
-    voice: str = ""  # leer => models.tts_voice
+    voice: str = ""  # empty => models.tts_voice
 
 
 class PathsCfg(BaseModel):
@@ -110,6 +118,8 @@ class PathsCfg(BaseModel):
 
 
 class Config(BaseModel):
+    general: GeneralCfg = GeneralCfg()
+    runtime: RuntimeCfg = RuntimeCfg()
     models: ModelsCfg = ModelsCfg()
     stt: STTCfg = STTCfg()
     tts: TTSCfg = TTSCfg()
@@ -136,7 +146,7 @@ class Config(BaseModel):
 
 @lru_cache
 def load_config(config_path: str | None = None) -> Config:
-    """Lädt Konfiguration (gecacht). config_path optional zum Überschreiben."""
+    """Load configuration (cached). config_path optionally overrides."""
     load_dotenv(ROOT / ".env")
     cfg_file = Path(config_path) if config_path else ROOT / "config" / "config.toml"
     data: dict = {}

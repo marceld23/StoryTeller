@@ -1,0 +1,202 @@
+{
+  "id": "immerwald",
+  "name": "The Everwood Realm",
+  "genre": "High Fantasy",
+  "description": "An epic high-fantasy world: ancient forests, crumbling kingdoms, sleeping powers. Magic is rare, dangerous and costly.",
+  "player_role": "Ranger in the service of a threatened borderland",
+  "starting_situation": "In the Everwood all creatures suddenly fall silent. Captain Eldra Vunn sends you out from Grayhold to find who is breaking the old pacts — before the Ash King wakes.",
+  "narration_style": "Epic, vivid, with a saga tone; sensory nature description, menacing undertones. Address the ranger as 'you'.",
+  "mood": "Reverent, melancholy, threaded with lurking threat.",
+  "ambience": "Moss and wet leaves, scent of resin, distant cracking, dim light through ancient crowns, a silence in which you hear your own heartbeat.",
+  "magic_physics": "Magic draws on old pacts with the forest and the Otherworld. Every spell exacts a price (memory, time, blood). Iron disturbs fae magic; moonstone places thin the border to the Otherworld.",
+  "places": [
+    {
+      "name": "Grayhold",
+      "description": "Last border bastion before the Everwood; weary garrison, old secrets.",
+      "tags": [
+        "start",
+        "fortress"
+      ]
+    },
+    {
+      "name": "The Everwood",
+      "description": "Endless, ancient forest that seems to remember and to watch.",
+      "tags": [
+        "wilderness",
+        "mystic"
+      ]
+    },
+    {
+      "name": "Moonstone Glade",
+      "description": "Place of old rites where the border to the Otherworld is thin.",
+      "tags": [
+        "magic",
+        "danger"
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "name": "Captain Eldra Vunn",
+      "role": "Mentor",
+      "description": "Scarred commander of Grayhold.",
+      "relations": "sends the ranger down dangerous paths.",
+      "tags": []
+    },
+    {
+      "name": "The Ash King",
+      "role": "Antagonist",
+      "description": "Recurring, half-forgotten power from the heart of the forest.",
+      "relations": "wants to break the old pacts.",
+      "tags": []
+    }
+  ],
+  "items": [
+    {
+      "name": "Iron Dagger of Grayhold",
+      "description": "A plain old blade.",
+      "properties": "Disturbs fae magic; breaks minor wards.",
+      "tags": [
+        "weapon"
+      ]
+    },
+    {
+      "name": "Moonstone Amulet",
+      "description": "Pale shimmering stone.",
+      "properties": "Reveals nearby Otherworld borders; but draws gazes from there.",
+      "tags": [
+        "magic",
+        "clue"
+      ]
+    }
+  ],
+  "glossary": [
+    {
+      "term": "The Pacts",
+      "definition": "Ancient treaties between humans, forest and Otherworld that bind the powers."
+    },
+    {
+      "term": "Otherworld",
+      "definition": "Ghostly parallel world behind thin border places."
+    },
+    {
+      "term": "Ranger",
+      "definition": "Border scout, mediator between fort and wilderness."
+    },
+    {
+      "term": "Ash King",
+      "definition": "Sleeping power in the heart of the Everwood; wakes when the pacts break."
+    }
+  ],
+  "history": [
+    {
+      "when": "in the First Age",
+      "title": "The Great Pact",
+      "description": "Human and forest made peace; the Ash King was bound."
+    },
+    {
+      "when": "three generations ago",
+      "title": "The Burning of the Westmark",
+      "description": "A broken pact left a kingdom in ashes."
+    }
+  ],
+  "fragments": [
+    {
+      "title": "The silenced birds",
+      "text": "In the Everwood all creatures fall silent — something ancient awakens.",
+      "tags": [
+        "hook",
+        "omen"
+      ]
+    },
+    {
+      "title": "The broken pact",
+      "text": "A boundary stone of the old treaties was shattered.",
+      "tags": [
+        "stakes"
+      ]
+    }
+  ],
+  "blueprint": {
+    "premise": "The ranger must find out who is breaking the old pacts before the Ash King wakes.",
+    "beats": [
+      {
+        "name": "Call",
+        "goal": "Establish borderland & omen",
+        "tension": 2
+      },
+      {
+        "name": "Threshold",
+        "goal": "Set out into the Everwood",
+        "tension": 4
+      },
+      {
+        "name": "Trial",
+        "goal": "Allies/enemies, trail of the pact-breaking",
+        "tension": 6
+      },
+      {
+        "name": "Abyss",
+        "goal": "Moonstone Glade, betrayal/sacrifice",
+        "tension": 8
+      },
+      {
+        "name": "Climax",
+        "goal": "Confrontation with the Ash King",
+        "tension": 10
+      },
+      {
+        "name": "Homecoming",
+        "goal": "Price of victory, new threat",
+        "tension": 3
+      }
+    ],
+    "escalation_rule": "Steigere Spannung pro Beat; greife Spieler-Ideen auf und webe sie ein, ohne den Spieler auf Schienen zu setzen."
+  },
+  "random_tables": [
+    {
+      "name": "Forest Sign",
+      "description": "When traveling the Everwood",
+      "entries": [
+        {
+          "weight": 3,
+          "text": "Fresh tracks that lead in a circle."
+        },
+        {
+          "weight": 2,
+          "text": "A shrine with a fresh offering."
+        },
+        {
+          "weight": 1,
+          "text": "A voice calls your true name."
+        }
+      ]
+    },
+    {
+      "name": "Encounter on the Path",
+      "description": "",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A family fleeing the forest."
+        },
+        {
+          "weight": 2,
+          "text": "A scout of the Ash King."
+        },
+        {
+          "weight": 1,
+          "text": "A talking animal with a plea."
+        }
+      ]
+    }
+  ],
+  "wait_sound": "fantasy_ambient.wav",
+  "fx_preset": {
+    "reverb_room_size": 0.7,
+    "reverb_damping": null,
+    "reverb_wet_level": 0.22,
+    "reverb_dry_level": null,
+    "distortion_drive_db": null
+  }
+}

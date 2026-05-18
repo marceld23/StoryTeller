@@ -1,8 +1,8 @@
-"""Grobe Kostenverfolgung + Session-Deckel.
+"""Rough cost tracking + session cap.
 
-Zählt Tokens aus OpenAI-Usage und schätzt USD nach config.cost. Bei
-Überschreiten von story.cost_cap_usd_per_session wird `over_cap` True; die
-Engine leitet dann einen ruhigen Abschluss ein.
+Counts tokens from OpenAI usage and estimates USD per config.cost. When
+story.cost_cap_usd_per_session is exceeded, `over_cap` becomes True; the
+engine then steers toward a calm wrap-up.
 """
 
 from __future__ import annotations

@@ -1,1 +1,1 @@
-"""Persistenz: Spielstände speichern/laden (Phase 6)."""
+"""Persistence: save/load games."""

@@ -1,8 +1,8 @@
-"""Wiedergabe über das (lautstärke-sichere) Audio-Backend.
+"""Playback through the (volume-safe) audio backend.
 
-TTS-PCM -> optional Reverb -> temporäre WAV -> backend.play_wav
-(aplay durch `plug:respeaker_softvol`, respektiert die softvol-Lautstärke).
-Streaming-Optimierung später hinter gleicher Schnittstelle.
+TTS PCM -> optional reverb -> temp WAV -> backend.play_wav.
+On the Pi this respects the ALSA softvol volume; on PC it is software gain.
+Streaming optimization later behind the same interface.
 """
 
 from __future__ import annotations

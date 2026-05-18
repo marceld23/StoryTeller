@@ -1,0 +1,202 @@
+{
+  "id": "sternenfahrt",
+  "name": "Starfaring",
+  "genre": "Science Fiction",
+  "description": "Humanity travels by hyperspace technology through a web of many settled and undiscovered worlds. Jumps are risky; fuel and crew trust are scarce.",
+  "player_role": "Captain of an independent jump ship",
+  "starting_situation": "The 'Wanderfalcon' sits with nearly empty tanks at Drift Station Kells. An old, impossible distress signal pulses from the Maw — and Consul Mox's people are already on their way.",
+  "narration_style": "Cinematic, soberly technical with moments of wonder; short sentences under tension, calmer in shipboard routine. Address the captain as 'you'.",
+  "mood": "Lonely, tense, shot through with cold awe of the unknown.",
+  "ambience": "Humming reactors, ozone and cold cable dust, the ticking of cooling hull plates, sterile emergency lighting, sparks in the void.",
+  "magic_physics": "No magic. Hyperspace jumps need helium-3 and exact navigation windows; misjumps age matter or swallow ships. The 'Maw' breaks these rules — no one knows why.",
+  "places": [
+    {
+      "name": "Bridge of the 'Wanderfalcon'",
+      "description": "Command center; hyperspace console, star map.",
+      "tags": [
+        "ship",
+        "start"
+      ]
+    },
+    {
+      "name": "Drift Station Kells",
+      "description": "Run-down trading and smuggler station at the edge of charted space.",
+      "tags": [
+        "station",
+        "trade"
+      ]
+    },
+    {
+      "name": "The Maw",
+      "description": "Anomalous hyperspace region from which ships return changed, or not at all.",
+      "tags": [
+        "anomaly",
+        "danger"
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "name": "Navigator Suri Vael",
+      "role": "Crew",
+      "description": "Brilliant, sarcastic hyperspace navigator.",
+      "relations": "trusts the captain, distrusts the Line.",
+      "tags": []
+    },
+    {
+      "name": "Consul Adran Mox",
+      "role": "Antagonist",
+      "description": "Influential shipping-Line consul with a hidden agenda.",
+      "relations": "wants the route to the Maw.",
+      "tags": []
+    }
+  ],
+  "items": [
+    {
+      "name": "Helium-3 cell",
+      "description": "Fuel canister for jumps.",
+      "properties": "1 cell = 1 safe jump; scarce and expensive.",
+      "tags": [
+        "resource"
+      ]
+    },
+    {
+      "name": "Echo recorder",
+      "description": "Stores the silent signal.",
+      "properties": "Plays back a language that should not exist.",
+      "tags": [
+        "clue",
+        "mystery"
+      ]
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Jump",
+      "definition": "Hyperspace travel between stars; needs helium-3 and a navigation window."
+    },
+    {
+      "term": "The Maw",
+      "definition": "Anomaly where the hyperspace rules fail."
+    },
+    {
+      "term": "The Line",
+      "definition": "Powerful consortium that controls routes and fuel."
+    },
+    {
+      "term": "Drift Station",
+      "definition": "Free-floating trading post at the edge of charted space."
+    }
+  ],
+  "history": [
+    {
+      "when": "200 years ago",
+      "title": "The First Expansion",
+      "description": "Hyperdrive invented; hundreds of worlds settled."
+    },
+    {
+      "when": "12 years ago",
+      "title": "The Kells Disaster",
+      "description": "A jump fleet vanished near the Maw; a no-go zone ever since."
+    }
+  ],
+  "fragments": [
+    {
+      "title": "The silent signal",
+      "text": "An ancient distress signal pulses from the Maw — in a language that should not exist.",
+      "tags": [
+        "hook",
+        "mystery"
+      ]
+    },
+    {
+      "title": "Fuel shortage",
+      "text": "Without helium-3 from Kells, no further jump.",
+      "tags": [
+        "stakes"
+      ]
+    }
+  ],
+  "blueprint": {
+    "premise": "The captain must follow the silent signal before Consul Mox claims the Maw for himself.",
+    "beats": [
+      {
+        "name": "Departure",
+        "goal": "Establish ship & crew, set the hook",
+        "tension": 2
+      },
+      {
+        "name": "Complication",
+        "goal": "Fuel crisis, Mox's pressure",
+        "tension": 4
+      },
+      {
+        "name": "Turn",
+        "goal": "Hint at the truth behind the signal",
+        "tension": 6
+      },
+      {
+        "name": "Crisis",
+        "goal": "Jump into the Maw, betrayal",
+        "tension": 8
+      },
+      {
+        "name": "Climax",
+        "goal": "A decision with consequences",
+        "tension": 10
+      },
+      {
+        "name": "Aftermath",
+        "goal": "Fallout, hook for a sequel",
+        "tension": 3
+      }
+    ],
+    "escalation_rule": "Steigere Spannung pro Beat; greife Spieler-Ideen auf und webe sie ein, ohne den Spieler auf Schienen zu setzen."
+  },
+  "random_tables": [
+    {
+      "name": "Hyperspace Anomaly",
+      "description": "During a jump",
+      "entries": [
+        {
+          "weight": 3,
+          "text": "Time dilation: hours become days."
+        },
+        {
+          "weight": 2,
+          "text": "Ghost echo of an alien ship."
+        },
+        {
+          "weight": 1,
+          "text": "The Maw whispers a name."
+        }
+      ]
+    },
+    {
+      "name": "Station Encounter",
+      "description": "On Kells",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "An informant with half the truth."
+        },
+        {
+          "weight": 2,
+          "text": "Bounty hunters working for Mox."
+        },
+        {
+          "weight": 1,
+          "text": "A stranded xeno-archaeologist."
+        }
+      ]
+    }
+  ],
+  "wait_sound": "scifi_ambient.wav",
+  "fx_preset": {
+    "reverb_room_size": 0.45,
+    "reverb_damping": null,
+    "reverb_wet_level": 0.15,
+    "reverb_dry_level": null,
+    "distortion_drive_db": null
+  }
+}

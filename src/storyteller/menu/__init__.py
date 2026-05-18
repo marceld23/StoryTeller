@@ -1,1 +1,1 @@
-"""Sprachgesteuertes Systemmenü (Phase 6)."""
+"""Voice-controlled system menu."""

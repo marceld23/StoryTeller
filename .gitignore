@@ -16,10 +16,9 @@ data/rag.db-*
 data/*.log
 *.wav
 *.tmp
-# Voice-Prompt-Cache ist gewollt persistent (Token-Ersparnis):
-!data/voice_prompts/
-!data/voice_prompts/*.wav
-!data/voice_prompts/manifest.json
+# Regenerable audio caches (rebuild: storyteller voice-prompts / wait-sounds):
+data/voice_prompts/
+data/wait_sounds/
 
 # OS
 .DS_Store

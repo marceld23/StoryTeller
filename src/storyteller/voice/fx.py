@@ -1,7 +1,7 @@
-"""Stimm-Effekt: leichter Hall / optionale Verzerrung (Spotify pedalboard).
+"""Voice FX: light reverb / optional distortion (Spotify pedalboard).
 
-Parameter aus config.fx, pro Welt überschreibbar via World.fx_preset.
-Installation: `uv sync --extra audiofx`. Fehlt pedalboard -> Pass-through.
+Params from config.fx, overridable per world via World.fx_preset.
+Install: `uv sync --extra audiofx`. If pedalboard is missing -> pass-through.
 """
 
 from __future__ import annotations

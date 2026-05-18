@@ -1,7 +1,7 @@
-"""STT-Provider-Abstraktion.
+"""STT provider abstraction.
 
-OpenAISTT (Default) implementiert; LocalWhisperSTT = Phase 10 (Pi 5 + AI HAT).
-Auswahl über config.stt.provider.
+OpenAISTT (default) implemented; LocalWhisperSTT = Phase 10 (Pi 5 + AI HAT).
+Selected via config.stt.provider. Language follows the locale.
 """
 
 from __future__ import annotations
@@ -22,12 +22,16 @@ class OpenAISTT(STT):
         self.cfg = cfg
 
     def transcribe(self, wav_path: str) -> str:
+        from ..i18n import norm
+
         client = get_client(self.cfg)
+        # STT-Sprache folgt der Locale (de/en); überschreibt stt.language.
+        lang = norm(self.cfg.general.locale)
         with open(wav_path, "rb") as f:
             r = client.audio.transcriptions.create(
                 model=self.cfg.models.stt,
                 file=f,
-                language=self.cfg.stt.language,
+                language=lang,
             )
         return (r.text or "").strip()
 

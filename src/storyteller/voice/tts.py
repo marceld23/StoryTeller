@@ -1,8 +1,8 @@
-"""TTS-Provider-Abstraktion.
+"""TTS provider abstraction.
 
-OpenAITTS (Default, PCM 24 kHz mono -> ideal für Reverb) implementiert;
-LocalTTS = Phase 10 (Pi 5 + AI HAT). Hinweis: Whisper kann KEIN TTS.
-Auswahl über config.tts.provider.
+OpenAITTS (default, PCM 24 kHz mono -> ideal for reverb) implemented;
+LocalTTS = Phase 10 (Pi 5 + AI HAT). Note: Whisper is NOT TTS.
+Selected via config.tts.provider.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
-"""Spannungsbogen-Steuerung ("Bauplan").
+"""Macro-arc control ("blueprint").
 
-Kennt den aktuellen Beat, liefert dem LLM Leitplanken (Position/Eskalation),
-ohne den Spieler auf Schienen zu setzen. advance() schaltet einen Beat weiter.
+Knows the current beat, gives the LLM guard rails (position/escalation)
+without railroading the player. advance() moves one beat forward.
 """
 
 from __future__ import annotations

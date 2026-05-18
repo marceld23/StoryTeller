@@ -1,8 +1,8 @@
-"""High-Level LED-Ring-Steuerung mit graceful Fallback.
+"""High-level LED ring control with graceful fallback.
 
-Zustände: idle / wake / listen / think / speak / error.
-Wenn kein Gerät / pyusb fehlt / keine Rechte -> No-Op (App läuft trotzdem).
-udev-Regel: scripts/setup_system.sh (60-respeaker.rules).
+States: idle / wake / listen / think / speak / error.
+No device / pyusb missing / no permission -> no-op (app still runs; PC mode).
+udev rule: scripts/setup_system.sh (60-respeaker.rules).
 """
 
 from __future__ import annotations

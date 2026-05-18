@@ -1,7 +1,8 @@
-"""Per-Welt-RAG mit sqlite-vec + OpenAI-Embeddings.
+"""Per-(world, locale) RAG with sqlite-vec + OpenAI embeddings.
 
-Eine DB-Datei, `world_id` als partition key (saubere Welt-Isolation),
-fact_type filterbar, Originaltext als +content. Installation: --extra rag.
+One DB file, `world_id` partition key composed as "<id>:<locale>" (clean
+world/locale isolation), filterable fact_type, original text as +content.
+Install: --extra rag.
 """
 
 from __future__ import annotations
@@ -53,18 +54,26 @@ class WorldRAG:
         return [d.embedding for d in r.data]
 
     # --- API ---
-    def count(self, world_id: str) -> int:
+    @staticmethod
+    def _key(world_id: str, locale: str) -> str:
+        from ..i18n import norm
+
+        return f"{world_id}:{norm(locale)}"
+
+    def count(self, world_id: str, locale: str = "de") -> int:
         cur = self._conn().execute(
-            "SELECT count(*) FROM world_facts WHERE world_id = ?", (world_id,)
-        )
+            "SELECT count(*) FROM world_facts WHERE world_id = ?",
+            (self._key(world_id, locale),))
         return int(cur.fetchone()[0])
 
-    def index_world(self, world, force: bool = False) -> int:
+    def index_world(self, world, force: bool = False,
+                    locale: str = "de") -> int:
         db = self._conn()
+        wid = self._key(world.id, locale)
         if force:
-            db.execute("DELETE FROM world_facts WHERE world_id = ?", (world.id,))
+            db.execute("DELETE FROM world_facts WHERE world_id = ?", (wid,))
             db.commit()
-        elif self.count(world.id) > 0:
+        elif self.count(world.id, locale) > 0:
             return 0
 
         items: list[tuple[str, str]] = []
@@ -98,15 +107,16 @@ class WorldRAG:
         embs = self._embed([t for _, t in items])
         for (ftype, text), emb in zip(items, embs):
             db.execute(
-                "INSERT INTO world_facts(world_id, embedding, fact_type, content)"
-                " VALUES (?,?,?,?)",
-                (world.id, serialize_float32(emb), ftype, text),
+                "INSERT INTO world_facts(world_id, embedding, fact_type,"
+                " content) VALUES (?,?,?,?)",
+                (wid, serialize_float32(emb), ftype, text),
             )
         db.commit()
         return len(items)
 
     def retrieve(self, world_id: str, query: str, k: int | None = None,
-                 fact_type: str | None = None) -> list[dict]:
+                 fact_type: str | None = None,
+                 locale: str = "de") -> list[dict]:
         from sqlite_vec import serialize_float32
 
         k = k or self.cfg.story.rag_top_k
@@ -115,7 +125,7 @@ class WorldRAG:
             "SELECT content, fact_type, distance FROM world_facts "
             "WHERE embedding MATCH ? AND world_id = ? AND k = ?"
         )
-        params: list = [serialize_float32(q), world_id, k]
+        params: list = [serialize_float32(q), self._key(world_id, locale), k]
         if fact_type:
             sql += " AND fact_type = ?"
             params.append(fact_type)

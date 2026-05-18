@@ -1,11 +1,13 @@
-"""Kommandozeile.
+"""Command line.
 
   storyteller info | seed | hw-test
   storyteller rag build [--force] [--world ID]
-  storyteller voice-prompts build [--force]
-  storyteller demo --world ID [--text "…"] [--opening] [--no-rag]
-  storyteller run [--world ID] [--ptt] [--no-rag] [--load NAME]
-  storyteller admin                # Web-Admin (uv sync --extra web)
+  storyteller voice-prompts build [--force] [--all-locales] [--locale de|en]
+  storyteller wait-sounds build [--force] [--world ID]
+  storyteller demo --world ID [--text "…"] [--opening] [--no-rag] [--locale]
+  storyteller run [--world ID] [--ptt] [--text] [--silent]
+                  [--profile pi|pc] [--locale de|en] [--no-rag] [--load NAME]
+  storyteller admin                # web admin (uv sync --extra web)
 """
 
 from __future__ import annotations
@@ -46,15 +48,17 @@ def _speak(backend, tts, fx, leds, text: str, style: str = "") -> None:
     play_array(backend, audio, sr)
 
 
-def _say(cfg, world, backend, tts, fx, leds, gen):
+def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True):
     """LLM 'denkt' + TTS-Synthese laufen UNTER dem welt-spezifischen
     Wartesound-Loop (LED 'think'); erst danach wird die Erzählung gesprochen.
-    Kein Stille-Loch mehr — gilt für Eröffnung wie jeden Zug."""
+    speak=False (Text-/Silent-Modus): nur generieren, keine Audioausgabe."""
+    if not speak:
+        return gen()
     from .audio.player import play_array
     from .voice.waitloop import WaitLoop
 
     out = None
-    with WaitLoop(cfg, world.wait_sound, leds):
+    with WaitLoop(cfg, backend, world.wait_sound, leds):
         text = gen()
         if text:
             a, sr = tts.synthesize(text, world.narration_style)
@@ -143,21 +147,36 @@ def cmd_hw_test(cfg) -> int:
 
 
 def cmd_rag(cfg, args) -> int:
+    from .i18n import LOCALES
     from .story.rag import WorldRAG
     from .worlds.registry import all_world_ids, load_world
 
     rag = WorldRAG(cfg)
     ids = [args.world] if args.world else all_world_ids(cfg)
-    for wid in ids:
-        n = rag.index_world(load_world(cfg, wid), force=args.force)
-        print(f"{wid}: {'indexiert' if n else 'vorhanden'} ({rag.count(wid)})")
+    saved = cfg.general.locale
+    try:
+        for loc in LOCALES:
+            cfg.general.locale = loc
+            for wid in ids:
+                w = load_world(cfg, wid)
+                n = rag.index_world(w, force=args.force, locale=loc)
+                print(f"[{loc}] {wid}: "
+                      f"{'indexiert' if n else 'vorhanden'} "
+                      f"({rag.count(wid, loc)})")
+    finally:
+        cfg.general.locale = saved
     return 0
 
 
 def cmd_voice_prompts(cfg, args) -> int:
+    from .i18n import LOCALES
     from .voice.prompts import VoicePromptCache
 
-    print("gerendert:", VoicePromptCache(cfg).build(force=args.force) or "(aktuell)")
+    locs = LOCALES if getattr(args, "all_locales", False) else \
+        [getattr(args, "locale", None) or cfg.general.locale]
+    for loc in locs:
+        built = VoicePromptCache(cfg, loc).build(force=args.force)
+        print(f"[{loc}] gerendert:", built or "(aktuell)")
     return 0
 
 
@@ -183,13 +202,16 @@ def cmd_wait_sounds(cfg, args) -> int:
 def _make_engine(cfg, world, use_rag: bool):
     from .story.engine import StoryEngine
 
+    from .i18n import norm
+
+    loc = norm(cfg.general.locale)
     rag = None
     if use_rag:
         try:
             from .story.rag import WorldRAG
 
             rag = WorldRAG(cfg)
-            rag.index_world(world)
+            rag.index_world(world, locale=loc)
         except Exception as e:
             print(f"[warn] RAG aus: {e!r}")
     return StoryEngine(cfg, world, rag), rag
@@ -202,6 +224,8 @@ def cmd_demo(cfg, args) -> int:
     from .voice.tts import get_tts
     from .worlds.registry import load_world
 
+    if getattr(args, "locale", None):
+        cfg.general.locale = args.locale
     world = load_world(cfg, args.world)
     backend = get_backend(cfg)
     backend.set_volume(cfg.audio.default_volume_pct)
@@ -231,8 +255,19 @@ def cmd_run(cfg, args) -> int:
     from .voice.stt import get_stt
     from .voice.tts import get_tts
     from .voice.waitloop import WaitLoop
+    from .i18n import CMD_KEYWORDS, RESUME_DIRECTIVE, norm
+    from .runtime import resolve_profile
     from .worlds.registry import load_world
 
+    if args.profile:
+        cfg.runtime.profile = args.profile
+    if getattr(args, "locale", None):
+        cfg.general.locale = args.locale
+    _loc = norm(cfg.general.locale)
+    _cmd_kw = CMD_KEYWORDS[_loc]
+    _resume_dir = RESUME_DIRECTIVE[_loc]
+    rp(f"[dim]Profil: {resolve_profile(cfg)} | Backend: "
+       f"{get_backend(cfg).name} | Locale: {_loc}[/dim]")
     backend = get_backend(cfg)
     backend.set_volume(cfg.audio.default_volume_pct)
     leds = LedRing()
@@ -256,38 +291,53 @@ def cmd_run(cfg, args) -> int:
     world = load_world(cfg, wid)
     rp(f"[bold]Welt:[/bold] {world.name}")
 
-    # Pause nach der Welt-Auswahl mit dem Wartesound überbrücken: RAG,
-    # Wake-Word-Modell-Ladung, Planung, Eröffnung UND TTS laufen alle unter
-    # dem welt-spezifischen Loop — erst dann wird die Erzählung gesprochen.
+    speak = not args.silent          # --silent: keine Audioausgabe
+    text_mode = args.text            # --text: Tastatur statt Mikro (PC)
     from .audio.player import play_array
     from .voice.waitloop import WaitLoop
 
-    out = None
-    with WaitLoop(cfg, world.wait_sound, leds):
-        engine, _ = _make_engine(cfg, world, not args.no_rag)
-        fx = VoiceFX(cfg, world.fx_preset)
-        style = world.narration_style
-        ww = None
-        if not args.ptt:
+    def _init_engine_ww():
+        eng, _ = _make_engine(cfg, world, not args.no_rag)
+        fxx = VoiceFX(cfg, world.fx_preset)
+        wwx = None
+        if not args.ptt and not text_mode:
             from .voice.wakeword import WakeWord
 
-            ww = WakeWord(cfg)
-            if not ww.available:
-                rp("[yellow]Wake-Word aus -> Push-to-talk (Enter)[/yellow]")
-                ww = None
+            w = WakeWord(cfg, backend)
+            if w.available:
+                wwx = w
+            else:
+                rp("[yellow]Wake-Word nicht verfügbar -> Push-to-talk"
+                   "[/yellow]")
+        return eng, fxx, wwx
+
+    def _open(eng):
+        from .i18n import RESTORE_DIRECTIVE, norm
+
         if restore_state:
-            engine.restore(restore_state)
-            first = engine.turn("[Setze die Geschichte fort: fasse in 1-2 "
-                                "Sätzen zusammen, wo wir stehen, und weiter.]")
-        else:
-            first = engine.opening()
-        if first:
-            a, sr = tts.synthesize(first, style)
-            out = (fx.process(a, sr), sr)
-    rp(f"[green][Erzähler][/green] {first}")
-    if out is not None:
-        leds.speak()
-        play_array(backend, out[0], out[1])
+            eng.restore(restore_state)
+            return eng.turn(RESTORE_DIRECTIVE[norm(cfg.general.locale)])
+        return eng.opening()
+
+    # Pause nach der Welt-Auswahl mit dem Wartesound überbrücken (nur bei Audio).
+    if speak:
+        out = None
+        with WaitLoop(cfg, backend, world.wait_sound, leds):
+            engine, fx, ww = _init_engine_ww()
+            style = world.narration_style
+            first = _open(engine)
+            if first:
+                a, sr = tts.synthesize(first, style)
+                out = (fx.process(a, sr), sr)
+        rp(f"[green][Erzähler][/green] {first}")
+        if out is not None:
+            leds.speak()
+            play_array(backend, out[0], out[1])
+    else:
+        engine, fx, ww = _init_engine_ww()
+        style = world.narration_style
+        first = _open(engine)
+        rp(f"[green][Erzähler][/green] {first}")
 
     def autosave():
         return sm.save(f"{world.id}-auto", engine.snapshot())
@@ -299,54 +349,63 @@ def cmd_run(cfg, args) -> int:
         while True:
             leds.idle()
             try:
-                if ww:
-                    rp("[dim]… warte auf Wake-Word …[/dim]")
-                    ww.listen_blocking()
+                if text_mode:
+                    said = input("Du: ").strip()
                 else:
-                    input("[Enter zum Sprechen, Strg+C beendet] ")
-                leds.listen()
-                with tempfile.NamedTemporaryFile(suffix=".wav",
-                                                 delete=False) as t:
-                    wav = t.name
-                backend.record_wav(wav, 6)
-                said = stt.transcribe(wav).strip()
+                    if ww:
+                        rp("[dim]… warte auf Wake-Word …[/dim]")
+                        ww.listen_blocking()
+                    else:
+                        input("[Enter zum Sprechen, Strg+C beendet] ")
+                    leds.listen()
+                    with tempfile.NamedTemporaryFile(suffix=".wav",
+                                                     delete=False) as t:
+                        wav = t.name
+                    backend.record_wav(wav, 6)
+                    said = stt.transcribe(wav).strip()
                 rp(f"[cyan][Du][/cyan] {said}")
                 low = said.lower()
                 if not said:
                     continue
-                if any(k in low for k in ("beenden", "aufhören", "schluss",
-                                          "tschüss", "tschüs")):
+                if any(k in low for k in _cmd_kw["quit"]):
                     break
-                if "speicher" in low:
+                if any(k in low for k in _cmd_kw["save"]):
                     autosave()
-                    prompts.play("saved", backend)
+                    if speak:
+                        prompts.play("saved", backend)
+                    else:
+                        rp("[dim](gespeichert)[/dim]")
                     continue
-                if "lade" in low or "spielstand" in low:
+                if any(k in low for k in _cmd_kw["load"]):
                     if sm.latest():
                         def _resume():
                             engine.restore(sm.load(sm.latest()))
-                            return engine.turn("[Kurz zusammenfassen wo wir "
-                                               "stehen, dann weiter.]")
-                        r = _say(cfg, world, backend, tts, fx, leds, _resume)
+                            return engine.turn(_resume_dir)
+                        r = _say(cfg, world, backend, tts, fx, leds, _resume,
+                                 speak=speak)
                         rp(f"[green][Erzähler][/green] {r}")
-                    else:
+                    elif speak:
                         prompts.play("no_saves", backend)
+                    else:
+                        rp("[dim](keine Spielstände)[/dim]")
                     continue
                 reply = _say(cfg, world, backend, tts, fx, leds,
-                             lambda: engine.turn(said))
+                             lambda: engine.turn(said), speak=speak)
                 rp(f"[green][Erzähler][/green] {reply}  "
                    f"[dim]({engine.state().value}, "
                    f"${engine.cost.usd:.3f})[/dim]")
                 if engine.cost.over_cap:
                     rp("[yellow]Kostendeckel erreicht — Abschluss.[/yellow]")
                     autosave()
-                    prompts.play("goodbye", backend)
+                    if speak:
+                        prompts.play("goodbye", backend)
                     break
             except Exception as exc:
                 log.warning("Zug-Fehler (Loop läuft weiter): %r", exc)
                 try:
                     leds.error()
-                    prompts.play("error_retry", backend)
+                    if speak:
+                        prompts.play("error_retry", backend)
                 except Exception:
                     pass
                 time.sleep(1.0)
@@ -354,7 +413,8 @@ def cmd_run(cfg, args) -> int:
     except KeyboardInterrupt:
         print()
         autosave()
-        prompts.play("goodbye", backend)
+        if speak:
+            prompts.play("goodbye", backend)
     leds.off()
     return 0
 
@@ -384,6 +444,9 @@ def main(argv: list[str] | None = None) -> int:
     pv = sub.add_parser("voice-prompts")
     pv.add_argument("build", nargs="?", default="build")
     pv.add_argument("--force", action="store_true")
+    pv.add_argument("--locale", default=None, help="de|en")
+    pv.add_argument("--all-locales", action="store_true",
+                    help="alle Locales rendern")
     pw2 = sub.add_parser("wait-sounds")
     pw2.add_argument("build", nargs="?", default="build")
     pw2.add_argument("--force", action="store_true")
@@ -393,9 +456,19 @@ def main(argv: list[str] | None = None) -> int:
     pd.add_argument("--text", default="")
     pd.add_argument("--opening", action="store_true")
     pd.add_argument("--no-rag", action="store_true")
+    pd.add_argument("--locale", default=None, help="de|en")
     prun = sub.add_parser("run")
     prun.add_argument("--world", default=None)
-    prun.add_argument("--ptt", action="store_true")
+    prun.add_argument("--ptt", action="store_true",
+                      help="Push-to-talk (Enter) statt Wake-Word")
+    prun.add_argument("--text", action="store_true",
+                      help="Tastatur-Eingabe statt Mikrofon (PC ohne Mikro)")
+    prun.add_argument("--silent", action="store_true",
+                      help="keine Audioausgabe (reiner Text-Modus)")
+    prun.add_argument("--profile", default=None,
+                      help="auto|pi|pc — überschreibt config.runtime.profile")
+    prun.add_argument("--locale", default=None,
+                      help="de|en — überschreibt config.general.locale")
     prun.add_argument("--no-rag", action="store_true")
     prun.add_argument("--load", default=None)
 

@@ -1,4 +1,4 @@
-"""Known-Facts-Tool: was der Spieler bereits KENNT (pro Spielstand)."""
+"""Known-facts tool: what the player already KNOWS (per save game)."""
 
 from __future__ import annotations
 

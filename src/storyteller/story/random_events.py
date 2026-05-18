@@ -1,4 +1,4 @@
-"""Zufallsereignisse: welt-spezifische, gewichtete Zufallstabellen."""
+"""Random events: world-specific, weighted random tables."""
 
 from __future__ import annotations
 

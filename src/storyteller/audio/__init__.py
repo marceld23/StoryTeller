@@ -1,1 +1,1 @@
-"""Audio: austauschbares Ausgabe-Backend, Player, Recorder."""
+"""Audio: pluggable output backend, player, ambience."""

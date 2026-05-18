@@ -1,27 +1,21 @@
-"""Sprachgesteuertes Systemmenü.
+"""Voice-controlled system menu.
 
-Nutzt den Voice-Prompt-Cache (keine TTS-Tokens für feste Ansagen), STT für
-die Spieler-Eingabe und einfaches Keyword-Matching. Liefert eine Auswahl:
+Uses the locale voice-prompt cache (no TTS tokens for fixed prompts), STT for
+the player's input and simple keyword matching. Returns a selection:
 {action: 'play'|'load'|'quit', world_id, save_name}.
 """
 
 from __future__ import annotations
 
-import json
 import tempfile
 
 from ..config import Config
-
-WORLD_KEYWORDS = {
-    "sternenfahrt": ["sternenfahrt", "scifi", "science", "raumschiff", "weltraum",
-                     "kapitän", "all"],
-    "immerwald": ["immerwald", "fantasy", "wald", "waldläufer", "magie", "epos"],
-}
+from ..i18n import norm, world_keywords
 
 
-def _match_world(text: str) -> str | None:
+def _match_world(text: str, keywords: dict[str, list[str]]) -> str | None:
     t = text.lower()
-    for wid, kws in WORLD_KEYWORDS.items():
+    for wid, kws in keywords.items():
         if any(k in t for k in kws):
             return wid
     return None
@@ -34,6 +28,11 @@ class VoiceMenu:
         self.prompts = prompts
         self.stt = stt
         self.leds = leds
+        self.locale = norm(cfg.general.locale)
+        self.keywords = world_keywords(self.locale)
+        # locale-spezifische "laden"-Trigger
+        self._load_kw = (("laden", "spielstand") if self.locale == "de"
+                         else ("load", "save game", "saved game"))
 
     def _ask(self, seconds: float = 4.0) -> str:
         if self.leds:
@@ -51,12 +50,16 @@ class VoiceMenu:
         for _ in range(3):
             self.prompts.play("choose_world", self.backend)
             said = self._ask()
-            wid = _match_world(said)
-            if "laden" in said.lower() or "spielstand" in said.lower():
-                return {"action": "load", "world_id": None, "save_name": None}
+            low = said.lower()
+            if any(k in low for k in self._load_kw):
+                return {"action": "load", "world_id": None,
+                        "save_name": None}
+            wid = _match_world(said, self.keywords)
             if wid:
                 self.prompts.play(f"world_{wid}", self.backend)
                 self.prompts.play("starting", self.backend)
-                return {"action": "play", "world_id": wid, "save_name": None}
+                return {"action": "play", "world_id": wid,
+                        "save_name": None}
             self.prompts.play("not_understood", self.backend)
-        return {"action": "play", "world_id": "sternenfahrt", "save_name": None}
+        return {"action": "play", "world_id": "sternenfahrt",
+                "save_name": None}

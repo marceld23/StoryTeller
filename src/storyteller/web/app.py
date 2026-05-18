@@ -318,7 +318,8 @@ def create_app(cfg: Config | None = None):
         try:
             from ..story.rag import WorldRAG
 
-            n = WorldRAG(cfg).index_world(load_world(cfg, wid), force=True)
+            n = WorldRAG(cfg).index_world(load_world(cfg, wid), force=True,
+                                          locale=cfg.general.locale)
             msg = f"{n} Fakten neu indexiert"
         except Exception as exc:
             msg = f"Fehler: {exc}"
