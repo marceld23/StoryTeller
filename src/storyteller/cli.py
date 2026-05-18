@@ -345,6 +345,9 @@ def cmd_run(cfg, args) -> int:
     import logging
 
     log = logging.getLogger("storyteller")
+    # follow-up: after the narrator speaks, listen once WITHOUT the wake word
+    follow_enabled = bool(ww) and cfg.wakeword.follow_up
+    pending_follow = follow_enabled  # also lets the player answer the opening
     try:
         while True:
             leds.idle()
@@ -352,11 +355,15 @@ def cmd_run(cfg, args) -> int:
                 if text_mode:
                     said = input("Du: ").strip()
                 else:
-                    if ww:
+                    if ww and not pending_follow:
                         rp("[dim]… warte auf Wake-Word …[/dim]")
                         ww.listen_blocking()
-                    else:
+                    elif ww and pending_follow:
+                        rp("[dim]… sprich direkt weiter (oder still bleiben "
+                           "für Wake-Word) …[/dim]")
+                    elif not ww:
                         input("[Enter zum Sprechen, Strg+C beendet] ")
+                    pending_follow = False
                     leds.listen()
                     with tempfile.NamedTemporaryFile(suffix=".wav",
                                                      delete=False) as t:
@@ -384,6 +391,7 @@ def cmd_run(cfg, args) -> int:
                         r = _say(cfg, world, backend, tts, fx, leds, _resume,
                                  speak=speak)
                         rp(f"[green][Erzähler][/green] {r}")
+                        pending_follow = follow_enabled
                     elif speak:
                         prompts.play("no_saves", backend)
                     else:
@@ -394,6 +402,7 @@ def cmd_run(cfg, args) -> int:
                 rp(f"[green][Erzähler][/green] {reply}  "
                    f"[dim]({engine.state().value}, "
                    f"${engine.cost.usd:.3f})[/dim]")
+                pending_follow = follow_enabled
                 if engine.cost.over_cap:
                     rp("[yellow]Kostendeckel erreicht — Abschluss.[/yellow]")
                     autosave()

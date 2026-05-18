@@ -58,6 +58,9 @@ class WakeWordCfg(BaseModel):
     engine: str = "openwakeword"
     model: str = ""
     threshold: float = 0.5
+    # After the narrator speaks, listen once WITHOUT the wake word so the
+    # player can reply directly; only after silence is the wake word needed.
+    follow_up: bool = True
 
 
 class FXCfg(BaseModel):
