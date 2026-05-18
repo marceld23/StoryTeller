@@ -129,7 +129,3 @@ see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md):
 - Vendored ReSpeaker drivers (`hardware/pixel_ring_v2.py`,
   `hardware/tuning.py`) are from Seeed Studio under **Apache-2.0**, retained
   with attribution (not relicensed).
-
-Note: MIT permits commercial use; it cannot restrict commercial use to
-"by permission only" — that would require a non-open source-available
-license (e.g. PolyForm Noncommercial) instead.
