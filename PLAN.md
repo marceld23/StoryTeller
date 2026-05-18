@@ -195,17 +195,6 @@ Worlds exist per locale: data/worlds/<id>.json (de), <id>.en.json (en).
   web admin (own port/service, only active in AP mode). Security: AP only
   temporary, WPA2 on the setup AP, never log the key.
 
-### Status
-
-- ✅ **Phases 0–9 + 9b implemented & tested**: setup/HW, voice pipeline,
-  wake word (default "hey jarvis", PTT/text fallback), RAG, story engine v2
-  (substory state machine + abstract story dynamic), voice menu, save games,
-  web admin, cost cap, logging, systemd, **PC mode**, **de/en localization**.
-- 🟡 **Phase 8 (Bluetooth)**: `PipeWireBackend` + `scripts/setup_bluetooth.sh`
-  present but **not testable on this Pi** (no PipeWire). Activate via the
-  script + `[audio] backend = "pipewire"`.
-- ⏳ **Phase 10 (local models)**: intentionally open — needs Pi 5 + AI HAT.
-
 ---
 
 ## 5. Risks / open points

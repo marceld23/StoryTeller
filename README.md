@@ -86,15 +86,3 @@ architect plans the next one (RAG + context); the plan is adjustable via
 tool / prompt injection. An abstract **story dynamic** (new antagonist /
 unforeseen event …) spices planning and play without derailing the arc.
 Per-session cost cap (graceful wrap-up). Follow-up questions get short answers.
-
-## Status
-
-Done & tested: **Phases 0–9** — setup/HW, voice pipeline (STT→LLM→TTS→reverb→
-output, wait sound, LED), wake word (default + PTT fallback), RAG, **story
-engine v2** (substory state machine, co-creation, story dynamic, tools),
-voice menu, save games, web admin, cost cap, logging, systemd autostart,
-**PC mode** and **de/en localization**.
-
-🟡 **Phase 8 (Bluetooth)** is implemented but not testable on this Pi (no
-PipeWire active). ⏳ **Phase 10** (local STT/TTS models) needs a Pi 5 + AI HAT.
-Details: [PLAN.md](PLAN.md).
