@@ -92,7 +92,11 @@ def _page(T: dict, title: str, body: str) -> str:
         "padding:.5rem .8rem;border-radius:6px;margin:-1rem 0 1rem}"
         "nav a{color:var(--navlink);margin-right:1rem;cursor:pointer}"
         ".card{border:1px solid var(--bd);background:var(--card);"
-        "border-radius:8px;padding:.8rem;margin:.6rem 0}</style>"
+        "border-radius:8px;padding:.8rem;margin:.6rem 0}"
+        # theme-aware tints (work on light & dark)
+        ".b-user{background:rgba(90,140,255,.14)}"
+        ".b-ok{background:rgba(60,180,90,.16)}"
+        ".b-bad{background:rgba(220,60,60,.16)}</style>"
         "<script>function stTheme(){var d=document.documentElement,"
         "c=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=c;"
         "try{localStorage.setItem('st-theme',c);}catch(e){}}</script>"
@@ -497,7 +501,7 @@ def create_app(cfg: Config | None = None):
                 continue
             t = e.get("type")
             if t == "user":
-                out.append("<div class='card' style='background:#eef'>"
+                out.append("<div class='card b-user'>"
                            f"<b>🧑 {T['tr_player']}:</b> "
                            f"{_esc(e.get('text',''))}</div>")
             elif t == "assistant":
@@ -513,10 +517,10 @@ def create_app(cfg: Config | None = None):
                     f"\nresult: {_esc(e.get('result',''))}</pre></details>")
             elif t == "moderation":
                 ok = e.get("ok", True)
-                col = "#e7f7e7" if ok else "#fde7e7"
+                cls = "b-ok" if ok else "b-bad"
                 fl = e.get("flagged", [])
                 out.append(
-                    f"<div class='card' style='background:{col}'>🛡 "
+                    f"<div class='card {cls}'>🛡 "
                     f"{T['mod_title']}: "
                     f"{'OK' if ok else T['tr_blocked']}"
                     + (f" — {_esc(json.dumps(fl,ensure_ascii=False))}"
