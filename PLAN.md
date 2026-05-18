@@ -186,14 +186,60 @@ Worlds exist per locale: data/worlds/<id>.json (de), <id>.en.json (en).
   Whisper STT + local TTS behind the provider abstraction.
   **Requires a Raspberry Pi 5 + AI HAT (NPU)** — not latency-viable on the
   current Pi 4. Switchable via config (OpenAI ↔ local).
-- **Phase 11 — Wi-Fi onboarding (planned for later)**: if no known Wi-Fi is
-  reachable at boot, the Pi spins up its own **access point** with a
-  **captive-portal setup page** (scan networks, enter SSID + key, store,
-  reconnect). Options: NetworkManager (`nmcli device wifi`, AP profile) or
-  `hostapd`+`dnsmasq`; references: balena `wifi-connect`, `comitup`,
-  `RaspiWiFi`. Separate small FastAPI/Flask page, isolated from the story
-  web admin (own port/service, only active in AP mode). Security: AP only
-  temporary, WPA2 on the setup AP, never log the key.
+- **Phase 11 — Wi-Fi onboarding (designed; feasible on this Pi)**
+
+  Goal: if the Pi cannot reach a known Wi-Fi at boot, it opens its own AP
+  `storyteller-wifi`; a phone connects, sees a page listing nearby Wi-Fis,
+  picks one + enters the key; the Pi stores it, switches/reboots and uses it,
+  and keeps it for future boots.
+
+  **Feasibility (verified on this device):** NetworkManager is active
+  (`nmcli` 1.52), `wlan0` supports **AP mode** (`iw list`), nmcli-created
+  connections persist (`/etc/NetworkManager/system-connections`,
+  autoconnect). So the whole flow is `nmcli`-only — no hostapd needed. One
+  extra package: **`dnsmasq-base`** (NM "shared"/hotspot DHCP).
+
+  **Components:**
+  - `net/onboarding.py` + a systemd unit `storyteller-netcheck.service`
+    (`Before=storyteller.service`, `After=NetworkManager.service`).
+  - A tiny separate FastAPI app (own port, e.g. `:80`), isolated from the
+    story web admin, only running while in AP mode.
+
+  **Boot flow (`storyteller-netcheck`):**
+  1. Wait up to ~`netcheck.timeout_s` for connectivity
+     (`nmcli -t -f STATE general` == connected / `nmcli networking
+     connectivity` == full).
+  2. Connected → exit 0; normal services start.
+  3. Not connected → **scan first in station mode** and cache results
+     (`nmcli -t -f SSID,SIGNAL,SECURITY device wifi list`) to a temp file
+     (single radio: can't scan while in AP mode).
+  4. Start AP: `nmcli device wifi hotspot ifname wlan0 ssid storyteller-wifi
+     password <cfg>` (WPA2; password configurable, default printed/in config;
+     gateway `10.42.0.1`). Start the setup web app.
+  5. User connects phone to `storyteller-wifi`, opens `http://10.42.0.1`
+     (manual MVP) → page shows cached SSID list (dropdown) + manual SSID +
+     password field + submit. Optional later: real captive portal (own
+     `dnsmasq` DNS-hijack + OS probe URLs `/generate_204`,
+     `/hotspot-detect.html` → redirect) so it auto-pops.
+  6. POST `/connect`: `nmcli device wifi connect "<ssid>" password "<key>"`
+     → on success the connection is saved (autoconnect=yes, persists) →
+     tear down AP (`nmcli connection down Hotspot`) → `sudo reboot` (clean,
+     reuses saved Wi-Fi on next boot). On failure → back to AP with an error
+     (never echo/log the key).
+
+  **Caveats / decisions:**
+  - One radio ⇒ scan-before-AP + cached list + manual SSID entry; a "rescan"
+    button briefly drops the AP.
+  - `nmcli`-created keyfile connections persist independent of netplan; do
+    NOT manage them via netplan to avoid re-render wipes.
+  - Setup AP is WPA2 (configurable password); the *target* key is only
+    passed to `nmcli`, never logged or rendered back.
+  - Needs `sudo` for `nmcli`/reboot ⇒ the netcheck service runs as root (or
+    a tight sudoers rule for `nmcli`/`reboot`).
+  - New config block `[netcheck]`: `enabled`, `timeout_s`, `ap_ssid`,
+    `ap_password`, `web_port`.
+  - References for the captive-portal polish: balena `wifi-connect`,
+    `comitup`, `RaspiWiFi` (we stay nmcli-native, no hostapd).
 
 ---
 
