@@ -419,6 +419,70 @@ def cmd_run(cfg, args) -> int:
     return 0
 
 
+def cmd_chat(cfg, args) -> int:
+    """Pure text REPL for testing — no STT/TTS/audio/menu/wake word."""
+    from rich import print as rp
+
+    from .i18n import CMD_KEYWORDS, RESUME_DIRECTIVE, norm
+    from .persistence.saves import SaveManager
+    from .worlds.registry import load_world
+
+    if getattr(args, "locale", None):
+        cfg.general.locale = args.locale
+    loc = norm(cfg.general.locale)
+    kw = CMD_KEYWORDS[loc]
+    sm = SaveManager(cfg)
+
+    wid = args.world
+    restore_state = None
+    if args.load:
+        restore_state = sm.load(args.load)
+        wid = restore_state["world_id"]
+    world = load_world(cfg, wid)
+    rp(f"[dim]chat | world={world.name} | locale={loc} | "
+       f"commands: save / load / quit[/dim]")
+
+    engine, _ = _make_engine(cfg, world, not args.no_rag)
+    if restore_state:
+        engine.restore(restore_state)
+        first = engine.turn(RESUME_DIRECTIVE[loc])
+    else:
+        first = engine.opening()
+    rp(f"\n[green][Narrator][/green] {first}\n")
+
+    while True:
+        try:
+            said = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not said:
+            continue
+        low = said.lower()
+        if low in ("quit", "exit", ":q", "q") or any(k in low
+                                                     for k in kw["quit"]):
+            break
+        if low in ("save", ":w") or any(k in low for k in kw["save"]):
+            print(f"[saved: {sm.save(f'{world.id}-chat', engine.snapshot())}]")
+            continue
+        if low in ("load",) or any(k in low for k in kw["load"]):
+            if sm.latest():
+                engine.restore(sm.load(sm.latest()))
+                rp(f"[green][Narrator][/green] "
+                   f"{engine.turn(RESUME_DIRECTIVE[loc])}\n")
+            else:
+                print("[no saves]")
+            continue
+        reply = engine.turn(said)
+        rp(f"\n[green][Narrator][/green] {reply}  "
+           f"[dim]({engine.state().value}, ${engine.cost.usd:.3f})[/dim]\n")
+        if engine.cost.over_cap:
+            rp("[yellow]cost cap reached — wrapping up.[/yellow]")
+            sm.save(f"{world.id}-chat", engine.snapshot())
+            break
+    return 0
+
+
 def cmd_admin(cfg) -> int:
     try:
         import uvicorn
@@ -471,6 +535,11 @@ def main(argv: list[str] | None = None) -> int:
                       help="de|en — überschreibt config.general.locale")
     prun.add_argument("--no-rag", action="store_true")
     prun.add_argument("--load", default=None)
+    pc = sub.add_parser("chat", help="text REPL (no STT/TTS/audio)")
+    pc.add_argument("--world", default="sternenfahrt")
+    pc.add_argument("--locale", default=None, help="de|en")
+    pc.add_argument("--no-rag", action="store_true")
+    pc.add_argument("--load", default=None)
 
     args = p.parse_args(argv)
     cfg = load_config(args.config)
@@ -499,6 +568,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_demo(cfg, args)
     if args.cmd == "run":
         return cmd_run(cfg, args)
+    if args.cmd == "chat":
+        return cmd_chat(cfg, args)
     p.error("unbekannt")
     return 2
 

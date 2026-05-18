@@ -34,10 +34,15 @@ Linux + ReSpeaker ⇒ `pi` (ALSA softvol, LED ring); anything else ⇒ `pc`
 (portable `sounddevice` backend, software volume, no LED needed).
 
 ```bash
+uv run storyteller chat                        # text REPL — best for testing
 uv run storyteller run --profile pc            # PC mic + speakers
 uv run storyteller run --text                  # keyboard input (no mic)
 uv run storyteller run --text --silent         # pure text, no audio at all
 ```
+
+`chat` is the simplest way to test the story engine: a plain text REPL, no
+STT/TTS/audio/menu/wake-word. Type your action; `save` / `load` / `quit`
+(or Ctrl-D) work. `--world`, `--locale`, `--load` supported.
 
 ## Volume
 
@@ -67,6 +72,8 @@ uv run storyteller hw-test                        # Pi hardware (quiet)
 uv run storyteller rag build [--force]            # index worlds (per locale)
 uv run storyteller voice-prompts build [--all-locales]
 uv run storyteller wait-sounds build              # per-world ambience loops
+uv run storyteller chat [--world ID] [--locale de|en] [--load NAME]
+                                                 # text REPL, no STT/TTS/audio
 uv run storyteller demo --world sternenfahrt [--locale en] --text "…"
 uv run storyteller run [--world ID] [--ptt] [--text] [--silent] \
                        [--profile pi|pc] [--locale de|en] [--load NAME]
