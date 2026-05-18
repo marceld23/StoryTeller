@@ -349,6 +349,25 @@ class StoryEngine:
     def turn(self, player_utterance: str) -> str:
         return self._complete(player_utterance)
 
+    def last_narration(self) -> str:
+        """Last narrator message (for replay after the system menu)."""
+        for m in reversed(self.memory):
+            if m["role"] == "assistant":
+                return m["content"]
+        return ""
+
+    def undo_last(self) -> str:
+        """Undo the last exchange (drop trailing assistant + user).
+
+        Note: short-term memory only; macro/substory/cost are not reverted.
+        Returns the now-last narration to replay.
+        """
+        if self.memory and self.memory[-1]["role"] == "assistant":
+            self.memory.pop()
+        if self.memory and self.memory[-1]["role"] == "user":
+            self.memory.pop()
+        return self.last_narration()
+
     # --- Persistenz ---
     def snapshot(self) -> dict:
         return {

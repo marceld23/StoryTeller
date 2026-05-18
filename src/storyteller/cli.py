@@ -70,6 +70,32 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True):
     return text
 
 
+def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
+    """Map a spoken choice to one option id via the LLM, or 'unknown'."""
+    try:
+        import json
+
+        from .oai import get_client
+
+        ids = [o[0] for o in options]
+        cat = "\n".join(f"- {i}: {d}" for i, d in options)
+        sysmsg = (
+            "Map the user's spoken choice to exactly one option id below, or "
+            "'unknown' if unclear. Consider meaning, not exact words. Answer "
+            f"JSON only: {{\"choice\": \"<one of: "
+            f"{', '.join(ids + ['unknown'])}>\"}}\n\nOPTIONS:\n" + cat)
+        r = get_client(cfg).chat.completions.create(
+            model=cfg.models.story_llm,
+            messages=[{"role": "system", "content": sysmsg},
+                      {"role": "user", "content": said}],
+            response_format={"type": "json_object"})
+        c = json.loads(r.choices[0].message.content or "{}") \
+            .get("choice", "unknown").strip()
+        return c if c in ids else "unknown"
+    except Exception:
+        return "unknown"
+
+
 # ---------- einfache Befehle ----------
 
 def cmd_info(cfg) -> int:
@@ -342,6 +368,68 @@ def cmd_run(cfg, args) -> int:
     def autosave():
         return sm.save(f"{world.id}-auto", engine.snapshot())
 
+    def _sysmenu():
+        """Spoken system menu; then replay the last narration. -> 'quit'|None."""
+        if speak:
+            prompts.play("sys_menu", backend)
+        else:
+            rp("[dim]System: save / quit / undo / load / close[/dim]")
+        if text_mode:
+            pick = input("System: ").strip()
+        else:
+            leds.listen()
+            with tempfile.NamedTemporaryFile(suffix=".wav",
+                                             delete=False) as t:
+                w = t.name
+            backend.record_wav(w, 5)
+            pick = stt.transcribe(w).strip()
+        rp(f"[cyan][Du][/cyan] {pick}")
+        opts = [("save", "speichern / save the game"),
+                ("quit", "beenden / quit the game"),
+                ("undo", "Spielzug zurück / undo the last turn"),
+                ("load", "Spielstand laden / load the latest save"),
+                ("close", "Menü schließen / close menu and continue")]
+        ch = _classify(cfg, pick, opts)
+        if ch == "unknown":
+            lw = pick.lower()
+            if any(k in lw for k in ("speich", "save")):
+                ch = "save"
+            elif any(k in lw for k in ("beend", "quit", "exit", "schluss",
+                                       "aufhör")):
+                ch = "quit"
+            elif any(k in lw for k in ("zurück", "zuruck", "undo",
+                                       "rückgäng", "ruckgang")):
+                ch = "undo"
+            elif any(k in lw for k in ("lad", "load")):
+                ch = "close" if "spielstand" not in lw and "save" in lw \
+                    else "load"
+            else:
+                ch = "close"
+        if ch == "quit":
+            return "quit"
+        if ch == "save":
+            autosave()
+            prompts.play("saved", backend) if speak \
+                else rp("[dim](gespeichert)[/dim]")
+        elif ch == "undo":
+            engine.undo_last()
+            prompts.play("undone", backend) if speak \
+                else rp("[dim](Spielzug zurück)[/dim]")
+        elif ch == "load":
+            if sm.latest():
+                engine.restore(sm.load(sm.latest()))
+            elif speak:
+                prompts.play("no_saves", backend)
+            else:
+                rp("[dim](keine Spielstände)[/dim]")
+        else:  # close
+            prompts.play("closed", backend) if speak \
+                else rp("[dim](Menü geschlossen)[/dim]")
+        last = engine.last_narration() or engine.turn(_resume_dir)
+        _say(cfg, world, backend, tts, fx, leds, (lambda: last), speak=speak)
+        rp(f"[green][Erzähler][/green] {last}")
+        return None
+
     import logging
 
     log = logging.getLogger("storyteller")
@@ -373,6 +461,13 @@ def cmd_run(cfg, args) -> int:
                 rp(f"[cyan][Du][/cyan] {said}")
                 low = said.lower()
                 if not said:
+                    continue
+                _toks = [t.strip(",.!?;:") for t in low.split()]
+                if _toks and len(_toks) <= 3 and any(
+                        t in _cmd_kw["menu"] for t in _toks):
+                    if _sysmenu() == "quit":
+                        break
+                    pending_follow = follow_enabled
                     continue
                 if any(k in low for k in _cmd_kw["quit"]):
                     break

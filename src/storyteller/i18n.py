@@ -37,6 +37,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "no_saves": "Es gibt keine gespeicherten Spielstände.",
         "goodbye": "Bis zum nächsten Mal.",
         "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
+        "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
+                    "Spielstand laden, oder Menü schließen.",
+        "undone": "Der letzte Spielzug wurde zurückgenommen.",
+        "closed": "Menü geschlossen. Weiter geht's.",
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
@@ -52,6 +56,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "no_saves": "There are no saved games.",
         "goodbye": "Until next time.",
         "error_retry": "There was a glitch. Please say it again.",
+        "sys_menu": "System menu. Say: save, quit, undo turn, load game, "
+                    "or close menu.",
+        "undone": "The last turn was undone.",
+        "closed": "Menu closed. Let's continue.",
     },
 }
 
@@ -132,11 +140,13 @@ CMD_KEYWORDS = {
         "quit": ("beenden", "aufhören", "schluss", "tschüss", "tschüs"),
         "save": ("speicher",),
         "load": ("lade", "spielstand"),
+        "menu": ("system", "systemmenü", "systemmenu", "menü", "menu"),
     },
     "en": {
         "quit": ("quit", "stop", "exit", "goodbye", "that's all"),
         "save": ("save",),
         "load": ("load", "resume"),
+        "menu": ("system", "system menu", "menu"),
     },
 }
 
