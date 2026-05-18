@@ -162,6 +162,154 @@ CMD_KEYWORDS = {
 }
 
 
+# --- Admin web UI strings ---
+WEB = {
+    "de": {
+        "nav_dash": "🏠 Dashboard", "nav_new": "➕ Neue Welt",
+        "nav_gen": "🧙 Welt aus Prompt", "nav_saves": "💾 Spielstände",
+        "nav_tr": "📜 Verläufe", "nav_mod": "🛡 Moderation",
+        "nav_api": "⚙ API",
+        "backend": "Storyteller — Backend", "config": "Konfiguration",
+        "worlds": "Welten", "new_world": "➕ Neue Welt anlegen",
+        "saves": "Spielstände", "view": "ansehen",
+        "cost_cap": "Kostendeckel", "player": "Spieler",
+        "saves_none": "Keine Spielstände.", "s_world": "Welt",
+        "s_msgs": "Nachrichten", "s_unreadable": "nicht lesbar",
+        "gen_title": "Welt aus Prompt generieren",
+        "gen_desc": "Beschreibe deine Welt in ein paar Sätzen — das LLM "
+                    "baut daraus eine komplette Welt (Beschreibung, Ort/"
+                    "Person/Gegenstand/Glossar/Historie/Fragmente, "
+                    "Blueprint, Zufallslisten, Ton, Komplexität, "
+                    "Zielgruppe).",
+        "gen_ph": "z.B. düstere Cyberpunk-Megacity; Spieler ist abtrünnige "
+                  "Kopfgeldjägerin; Fokus Intrigen; Zielgruppe erwachsene",
+        "gen_btn": "Welt generieren", "error": "Fehler",
+        "gen_failed": "Generierung fehlgeschlagen", "back": "zurück",
+        "new_title": "Neue Welt anlegen", "new_btn": "Welt anlegen",
+        "new_hint": "Orte, Personen, Gegenstände, Glossar, Historie und "
+                    "Zufallslisten danach auf der Welt-Seite ergänzen.",
+        "ph_id": "id (kurz, z.B. mythos)", "ph_name": "Name",
+        "ph_genre": "Genre", "ph_desc": "Weltbeschreibung",
+        "ph_role": "Spielerrolle", "ph_start": "Ausgangssituation",
+        "ph_style": "Erzählstil", "ph_mood": "Stimmung",
+        "ph_amb": "Ambiente", "ph_magic": "Physik / Magie (Regeln)",
+        "ph_premise": "Makro-Prämisse (Spannungsbogen)",
+        "basedata": "Basisdaten", "complexity": "Komplexität",
+        "ph_audience": "Zielgruppe / Alter, z.B. 12+",
+        "ph_patterns": "Muster (leer=nach Komplexität): three_act,mystery,…",
+        "tone_lbl": "Ton — düster/Humor/Romanze/Action/Horror (0–5), "
+                    "Tempo, Notizen",
+        "ph_tnotes": "Ton-/Genre-Notizen", "base_save": "Basisdaten speichern",
+        "sec_places": "Orte", "sec_persons": "Personen",
+        "sec_items": "Gegenstände", "sec_glossary": "Glossar",
+        "sec_history": "Historie", "sec_fragments": "Fragmente",
+        "sec_rtables": "Zufallslisten",
+        "sug_title": "LLM-Vorschlag — prüfen &amp; übernehmen",
+        "apply": "Übernehmen",
+        "sug_bad": "(Vorschlag nicht lesbar)", "add_h": "Hinzufügen",
+        "add_btn": "Hinzufügen", "add_suffix": "hinzufügen",
+        "llm_title": "Vom LLM schreiben lassen", "llm_ph": "Worüber?",
+        "llm_btn": "Vorschlag erzeugen", "reindex_btn": "RAG neu indexieren",
+        "reindex_t": "Reindex", "reindexed": "Fakten neu indexiert",
+        "tr_title": "Gespielte Verläufe", "tr_none": "Noch keine Verläufe.",
+        "tr_events": "Ereignisse", "tr_one": "Verlauf",
+        "tr_notfound": "nicht gefunden", "tr_all": "alle Verläufe",
+        "tr_player": "Spieler", "tr_narr": "Erzähler",
+        "tr_blocked": "BLOCKIERT",
+        "mod_title": "Moderation",
+        "mod_desc": "Spieler-Eingaben werden VOR der LLM-Antwort geprüft "
+                    "(Modell %s). Schwelle = Score, ab dem blockiert wird "
+                    "(0–1; niedriger = strenger).",
+        "mod_active": "aktiv", "mod_default": "Default-Schwelle",
+        "mod_cats": "Pro-Kategorie als JSON (OpenAI-Kategorien, z. B. "
+                    "{harassment: 0.3, violence: 0.7})",
+        "save": "Speichern",
+        "kind_place": "Ort", "kind_person": "Person",
+        "kind_item": "Gegenstand", "kind_fragment": "Fragment",
+        "kind_glossary": "Glossar-Begriff", "kind_history": "Historie",
+        "kind_rtable": "Zufallsliste", "kind_rentry": "Zufallslisten-Eintrag",
+        "fl_name": "Name", "fl_desc": "Beschreibung",
+        "fl_rolerel": "Rolle/Beziehungen", "fl_props": "Eigenschaften/Wirkung",
+        "fl_title": "Titel", "fl_text": "Text", "fl_term": "Begriff",
+        "fl_def": "Definition", "fl_when": "Zeit/Epoche",
+        "fl_list": "Liste (Name)", "fl_weight": "Gewicht (z.B. 2)",
+        "fl_tags": "tags,komma",
+    },
+    "en": {
+        "nav_dash": "🏠 Dashboard", "nav_new": "➕ New world",
+        "nav_gen": "🧙 World from prompt", "nav_saves": "💾 Saves",
+        "nav_tr": "📜 Transcripts", "nav_mod": "🛡 Moderation",
+        "nav_api": "⚙ API",
+        "backend": "Storyteller — Backend", "config": "Configuration",
+        "worlds": "Worlds", "new_world": "➕ Create new world",
+        "saves": "Saves", "view": "view", "cost_cap": "cost cap",
+        "player": "Player", "saves_none": "No saves.", "s_world": "world",
+        "s_msgs": "messages", "s_unreadable": "unreadable",
+        "gen_title": "Generate world from prompt",
+        "gen_desc": "Describe your world in a few sentences — the LLM builds "
+                    "a complete world from it (description, places/persons/"
+                    "items/glossary/history/fragments, blueprint, random "
+                    "tables, tone, complexity, audience).",
+        "gen_ph": "e.g. grim cyberpunk megacity; player is a rogue bounty "
+                  "hunter; focus intrigue; audience adults",
+        "gen_btn": "Generate world", "error": "Error",
+        "gen_failed": "Generation failed", "back": "back",
+        "new_title": "Create new world", "new_btn": "Create world",
+        "new_hint": "Add places, persons, items, glossary, history and "
+                    "random tables afterwards on the world page.",
+        "ph_id": "id (short, e.g. mythos)", "ph_name": "Name",
+        "ph_genre": "Genre", "ph_desc": "World description",
+        "ph_role": "Player role", "ph_start": "Starting situation",
+        "ph_style": "Narration style", "ph_mood": "Mood",
+        "ph_amb": "Ambience", "ph_magic": "Physics / magic (rules)",
+        "ph_premise": "Macro premise (story arc)",
+        "basedata": "Base data", "complexity": "Complexity",
+        "ph_audience": "Audience / age, e.g. 12+",
+        "ph_patterns": "Patterns (empty=by complexity): three_act,mystery,…",
+        "tone_lbl": "Tone — dark/humor/romance/action/horror (0–5), "
+                    "pacing, notes",
+        "ph_tnotes": "Tone/genre notes", "base_save": "Save base data",
+        "sec_places": "Places", "sec_persons": "Persons",
+        "sec_items": "Items", "sec_glossary": "Glossary",
+        "sec_history": "History", "sec_fragments": "Fragments",
+        "sec_rtables": "Random tables",
+        "sug_title": "LLM suggestion — review &amp; apply",
+        "apply": "Apply", "sug_bad": "(suggestion unreadable)",
+        "add_h": "Add", "add_btn": "Add", "add_suffix": "add",
+        "llm_title": "Let the LLM write", "llm_ph": "About what?",
+        "llm_btn": "Generate suggestion", "reindex_btn": "Reindex RAG",
+        "reindex_t": "Reindex", "reindexed": "facts reindexed",
+        "tr_title": "Played transcripts", "tr_none": "No transcripts yet.",
+        "tr_events": "events", "tr_one": "Transcript",
+        "tr_notfound": "not found", "tr_all": "all transcripts",
+        "tr_player": "Player", "tr_narr": "Narrator",
+        "tr_blocked": "BLOCKED",
+        "mod_title": "Moderation",
+        "mod_desc": "Player input is checked BEFORE the LLM answers "
+                    "(model %s). Threshold = score at/above which it is "
+                    "blocked (0–1; lower = stricter).",
+        "mod_active": "active", "mod_default": "Default threshold",
+        "mod_cats": "Per-category as JSON (OpenAI categories, e.g. "
+                    "{harassment: 0.3, violence: 0.7})",
+        "save": "Save",
+        "kind_place": "Place", "kind_person": "Person",
+        "kind_item": "Item", "kind_fragment": "Fragment",
+        "kind_glossary": "Glossary term", "kind_history": "History",
+        "kind_rtable": "Random table", "kind_rentry": "Random-table entry",
+        "fl_name": "Name", "fl_desc": "Description",
+        "fl_rolerel": "Role/relations", "fl_props": "Properties/effect",
+        "fl_title": "Title", "fl_text": "Text", "fl_term": "Term",
+        "fl_def": "Definition", "fl_when": "Time/era",
+        "fl_list": "List (name)", "fl_weight": "Weight (e.g. 2)",
+        "fl_tags": "tags,comma",
+    },
+}
+
+
+def web(locale: str) -> dict[str, str]:
+    return WEB[norm(locale)]
+
+
 def vp(locale: str) -> dict[str, str]:
     return VOICE_PROMPTS[norm(locale)]
 

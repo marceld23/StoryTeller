@@ -1,12 +1,14 @@
-"""Admin-Web-Frontend (Backend-Website).
+"""Admin web frontend (backend website), localized de/en via i18n.WEB.
 
-- Dashboard (Welten, Spielstände, Konfiguration)
-- Neue Welt anlegen (alle Felder)
-- Welt bearbeiten: Basisdaten + Orte/Personen/Gegenstände/Glossar/Historie/
-  Fragmente/Zufallslisten hinzufügen, optional vom LLM schreiben lassen
-- RAG je Welt neu indexieren
+- Dashboard (worlds, saves, configuration)
+- Create a new world (all fields) or generate one from a single prompt
+- Edit a world: base data + places/persons/items/glossary/history/
+  fragments/random tables (optionally LLM-written); per-world dramaturgy
+  (complexity, story patterns, tone, audience)
+- Transcripts viewer; moderation thresholds; per-world RAG reindex
 
 Start:  uv sync --extra web && uv run storyteller admin
+The UI language follows config.general.locale.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import html
 import json
 
 from ..config import Config, load_config
+from ..i18n import norm, web
 from ..oai import get_client
 from ..worlds.registry import all_world_ids, load_world, save_world
 from ..worlds.schema import (
@@ -31,59 +34,78 @@ from ..worlds.schema import (
     World,
 )
 
-# kind -> (Label, [Feld-Platzhalter für f1..f4])
-KIND_FIELDS = {
-    "place": ("Ort", ["Name", "Beschreibung", "", "tags,komma"]),
-    "person": ("Person", ["Name", "Beschreibung", "Rolle/Beziehungen",
-                           "tags,komma"]),
-    "item": ("Gegenstand", ["Name", "Beschreibung", "Eigenschaften/Wirkung",
-                             "tags,komma"]),
-    "fragment": ("Fragment", ["Titel", "Text", "", "tags,komma"]),
-    "glossary": ("Glossar-Begriff", ["Begriff", "Definition", "", ""]),
-    "history": ("Historie", ["Titel", "Beschreibung", "Zeit/Epoche", ""]),
-    "rtable": ("Zufallsliste", ["Name", "Beschreibung", "", ""]),
-    "rentry": ("Zufallslisten-Eintrag", ["Liste (Name)", "Text", "Gewicht(z.B. 2)",
-                                          ""]),
-}
-
 
 def _esc(x) -> str:
     return html.escape(str(x))
 
 
-def _page(title: str, body: str) -> str:
+def _kind_fields(T: dict) -> dict:
+    """kind -> (label, [placeholders for f1..f4]) in the active locale."""
+    tg = T["fl_tags"]
+    return {
+        "place": (T["kind_place"], [T["fl_name"], T["fl_desc"], "", tg]),
+        "person": (T["kind_person"], [T["fl_name"], T["fl_desc"],
+                                      T["fl_rolerel"], tg]),
+        "item": (T["kind_item"], [T["fl_name"], T["fl_desc"],
+                                  T["fl_props"], tg]),
+        "fragment": (T["kind_fragment"], [T["fl_title"], T["fl_text"], "",
+                                          tg]),
+        "glossary": (T["kind_glossary"], [T["fl_term"], T["fl_def"], "",
+                                          ""]),
+        "history": (T["kind_history"], [T["fl_title"], T["fl_desc"],
+                                        T["fl_when"], ""]),
+        "rtable": (T["kind_rtable"], [T["fl_name"], T["fl_desc"], "", ""]),
+        "rentry": (T["kind_rentry"], [T["fl_list"], T["fl_text"],
+                                      T["fl_weight"], ""]),
+    }
+
+
+def _page(T: dict, title: str, body: str) -> str:
     return (
         "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"<title>{_esc(title)}</title>"
-        "<style>body{font:15px system-ui;margin:2rem;max-width:64rem}"
-        "form{margin:.5rem 0;padding:.6rem;border:1px solid #ccc;border-radius:6px}"
-        "input,textarea,select{font:inherit;width:100%;margin:.2rem 0;padding:.3rem}"
-        "button{font:inherit;padding:.4rem .8rem;margin-top:.3rem}"
-        "li{margin:.2rem 0}a{color:#06c}h2{margin-top:1.4rem}"
-        "nav{background:#111;color:#fff;padding:.5rem .8rem;border-radius:6px;"
-        "margin:-1rem 0 1rem}nav a{color:#9cf;margin-right:1rem}"
-        ".card{border:1px solid #ddd;border-radius:8px;padding:.8rem;margin:.6rem 0}"
-        "</style>"
-        "<nav><a href='/'>🏠 Dashboard</a><a href='/new'>➕ Neue Welt</a>"
-        "<a href='/generate'>🧙 Welt aus Prompt</a>"
-        "<a href='/saves'>💾 Spielstände</a>"
-        "<a href='/transcripts'>📜 Verläufe</a>"
-        "<a href='/moderation'>🛡 Moderation</a>"
-        "<a href='/docs'>⚙ API</a></nav>"
+        # apply saved theme before paint (no flash)
+        "<script>try{var t=localStorage.getItem('st-theme');"
+        "if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>"
+        "<style>"
+        ":root{--bg:#fff;--fg:#111;--card:#fff;--bd:#ccc;--link:#06c;"
+        "--navbg:#111;--navfg:#fff;--navlink:#9cf;--pre:#f4f4f4}"
+        "@media(prefers-color-scheme:dark){:root:not([data-theme=light]){"
+        "--bg:#15171a;--fg:#e7e7e7;--card:#1e2126;--bd:#3a3f47;--link:#6cf;"
+        "--navbg:#000;--navfg:#fff;--navlink:#9cf;--pre:#101216}}"
+        ":root[data-theme=dark]{--bg:#15171a;--fg:#e7e7e7;--card:#1e2126;"
+        "--bd:#3a3f47;--link:#6cf;--navbg:#000;--navfg:#fff;"
+        "--navlink:#9cf;--pre:#101216}"
+        "body{font:15px system-ui;margin:2rem;max-width:64rem;"
+        "background:var(--bg);color:var(--fg)}"
+        "form{margin:.5rem 0;padding:.6rem;border:1px solid var(--bd);"
+        "border-radius:6px}input,textarea,select{font:inherit;width:100%;"
+        "margin:.2rem 0;padding:.3rem;background:var(--card);"
+        "color:var(--fg);border:1px solid var(--bd);border-radius:4px}"
+        "button{font:inherit;padding:.4rem .8rem;margin-top:.3rem;"
+        "background:var(--navbg);color:var(--navfg);border:0;"
+        "border-radius:6px;cursor:pointer}li{margin:.2rem 0}"
+        "a{color:var(--link)}h2{margin-top:1.4rem}"
+        "pre{background:var(--pre);padding:.5rem;overflow:auto;"
+        "border-radius:4px}nav{background:var(--navbg);color:var(--navfg);"
+        "padding:.5rem .8rem;border-radius:6px;margin:-1rem 0 1rem}"
+        "nav a{color:var(--navlink);margin-right:1rem;cursor:pointer}"
+        ".card{border:1px solid var(--bd);background:var(--card);"
+        "border-radius:8px;padding:.8rem;margin:.6rem 0}</style>"
+        "<script>function stTheme(){var d=document.documentElement,"
+        "c=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=c;"
+        "try{localStorage.setItem('st-theme',c);}catch(e){}}</script>"
+        f"<nav><a href='/'>{T['nav_dash']}</a>"
+        f"<a href='/new'>{T['nav_new']}</a>"
+        f"<a href='/generate'>{T['nav_gen']}</a>"
+        f"<a href='/saves'>{T['nav_saves']}</a>"
+        f"<a href='/transcripts'>{T['nav_tr']}</a>"
+        f"<a href='/moderation'>{T['nav_mod']}</a>"
+        f"<a href='/docs'>{T['nav_api']}</a>"
+        "<a onclick='stTheme()' title='Dark/Light'>🌓</a></nav>"
         f"<h1>{_esc(title)}</h1>{body}"
     )
-
-
-def _add_form(wid: str, kind: str) -> str:
-    label, ph = KIND_FIELDS[kind]
-    fields = "".join(
-        f"<{'textarea' if i == 1 else 'input'} name='f{i+1}' "
-        f"placeholder='{_esc(p)}'>{'</textarea>' if i == 1 else ''}"
-        for i, p in enumerate(ph) if p or i < 2)
-    return (f"<form method='post' action='/w/{wid}/add'>"
-            f"<input type='hidden' name='kind' value='{kind}'>"
-            f"<b>{_esc(label)} hinzufügen</b>{fields}"
-            f"<button>Hinzufügen</button></form>")
 
 
 def create_app(cfg: Config | None = None):
@@ -91,7 +113,21 @@ def create_app(cfg: Config | None = None):
     from fastapi.responses import HTMLResponse, RedirectResponse
 
     cfg = cfg or load_config()
+    loc = norm(cfg.general.locale)
+    T = web(loc)
+    KF = _kind_fields(T)
     app = FastAPI(title="Storyteller Admin")
+
+    def _add_form(wid: str, kind: str) -> str:
+        label, ph = KF[kind]
+        fields = "".join(
+            f"<{'textarea' if i == 1 else 'input'} name='f{i+1}' "
+            f"placeholder='{_esc(p)}'>{'</textarea>' if i == 1 else ''}"
+            for i, p in enumerate(ph) if p or i < 2)
+        return (f"<form method='post' action='/w/{wid}/add'>"
+                f"<input type='hidden' name='kind' value='{kind}'>"
+                f"<b>{_esc(label)} {T['add_suffix']}</b>{fields}"
+                f"<button>{T['add_btn']}</button></form>")
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -100,16 +136,16 @@ def create_app(cfg: Config | None = None):
         m = cfg.models
         sd = cfg.path(cfg.paths.saves_dir)
         n = len(list(sd.glob("*.json"))) if sd.exists() else 0
-        return _page("Storyteller — Backend", (
-            f"<div class='card'><b>Konfiguration</b><br>"
+        return _page(T, T["backend"], (
+            f"<div class='card'><b>{T['config']}</b><br>"
             f"Story-LLM: {_esc(m.story_llm)}<br>"
-            f"STT/TTS: {_esc(m.stt)} / {_esc(m.tts)} ({_esc(m.tts_voice)})<br>"
-            f"Audio: {_esc(cfg.audio.backend)} | Kostendeckel "
-            f"${cfg.story.cost_cap_usd_per_session}</div>"
-            f"<div class='card'><b>Welten</b><ul>{worlds}</ul>"
-            f"<a href='/new'>➕ Neue Welt anlegen</a></div>"
-            f"<div class='card'><b>Spielstände:</b> {n} "
-            f"(<a href='/saves'>ansehen</a>)</div>"))
+            f"STT/TTS: {_esc(m.stt)} / {_esc(m.tts)} ({_esc(m.tts_voice)})"
+            f"<br>Audio: {_esc(cfg.audio.backend)} | {T['cost_cap']} "
+            f"${cfg.story.cost_cap_usd_per_session} | Locale: {loc}</div>"
+            f"<div class='card'><b>{T['worlds']}</b><ul>{worlds}</ul>"
+            f"<a href='/new'>{T['new_world']}</a></div>"
+            f"<div class='card'><b>{T['saves']}:</b> {n} "
+            f"(<a href='/saves'>{T['view']}</a>)</div>"))
 
     @app.get("/saves", response_class=HTMLResponse)
     def saves_view():
@@ -124,27 +160,23 @@ def create_app(cfg: Config | None = None):
                 s = json.loads(p.read_text())
                 ts = _t.strftime("%Y-%m-%d %H:%M",
                                  _t.localtime(s.get("_saved_at", 0)))
-                rows.append(f"<li><b>{_esc(s.get('_name', p.stem))}</b> — Welt "
-                            f"{_esc(s.get('world_id', '?'))}, "
-                            f"{len(s.get('memory', []))} Nachrichten, {ts}</li>")
+                rows.append(
+                    f"<li><b>{_esc(s.get('_name', p.stem))}</b> — "
+                    f"{T['s_world']} {_esc(s.get('world_id', '?'))}, "
+                    f"{len(s.get('memory', []))} {T['s_msgs']}, {ts}</li>")
             except Exception:
-                rows.append(f"<li>{_esc(p.name)} (nicht lesbar)</li>")
-        return _page("Spielstände", ("<ul>" + "".join(rows) + "</ul>")
-                     if rows else "<p>Keine Spielstände.</p>")
+                rows.append(f"<li>{_esc(p.name)} ({T['s_unreadable']})</li>")
+        return _page(T, T["saves"], ("<ul>" + "".join(rows) + "</ul>")
+                     if rows else f"<p>{T['saves_none']}</p>")
 
     @app.get("/generate", response_class=HTMLResponse)
     def generate_form():
-        return _page("Welt aus Prompt generieren", (
-            "<p>Beschreibe deine Welt in ein paar Sätzen — das LLM baut "
-            "daraus eine komplette Welt (Beschreibung, Ort/Person/Gegenstand/"
-            "Glossar/Historie/Fragmente, Blueprint, Zufallslisten, Ton, "
-            "Komplexität, Zielgruppe).</p>"
+        return _page(T, T["gen_title"], (
+            f"<p>{T['gen_desc']}</p>"
             "<form method='post' action='/generate'>"
-            "<textarea name='prompt' rows='6' placeholder='z.B. \"Eine "
-            "düstere Cyberpunk-Megacity; der Spieler ist eine abtrünnige "
-            "Kopfgeldjägerin; Fokus Intrigen und Verrat; Zielgruppe "
-            "erwachsene\"' required></textarea>"
-            "<button>Welt generieren</button></form>"))
+            f"<textarea name='prompt' rows='6' placeholder="
+            f"'{_esc(T['gen_ph'])}' required></textarea>"
+            f"<button>{T['gen_btn']}</button></form>"))
 
     @app.post("/generate")
     def generate_do(prompt: str = Form(...)):
@@ -154,36 +186,35 @@ def create_app(cfg: Config | None = None):
             w = generate_world(cfg, prompt)
             save_world(cfg, w)
         except Exception as exc:
-            return _page("Fehler", f"<p>Generierung fehlgeschlagen: "
-                         f"{_esc(exc)}</p><p><a href='/generate'>zurück"
-                         "</a></p>")
+            return _page(T, T["error"],
+                         f"<p>{T['gen_failed']}: {_esc(exc)}</p>"
+                         f"<p><a href='/generate'>{T['back']}</a></p>")
         try:
             from ..story.rag import WorldRAG
 
-            WorldRAG(cfg).index_world(w, force=True,
-                                     locale=cfg.general.locale)
+            WorldRAG(cfg).index_world(w, force=True, locale=loc)
         except Exception:
             pass
         return RedirectResponse(f"/w/{w.id}", status_code=303)
 
     @app.get("/new", response_class=HTMLResponse)
     def new_form():
-        f = lambda n, p, ta=False: (  # noqa: E731
-            f"<textarea name='{n}' placeholder='{_esc(p)}'></textarea>" if ta
-            else f"<input name='{n}' placeholder='{_esc(p)}'>")
-        return _page("Neue Welt anlegen", (
+        def f(n, ph_key, ta=False):
+            ph = _esc(T[ph_key])
+            return (f"<textarea name='{n}' placeholder='{ph}'></textarea>"
+                    if ta else f"<input name='{n}' placeholder='{ph}'>")
+        return _page(T, T["new_title"], (
             "<form method='post' action='/new'>"
-            f"{f('id','id (kurz, z.B. mythos)')}{f('name','Name')}"
-            f"{f('genre','Genre')}{f('description','Weltbeschreibung',1)}"
-            f"{f('player_role','Spielerrolle')}"
-            f"{f('starting_situation','Ausgangssituation',1)}"
-            f"{f('narration_style','Erzählstil',1)}"
-            f"{f('mood','Stimmung',1)}{f('ambience','Ambiente',1)}"
-            f"{f('magic_physics','Physik / Magie (Regeln)',1)}"
-            f"{f('premise','Makro-Prämisse (Spannungsbogen)',1)}"
-            "<button>Welt anlegen</button></form>"
-            "<p>Orte, Personen, Gegenstände, Glossar, Historie und "
-            "Zufallslisten danach auf der Welt-Seite ergänzen.</p>"))
+            f"{f('id','ph_id')}{f('name','ph_name')}"
+            f"{f('genre','ph_genre')}{f('description','ph_desc',1)}"
+            f"{f('player_role','ph_role')}"
+            f"{f('starting_situation','ph_start',1)}"
+            f"{f('narration_style','ph_style',1)}"
+            f"{f('mood','ph_mood',1)}{f('ambience','ph_amb',1)}"
+            f"{f('magic_physics','ph_magic',1)}"
+            f"{f('premise','ph_premise',1)}"
+            f"<button>{T['new_btn']}</button></form>"
+            f"<p>{T['new_hint']}</p>"))
 
     @app.post("/new")
     def new_create(id: str = Form(...), name: str = Form(...),
@@ -193,16 +224,20 @@ def create_app(cfg: Config | None = None):
                     narration_style: str = Form(""), mood: str = Form(""),
                     ambience: str = Form(""), magic_physics: str = Form(""),
                     premise: str = Form("")):
-        wid = "".join(c for c in id.lower() if c.isalnum() or c in "-_") or "welt"
-        bp = Blueprint(premise=premise or f"Eine Geschichte in {name}.", beats=[
-            Beat(name="Aufhänger", goal="Lage & Hook etablieren", tension=2),
-            Beat(name="Zuspitzung", goal="Eskalation", tension=7),
-            Beat(name="Auflösung", goal="Abschluss", tension=3)])
+        wid = "".join(c for c in id.lower()
+                      if c.isalnum() or c in "-_") or "welt"
+        bp = Blueprint(
+            premise=premise or f"Eine Geschichte in {name}.",
+            beats=[Beat(name="Aufhänger", goal="Lage & Hook etablieren",
+                        tension=2),
+                   Beat(name="Zuspitzung", goal="Eskalation", tension=7),
+                   Beat(name="Auflösung", goal="Abschluss", tension=3)])
         w = World(id=wid, name=name, genre=genre, description=description,
                   player_role=player_role,
                   starting_situation=starting_situation,
                   narration_style=narration_style, mood=mood,
-                  ambience=ambience, magic_physics=magic_physics, blueprint=bp)
+                  ambience=ambience, magic_physics=magic_physics,
+                  blueprint=bp)
         save_world(cfg, w)
         return RedirectResponse(f"/w/{wid}", status_code=303)
 
@@ -215,26 +250,28 @@ def create_app(cfg: Config | None = None):
                     + "".join(f"<li>{r}</li>" for r in rows) + "</ul></div>")
 
         base = (
-            f"<form method='post' action='/w/{wid}/base'><b>Basisdaten</b>"
+            f"<form method='post' action='/w/{wid}/base'>"
+            f"<b>{T['basedata']}</b>"
             f"<textarea name='description'>{_esc(w.description)}</textarea>"
             f"<textarea name='starting_situation'>"
             f"{_esc(w.starting_situation)}</textarea>"
             f"<textarea name='narration_style'>{_esc(w.narration_style)}"
             f"</textarea><textarea name='mood'>{_esc(w.mood)}</textarea>"
             f"<textarea name='ambience'>{_esc(w.ambience)}</textarea>"
-            f"<textarea name='magic_physics'>{_esc(w.magic_physics)}</textarea>"
-            f"<textarea name='premise'>{_esc(w.blueprint.premise)}</textarea>"
-            "<label>Komplexität</label><select name='complexity'>"
+            f"<textarea name='magic_physics'>{_esc(w.magic_physics)}"
+            f"</textarea>"
+            f"<textarea name='premise'>{_esc(w.blueprint.premise)}"
+            f"</textarea>"
+            f"<label>{T['complexity']}</label><select name='complexity'>"
             + "".join(f"<option{' selected' if w.complexity==c else ''}>"
                       f"{c}</option>" for c in ("simple", "standard", "rich"))
             + "</select>"
             f"<input name='audience' value='{_esc(w.audience)}' "
-            "placeholder='Zielgruppe / Alter, z.B. 12+'>"
+            f"placeholder='{_esc(T['ph_audience'])}'>"
             f"<input name='story_patterns' "
             f"value='{_esc(','.join(w.story_patterns))}' "
-            "placeholder='Muster (leer=nach Komplexität): three_act,mystery,…'>"
-            f"<label>Ton — düster/Humor/Romanze/Action/Horror (0–5), "
-            f"Tempo, Notizen</label>"
+            f"placeholder='{_esc(T['ph_patterns'])}'>"
+            f"<label>{T['tone_lbl']}</label>"
             f"<input name='t_dark' value='{w.tone.darkness}'>"
             f"<input name='t_humor' value='{w.tone.humor}'>"
             f"<input name='t_rom' value='{w.tone.romance}'>"
@@ -245,26 +282,32 @@ def create_app(cfg: Config | None = None):
                       f"{p}</option>" for p in ("slow", "medium", "fast"))
             + "</select>"
             f"<input name='t_notes' value='{_esc(w.tone.notes)}' "
-            "placeholder='Ton-/Genre-Notizen'>"
-            "<button>Basisdaten speichern</button></form>")
+            f"placeholder='{_esc(T['ph_tnotes'])}'>"
+            f"<button>{T['base_save']}</button></form>")
 
         secs = (
-            sec("Orte", [f"<b>{_esc(p.name)}</b> — {_esc(p.description)}"
-                         for p in w.places])
-            + sec("Personen", [f"<b>{_esc(p.name)}</b> ({_esc(p.role)}) — "
-                               f"{_esc(p.description)}" for p in w.persons])
-            + sec("Gegenstände", [f"<b>{_esc(i.name)}</b> — "
-                                  f"{_esc(i.description)} [{_esc(i.properties)}]"
-                                  for i in w.items])
-            + sec("Glossar", [f"<b>{_esc(g.term)}</b>: {_esc(g.definition)}"
-                              for g in w.glossary])
-            + sec("Historie", [f"<b>{_esc(h.title)}</b> ({_esc(h.when)}) — "
-                               f"{_esc(h.description)}" for h in w.history])
-            + sec("Fragmente", [f"<b>{_esc(fr.title)}</b> — {_esc(fr.text)}"
-                                for fr in w.fragments])
-            + sec("Zufallslisten", [
+            sec(T["sec_places"],
+                [f"<b>{_esc(p.name)}</b> — {_esc(p.description)}"
+                 for p in w.places])
+            + sec(T["sec_persons"],
+                  [f"<b>{_esc(p.name)}</b> ({_esc(p.role)}) — "
+                   f"{_esc(p.description)}" for p in w.persons])
+            + sec(T["sec_items"],
+                  [f"<b>{_esc(i.name)}</b> — {_esc(i.description)} "
+                   f"[{_esc(i.properties)}]" for i in w.items])
+            + sec(T["sec_glossary"],
+                  [f"<b>{_esc(g.term)}</b>: {_esc(g.definition)}"
+                   for g in w.glossary])
+            + sec(T["sec_history"],
+                  [f"<b>{_esc(h.title)}</b> ({_esc(h.when)}) — "
+                   f"{_esc(h.description)}" for h in w.history])
+            + sec(T["sec_fragments"],
+                  [f"<b>{_esc(fr.title)}</b> — {_esc(fr.text)}"
+                   for fr in w.fragments])
+            + sec(T["sec_rtables"], [
                 f"<b>{_esc(t.name)}</b>: "
-                + "; ".join(f"{e.text} (×{e.weight})" for e in t.entries)
+                + "; ".join(f"{_esc(e.text)} (×{e.weight})"
+                            for e in t.entries)
                 for t in w.random_tables]))
 
         sug_block = ""
@@ -273,40 +316,42 @@ def create_app(cfg: Config | None = None):
                 s = json.loads(sug)
                 sug_block = (
                     f"<form method='post' action='/w/{wid}/add'>"
-                    "<b>LLM-Vorschlag — prüfen &amp; übernehmen</b>"
+                    f"<b>{T['sug_title']}</b>"
                     f"<input name='kind' value='{_esc(s.get('kind',''))}'>"
                     f"<input name='f1' value='{_esc(s.get('f1',''))}'>"
                     f"<textarea name='f2'>{_esc(s.get('f2',''))}</textarea>"
                     f"<input name='f3' value='{_esc(s.get('f3',''))}'>"
                     f"<input name='f4' value='{_esc(s.get('f4',''))}'>"
-                    "<button>Übernehmen</button></form>")
+                    f"<button>{T['apply']}</button></form>")
             except Exception:
-                sug_block = "<p>(Vorschlag nicht lesbar)</p>"
+                sug_block = f"<p>{T['sug_bad']}</p>"
 
         adds = "".join(_add_form(wid, k) for k in
                        ("place", "person", "item", "glossary", "history",
                         "fragment", "rtable", "rentry"))
         llm = (f"<form method='post' action='/w/{wid}/suggest'>"
-               "<b>Vom LLM schreiben lassen</b>"
-               "<select name='kind'>"
-               + "".join(f"<option value='{k}'>{_esc(KIND_FIELDS[k][0])}"
-                         "</option>" for k in ("fragment", "place", "person",
-                                                "item", "glossary", "history"))
-               + "</select><textarea name='prompt' placeholder='Worüber?'>"
-               "</textarea><button>Vorschlag erzeugen</button></form>")
+               f"<b>{T['llm_title']}</b><select name='kind'>"
+               + "".join(f"<option value='{k}'>{_esc(KF[k][0])}</option>"
+                         for k in ("fragment", "place", "person", "item",
+                                   "glossary", "history"))
+               + f"</select><textarea name='prompt' "
+               f"placeholder='{_esc(T['llm_ph'])}'></textarea>"
+               f"<button>{T['llm_btn']}</button></form>")
         reindex = (f"<form method='post' action='/w/{wid}/reindex'>"
-                   "<button>RAG neu indexieren</button></form>")
-        return _page(f"Welt: {w.name}", (
-            f"<p><a href='/'>&larr; Dashboard</a> | {_esc(w.genre)} | "
-            f"Spieler: {_esc(w.player_role)}</p>{base}{secs}{sug_block}"
-            f"<h2>Hinzufügen</h2>{adds}{llm}{reindex}"))
+                   f"<button>{T['reindex_btn']}</button></form>")
+        return _page(T, w.name, (
+            f"<p><a href='/'>&larr; {T['nav_dash']}</a> | {_esc(w.genre)} | "
+            f"{T['player']}: {_esc(w.player_role)}</p>"
+            f"{base}{secs}{sug_block}"
+            f"<h2>{T['add_h']}</h2>{adds}{llm}{reindex}"))
 
     @app.post("/w/{wid}/base")
     def world_base(wid: str, description: str = Form(""),
                     starting_situation: str = Form(""),
                     narration_style: str = Form(""), mood: str = Form(""),
                     ambience: str = Form(""), magic_physics: str = Form(""),
-                    premise: str = Form(""), complexity: str = Form("standard"),
+                    premise: str = Form(""),
+                    complexity: str = Form("standard"),
                     audience: str = Form("erwachsene"),
                     story_patterns: str = Form(""), t_dark: str = Form("2"),
                     t_humor: str = Form("1"), t_rom: str = Form("1"),
@@ -346,7 +391,8 @@ def create_app(cfg: Config | None = None):
 
     @app.post("/w/{wid}/add")
     def world_add(wid: str, kind: str = Form(...), f1: str = Form(""),
-                   f2: str = Form(""), f3: str = Form(""), f4: str = Form("")):
+                   f2: str = Form(""), f3: str = Form(""),
+                   f4: str = Form("")):
         w = load_world(cfg, wid)
         tg = [t.strip() for t in f4.split(",") if t.strip()]
         if kind == "place":
@@ -367,7 +413,8 @@ def create_app(cfg: Config | None = None):
             for t in w.random_tables:
                 if t.name.lower() == f1.strip().lower():
                     t.entries.append(RandomEntry(
-                        text=f2, weight=int(f3) if f3.strip().isdigit() else 1))
+                        text=f2,
+                        weight=int(f3) if f3.strip().isdigit() else 1))
                     break
         else:
             w.fragments.append(Fragment(title=f1, text=f2, tags=tg))
@@ -375,16 +422,17 @@ def create_app(cfg: Config | None = None):
         return RedirectResponse(f"/w/{wid}", status_code=303)
 
     @app.post("/w/{wid}/suggest")
-    def world_suggest(wid: str, kind: str = Form(...), prompt: str = Form(...)):
+    def world_suggest(wid: str, kind: str = Form(...),
+                      prompt: str = Form(...)):
         w = load_world(cfg, wid)
-        label = KIND_FIELDS.get(kind, ("Fragment", []))[0]
+        label = KF.get(kind, (T["kind_fragment"], []))[0]
         sysmsg = (
-            f"Du baust die Welt {w.name} ({w.genre}) aus. {w.description}. "
-            f"Stimmung: {w.mood}. Erzeuge GENAU EINEN {label}-Eintrag, "
-            "konsistent zur Welt. Antworte als JSON: {\"kind\":\"" + kind +
-            "\",\"f1\":\"Name/Titel/Begriff\",\"f2\":\"Beschreibung/Text/"
-            "Definition\",\"f3\":\"Rolle/Eigenschaften/Zeit oder leer\","
-            "\"f4\":\"tags,komma oder leer\"}")
+            f"Build out the world {w.name} ({w.genre}). {w.description}. "
+            f"Mood: {w.mood}. Produce EXACTLY ONE {label} entry, consistent "
+            "with the world. Reply as JSON: {\"kind\":\"" + kind +
+            "\",\"f1\":\"name/title/term\",\"f2\":\"description/text/"
+            "definition\",\"f3\":\"role/properties/time or empty\","
+            "\"f4\":\"tags,comma or empty\"}. Use the world's language.")
         try:
             r = get_client(cfg).chat.completions.create(
                 model=cfg.models.story_llm,
@@ -393,7 +441,8 @@ def create_app(cfg: Config | None = None):
                 response_format={"type": "json_object"})
             sug = r.choices[0].message.content or "{}"
         except Exception as exc:
-            sug = json.dumps({"kind": kind, "f1": "", "f2": f"(Fehler: {exc})",
+            sug = json.dumps({"kind": kind, "f1": "",
+                              "f2": f"({T['error']}: {exc})",
                               "f3": "", "f4": ""})
         return RedirectResponse(f"/w/{wid}?sug={html.escape(sug)}",
                                 status_code=303)
@@ -404,14 +453,13 @@ def create_app(cfg: Config | None = None):
             from ..story.rag import WorldRAG
 
             n = WorldRAG(cfg).index_world(load_world(cfg, wid), force=True,
-                                          locale=cfg.general.locale)
-            msg = f"{n} Fakten neu indexiert"
+                                          locale=loc)
+            msg = f"{n} {T['reindexed']}"
         except Exception as exc:
-            msg = f"Fehler: {exc}"
-        return _page("Reindex", f"<p>{_esc(msg)}</p>"
-                     f"<p><a href='/w/{wid}'>zurück</a></p>")
+            msg = f"{T['error']}: {exc}"
+        return _page(T, T["reindex_t"], f"<p>{_esc(msg)}</p>"
+                     f"<p><a href='/w/{wid}'>{T['back']}</a></p>")
 
-    # ---------- Transcripts ----------
     @app.get("/transcripts", response_class=HTMLResponse)
     def transcripts_list():
         import time as _t
@@ -429,17 +477,18 @@ def create_app(cfg: Config | None = None):
             except Exception:
                 n = 0
             rows.append(f"<li><a href='/transcript/{_esc(p.name)}'>"
-                        f"{_esc(p.stem)}</a> — {n} Ereignisse, {ts}</li>")
-        return _page("Gespielte Verläufe",
+                        f"{_esc(p.stem)}</a> — {n} {T['tr_events']}, "
+                        f"{ts}</li>")
+        return _page(T, T["tr_title"],
                      ("<ul>" + "".join(rows) + "</ul>") if rows
-                     else "<p>Noch keine Verläufe.</p>")
+                     else f"<p>{T['tr_none']}</p>")
 
     @app.get("/transcript/{name}", response_class=HTMLResponse)
     def transcript_view(name: str):
         safe = name.replace("/", "").replace("..", "")
         p = cfg.path("data/transcripts") / safe
         if not p.exists():
-            return _page("Verlauf", "<p>nicht gefunden</p>")
+            return _page(T, T["tr_one"], f"<p>{T['tr_notfound']}</p>")
         out = []
         for line in p.read_text(encoding="utf-8").splitlines():
             try:
@@ -449,10 +498,11 @@ def create_app(cfg: Config | None = None):
             t = e.get("type")
             if t == "user":
                 out.append("<div class='card' style='background:#eef'>"
-                           f"<b>🧑 Spieler:</b> {_esc(e.get('text',''))}</div>")
+                           f"<b>🧑 {T['tr_player']}:</b> "
+                           f"{_esc(e.get('text',''))}</div>")
             elif t == "assistant":
                 out.append(
-                    f"<div class='card'><b>📖 Erzähler</b> <small>["
+                    f"<div class='card'><b>📖 {T['tr_narr']}</b> <small>["
                     f"{_esc(e.get('state',''))} ${e.get('cost',0)}]</small>"
                     f"<br>{_esc(e.get('text',''))}</div>")
             elif t == "tool":
@@ -467,16 +517,16 @@ def create_app(cfg: Config | None = None):
                 fl = e.get("flagged", [])
                 out.append(
                     f"<div class='card' style='background:{col}'>🛡 "
-                    f"Moderation: {'OK' if ok else 'BLOCKIERT'}"
+                    f"{T['mod_title']}: "
+                    f"{'OK' if ok else T['tr_blocked']}"
                     + (f" — {_esc(json.dumps(fl,ensure_ascii=False))}"
                        if fl else "") + "</div>")
             elif t == "note":
                 out.append(f"<p><i>{_esc(e.get('text',''))}</i></p>")
-        return _page(f"Verlauf: {_esc(p.stem)}",
-                     "<p><a href='/transcripts'>&larr; alle Verläufe</a></p>"
+        return _page(T, f"{T['tr_one']}: {_esc(p.stem)}",
+                     f"<p><a href='/transcripts'>&larr; {T['tr_all']}</a></p>"
                      + "".join(out))
 
-    # ---------- Moderation thresholds ----------
     @app.get("/moderation", response_class=HTMLResponse)
     def moderation_form():
         from ..story.moderation import load_overrides
@@ -486,19 +536,16 @@ def create_app(cfg: Config | None = None):
         dflt = ov.get("default", cfg.moderation.default_threshold)
         cats = json.dumps(ov.get("categories", {}), ensure_ascii=False,
                           indent=2)
-        return _page("Moderation", (
-            "<p>Spieler-Eingaben werden VOR der LLM-Antwort geprüft "
-            f"(Modell {_esc(cfg.moderation.model)}). Schwelle = Score, ab "
-            "dem blockiert wird (0–1; niedriger = strenger).</p>"
+        return _page(T, T["mod_title"], (
+            f"<p>{T['mod_desc'] % _esc(cfg.moderation.model)}</p>"
             "<form method='post' action='/moderation'>"
             f"<label><input type='checkbox' name='enabled' "
-            f"{'checked' if en else ''}> aktiv</label><br>"
-            f"<label>Default-Schwelle</label>"
+            f"{'checked' if en else ''}> {T['mod_active']}</label><br>"
+            f"<label>{T['mod_default']}</label>"
             f"<input name='default' value='{_esc(dflt)}'>"
-            "<label>Pro-Kategorie als JSON (OpenAI-Kategorien, z. B. "
-            "{\"harassment\": 0.3, \"violence\": 0.7})</label>"
+            f"<label>{T['mod_cats']}</label>"
             f"<textarea name='categories' rows='8'>{_esc(cats)}</textarea>"
-            "<button>Speichern</button></form>"))
+            f"<button>{T['save']}</button></form>"))
 
     @app.post("/moderation")
     def moderation_save(enabled: str = Form(None),
