@@ -8,11 +8,14 @@ documented in [README.md](README.md) and [docs/](docs/). This file now tracks
 
 ## Open
 
-### Phase 8 — Bluetooth output (built, not activatable here)
+### Phase 8 — Bluetooth output (built; not testable on this Pi)
 `PipeWireBackend` + `scripts/setup_bluetooth.sh` exist behind the audio
-abstraction, but this Pi has no PipeWire, so it cannot be tested/activated
-here. To enable on suitable hardware: run the script, pair a BT speaker,
-set `[audio] backend = "pipewire"` (optionally `pw_sink`).
+abstraction, and the backend is switchable at runtime — via the admin
+`/audio` page or by voice (system menu → "Audio"), persisted in
+`data/audio.json` (also `[audio] backend = "pipewire"` / `pw_sink` in
+config). Only the actual PipeWire/Bluetooth path is **unverified here**
+because this Pi has no PipeWire: on suitable hardware run the script, pair a
+BT speaker, then select `pipewire`. (Mic capture stays on the ReSpeaker.)
 
 ### Custom German wake word (optional)
 Currently the default English model "hey jarvis" (openWakeWord). A custom
