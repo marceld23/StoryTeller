@@ -86,6 +86,16 @@ file  = "data/storyteller.log"
 host = "0.0.0.0"
 port = 8080
 
+[netcheck]
+# Kein WLAN beim Boot -> eigener AP + Captive-Portal (storyteller netcheck).
+enabled     = true
+iface       = "wlan0"
+timeout_s   = 45
+ap_ssid     = "storyteller-wifi"
+ap_password = "storyteller"      # WPA2, >= 8 Zeichen — bitte ändern
+portal_host = "10.42.0.1"        # NM shared-mode Gateway
+web_port    = 80
+
 [paths]
 worlds_dir         = "data/worlds"
 saves_dir          = "data/saves"

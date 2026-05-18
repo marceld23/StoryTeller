@@ -1,0 +1,24 @@
+# systemd SYSTEM service: Wi-Fi onboarding.
+# Runs at boot BEFORE the storyteller services. If Wi-Fi is reachable it
+# exits within seconds; if not, it opens AP "storyteller-wifi" + a captive
+# portal, and blocks until the user picks a network (then reboots).
+# Install: sudo bash scripts/install_netcheck.sh
+# Logs: journalctl -u storyteller-netcheck -f
+
+[Unit]
+Description=Storyteller Wi-Fi onboarding (captive portal if no Wi-Fi)
+After=NetworkManager.service
+Wants=NetworkManager.service
+Before=storyteller.service storyteller-admin.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+User=root
+Environment=HOME=/root
+WorkingDirectory=/home/pi/storyteller
+ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli netcheck
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

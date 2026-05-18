@@ -41,6 +41,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                     "Spielstand laden, oder Menü schließen.",
         "undone": "Der letzte Spielzug wurde zurückgenommen.",
         "closed": "Menü geschlossen. Weiter geht's.",
+        "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
+                     "um mich wieder zu wecken.",
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
@@ -60,6 +62,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                     "or close menu.",
         "undone": "The last turn was undone.",
         "closed": "Menu closed. Let's continue.",
+        "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
+                     "wake me again.",
     },
 }
 

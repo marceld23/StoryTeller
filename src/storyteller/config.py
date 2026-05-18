@@ -106,6 +106,16 @@ class WebCfg(BaseModel):
     port: int = 8080
 
 
+class NetcheckCfg(BaseModel):
+    enabled: bool = True
+    iface: str = "wlan0"
+    timeout_s: int = 45            # wait this long for Wi-Fi at boot
+    ap_ssid: str = "storyteller-wifi"
+    ap_password: str = "storyteller"   # WPA2, >= 8 chars; change me
+    portal_host: str = "10.42.0.1"     # NM shared-mode gateway
+    web_port: int = 80
+
+
 class VoicePromptsCfg(BaseModel):
     enabled: bool = True
     allow_live_fallback: bool = True
@@ -133,6 +143,7 @@ class Config(BaseModel):
     cost: CostCfg = CostCfg()
     logging: LoggingCfg = LoggingCfg()
     web: WebCfg = WebCfg()
+    netcheck: NetcheckCfg = NetcheckCfg()
     voice_prompts: VoicePromptsCfg = VoicePromptsCfg()
     paths: PathsCfg = PathsCfg()
 

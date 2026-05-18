@@ -444,6 +444,8 @@ def cmd_run(cfg, args) -> int:
                     said = input("Du: ").strip()
                 else:
                     if ww and not pending_follow:
+                        if speak:  # static reminder when it stops listening
+                            prompts.play("wake_hint", backend)
                         rp("[dim]… warte auf Wake-Word …[/dim]")
                         ww.listen_blocking()
                     elif ww and pending_follow:
@@ -587,6 +589,18 @@ def cmd_chat(cfg, args) -> int:
     return 0
 
 
+def cmd_netcheck(cfg, args) -> int:
+    from .net import onboarding
+
+    if args.check:  # safe: never starts the AP
+        ok = onboarding.have_connectivity(cfg)
+        print("connectivity:",
+              "OK — connected (no AP)" if ok else "NONE — would start AP")
+        return 0
+    onboarding.run_onboarding(cfg)
+    return 0
+
+
 def cmd_admin(cfg) -> int:
     try:
         import uvicorn
@@ -644,6 +658,10 @@ def main(argv: list[str] | None = None) -> int:
     pc.add_argument("--locale", default=None, help="de|en")
     pc.add_argument("--no-rag", action="store_true")
     pc.add_argument("--load", default=None)
+    pnc = sub.add_parser("netcheck",
+                         help="Wi-Fi onboarding (captive portal if no Wi-Fi)")
+    pnc.add_argument("--check", action="store_true",
+                     help="only report connectivity (never starts the AP)")
 
     args = p.parse_args(argv)
     cfg = load_config(args.config)
@@ -674,6 +692,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(cfg, args)
     if args.cmd == "chat":
         return cmd_chat(cfg, args)
+    if args.cmd == "netcheck":
+        return cmd_netcheck(cfg, args)
     p.error("unbekannt")
     return 2
 
