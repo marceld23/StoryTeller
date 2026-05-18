@@ -34,16 +34,32 @@ class WakeWord:
             self._err = repr(exc)
 
     def listen_blocking(self) -> bool:
-        """Blockiert bis Wake-Word erkannt. False wenn nicht verfügbar."""
+        """Block until the wake word is detected.
+
+        Resilient: if the mic stream ends (arecord closed) it re-opens and
+        keeps listening, so it truly blocks. Returns False only if the model
+        is unavailable or the mic keeps failing (caller then backs off).
+        """
         if not self.available:
             return False
-        stop = threading.Event()
-        try:
-            for frame in self.backend.mic_frames(16000, FRAME_LEN, stop):
-                scores = self.model.predict(frame)
-                if any(s >= self.cfg.wakeword.threshold
-                       for s in scores.values()):
-                    return True
-        finally:
-            stop.set()
+        import time
+
+        fails = 0
+        while fails < 30:
+            stop = threading.Event()
+            got_any = False
+            try:
+                for frame in self.backend.mic_frames(16000, FRAME_LEN, stop):
+                    got_any = True
+                    scores = self.model.predict(frame)
+                    if any(s >= self.cfg.wakeword.threshold
+                           for s in scores.values()):
+                        return True
+                fails = 0 if got_any else fails + 1
+                time.sleep(0.3)
+            except Exception:
+                fails += 1
+                time.sleep(0.5)
+            finally:
+                stop.set()
         return False

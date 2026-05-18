@@ -1,4 +1,7 @@
 
+# Vendored from Seeed Studio `respeaker/pixel_ring` (Apache-2.0).
+# Upstream: https://github.com/respeaker/pixel_ring  (c) Seeed Technology.
+# Retained under Apache-2.0, not relicensed. See THIRD_PARTY_NOTICES.md.
 import usb.core
 import usb.util
 

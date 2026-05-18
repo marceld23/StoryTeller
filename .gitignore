@@ -22,3 +22,5 @@ data/wait_sounds/
 
 # OS
 .DS_Store
+data/moderation.json
+data/transcripts/

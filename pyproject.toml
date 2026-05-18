@@ -1,8 +1,10 @@
 [project]
 name = "storyteller"
 version = "0.1.0"
-description = "Interaktiver sprachgesteuerter Geschichtenerzähler (Raspberry Pi + OpenAI + ReSpeaker)"
+description = "Interactive voice-controlled storyteller (Raspberry Pi / PC + OpenAI + ReSpeaker)"
 readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "marceld23", email = "marcel.duetscher@gmail.com" }]
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.7",

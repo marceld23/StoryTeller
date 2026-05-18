@@ -65,7 +65,10 @@ def _page(title: str, body: str) -> str:
         ".card{border:1px solid #ddd;border-radius:8px;padding:.8rem;margin:.6rem 0}"
         "</style>"
         "<nav><a href='/'>🏠 Dashboard</a><a href='/new'>➕ Neue Welt</a>"
-        "<a href='/saves'>💾 Spielstände</a><a href='/docs'>⚙ API</a></nav>"
+        "<a href='/saves'>💾 Spielstände</a>"
+        "<a href='/transcripts'>📜 Verläufe</a>"
+        "<a href='/moderation'>🛡 Moderation</a>"
+        "<a href='/docs'>⚙ API</a></nav>"
         f"<h1>{_esc(title)}</h1>{body}"
     )
 
@@ -325,6 +328,114 @@ def create_app(cfg: Config | None = None):
             msg = f"Fehler: {exc}"
         return _page("Reindex", f"<p>{_esc(msg)}</p>"
                      f"<p><a href='/w/{wid}'>zurück</a></p>")
+
+    # ---------- Transcripts ----------
+    @app.get("/transcripts", response_class=HTMLResponse)
+    def transcripts_list():
+        import time as _t
+
+        d = cfg.path("data/transcripts")
+        files = sorted(d.glob("*.jsonl"),
+                       key=lambda p: p.stat().st_mtime, reverse=True) \
+            if d.exists() else []
+        rows = []
+        for p in files:
+            ts = _t.strftime("%Y-%m-%d %H:%M",
+                             _t.localtime(p.stat().st_mtime))
+            try:
+                n = sum(1 for _ in p.open(encoding="utf-8"))
+            except Exception:
+                n = 0
+            rows.append(f"<li><a href='/transcript/{_esc(p.name)}'>"
+                        f"{_esc(p.stem)}</a> — {n} Ereignisse, {ts}</li>")
+        return _page("Gespielte Verläufe",
+                     ("<ul>" + "".join(rows) + "</ul>") if rows
+                     else "<p>Noch keine Verläufe.</p>")
+
+    @app.get("/transcript/{name}", response_class=HTMLResponse)
+    def transcript_view(name: str):
+        safe = name.replace("/", "").replace("..", "")
+        p = cfg.path("data/transcripts") / safe
+        if not p.exists():
+            return _page("Verlauf", "<p>nicht gefunden</p>")
+        out = []
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            t = e.get("type")
+            if t == "user":
+                out.append("<div class='card' style='background:#eef'>"
+                           f"<b>🧑 Spieler:</b> {_esc(e.get('text',''))}</div>")
+            elif t == "assistant":
+                out.append(
+                    f"<div class='card'><b>📖 Erzähler</b> <small>["
+                    f"{_esc(e.get('state',''))} ${e.get('cost',0)}]</small>"
+                    f"<br>{_esc(e.get('text',''))}</div>")
+            elif t == "tool":
+                out.append(
+                    "<details class='card'><summary>🔧 Tool: "
+                    f"{_esc(e.get('name',''))}</summary><pre>args: "
+                    f"{_esc(json.dumps(e.get('args',{}),ensure_ascii=False))}"
+                    f"\nresult: {_esc(e.get('result',''))}</pre></details>")
+            elif t == "moderation":
+                ok = e.get("ok", True)
+                col = "#e7f7e7" if ok else "#fde7e7"
+                fl = e.get("flagged", [])
+                out.append(
+                    f"<div class='card' style='background:{col}'>🛡 "
+                    f"Moderation: {'OK' if ok else 'BLOCKIERT'}"
+                    + (f" — {_esc(json.dumps(fl,ensure_ascii=False))}"
+                       if fl else "") + "</div>")
+            elif t == "note":
+                out.append(f"<p><i>{_esc(e.get('text',''))}</i></p>")
+        return _page(f"Verlauf: {_esc(p.stem)}",
+                     "<p><a href='/transcripts'>&larr; alle Verläufe</a></p>"
+                     + "".join(out))
+
+    # ---------- Moderation thresholds ----------
+    @app.get("/moderation", response_class=HTMLResponse)
+    def moderation_form():
+        from ..story.moderation import load_overrides
+
+        ov = load_overrides(cfg)
+        en = ov.get("enabled", cfg.moderation.enabled)
+        dflt = ov.get("default", cfg.moderation.default_threshold)
+        cats = json.dumps(ov.get("categories", {}), ensure_ascii=False,
+                          indent=2)
+        return _page("Moderation", (
+            "<p>Spieler-Eingaben werden VOR der LLM-Antwort geprüft "
+            f"(Modell {_esc(cfg.moderation.model)}). Schwelle = Score, ab "
+            "dem blockiert wird (0–1; niedriger = strenger).</p>"
+            "<form method='post' action='/moderation'>"
+            f"<label><input type='checkbox' name='enabled' "
+            f"{'checked' if en else ''}> aktiv</label><br>"
+            f"<label>Default-Schwelle</label>"
+            f"<input name='default' value='{_esc(dflt)}'>"
+            "<label>Pro-Kategorie als JSON (OpenAI-Kategorien, z. B. "
+            "{\"harassment\": 0.3, \"violence\": 0.7})</label>"
+            f"<textarea name='categories' rows='8'>{_esc(cats)}</textarea>"
+            "<button>Speichern</button></form>"))
+
+    @app.post("/moderation")
+    def moderation_save(enabled: str = Form(None),
+                        default: str = Form("0.5"),
+                        categories: str = Form("{}")):
+        from ..story.moderation import save_overrides
+
+        try:
+            cats = {str(k): float(v)
+                    for k, v in json.loads(categories or "{}").items()}
+        except Exception:
+            cats = {}
+        try:
+            df = float(default)
+        except Exception:
+            df = cfg.moderation.default_threshold
+        save_overrides(cfg, {"enabled": enabled is not None, "default": df,
+                             "categories": cats})
+        return RedirectResponse("/moderation", status_code=303)
 
     return app
 

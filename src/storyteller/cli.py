@@ -243,6 +243,16 @@ def _make_engine(cfg, world, use_rag: bool):
     return StoryEngine(cfg, world, rag), rag
 
 
+def _attach_transcript(cfg, engine, world) -> None:
+    try:
+        from .story.transcript import Transcript
+
+        sess = f"{world.id}-{time.strftime('%Y%m%d-%H%M%S')}"
+        engine.transcript = Transcript(cfg, sess)
+    except Exception:
+        pass
+
+
 def cmd_demo(cfg, args) -> int:
     from .audio.backend import get_backend
     from .hardware.leds import LedRing
@@ -257,6 +267,7 @@ def cmd_demo(cfg, args) -> int:
     backend.set_volume(cfg.audio.default_volume_pct)
     leds = LedRing()
     engine, _ = _make_engine(cfg, world, not args.no_rag)
+    _attach_transcript(cfg, engine, world)
     fx = VoiceFX(cfg, world.fx_preset)
     tts = get_tts(cfg)
     text = engine.opening() if (args.opening or not args.text) \
@@ -302,13 +313,25 @@ def cmd_run(cfg, args) -> int:
     tts = get_tts(cfg)
     sm = SaveManager(cfg)
 
+    speak = not args.silent          # --silent: no audio output
+    text_mode = args.text            # --text: keyboard instead of mic
+    ww = None
+    if not args.ptt and not text_mode:
+        from .voice.wakeword import WakeWord
+
+        _w = WakeWord(cfg, backend)
+        if _w.available:
+            ww = _w
+        else:
+            rp("[yellow]Wake-Word nicht verfügbar -> Push-to-talk[/yellow]")
+
     restore_state = None
     wid = args.world
     if args.load:
         restore_state = sm.load(args.load)
         wid = restore_state["world_id"]
     elif not wid:
-        sel = VoiceMenu(cfg, backend, prompts, stt, leds).run()
+        sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww, speak).run()
         if sel.get("action") == "load" and sm.latest():
             restore_state = sm.load(sm.latest())
             wid = restore_state["world_id"]
@@ -317,25 +340,13 @@ def cmd_run(cfg, args) -> int:
     world = load_world(cfg, wid)
     rp(f"[bold]Welt:[/bold] {world.name}")
 
-    speak = not args.silent          # --silent: keine Audioausgabe
-    text_mode = args.text            # --text: Tastatur statt Mikro (PC)
     from .audio.player import play_array
     from .voice.waitloop import WaitLoop
 
-    def _init_engine_ww():
+    def _init_engine():
         eng, _ = _make_engine(cfg, world, not args.no_rag)
-        fxx = VoiceFX(cfg, world.fx_preset)
-        wwx = None
-        if not args.ptt and not text_mode:
-            from .voice.wakeword import WakeWord
-
-            w = WakeWord(cfg, backend)
-            if w.available:
-                wwx = w
-            else:
-                rp("[yellow]Wake-Word nicht verfügbar -> Push-to-talk"
-                   "[/yellow]")
-        return eng, fxx, wwx
+        _attach_transcript(cfg, eng, world)
+        return eng, VoiceFX(cfg, world.fx_preset)
 
     def _open(eng):
         from .i18n import RESTORE_DIRECTIVE, norm
@@ -349,7 +360,7 @@ def cmd_run(cfg, args) -> int:
     if speak:
         out = None
         with WaitLoop(cfg, backend, world.wait_sound, leds):
-            engine, fx, ww = _init_engine_ww()
+            engine, fx = _init_engine()
             style = world.narration_style
             first = _open(engine)
             if first:
@@ -360,7 +371,7 @@ def cmd_run(cfg, args) -> int:
             leds.speak()
             play_array(backend, out[0], out[1])
     else:
-        engine, fx, ww = _init_engine_ww()
+        engine, fx = _init_engine()
         style = world.narration_style
         first = _open(engine)
         rp(f"[green][Erzähler][/green] {first}")
@@ -436,6 +447,7 @@ def cmd_run(cfg, args) -> int:
     # follow-up: after the narrator speaks, listen once WITHOUT the wake word
     follow_enabled = bool(ww) and cfg.wakeword.follow_up
     pending_follow = follow_enabled  # also lets the player answer the opening
+    hinted = False  # wake_hint is announced ONCE per idle transition
     try:
         while True:
             leds.idle()
@@ -444,10 +456,14 @@ def cmd_run(cfg, args) -> int:
                     said = input("Du: ").strip()
                 else:
                     if ww and not pending_follow:
-                        if speak:  # static reminder when it stops listening
+                        if speak and not hinted:  # announce ONCE per idle
                             prompts.play("wake_hint", backend)
+                            hinted = True
                         rp("[dim]… warte auf Wake-Word …[/dim]")
-                        ww.listen_blocking()
+                        if not ww.listen_blocking():
+                            time.sleep(2)   # no detection / mic issue:
+                            continue        # retry, no re-announce/spam
+                        hinted = False      # detected -> leaving idle
                     elif ww and pending_follow:
                         rp("[dim]… sprich direkt weiter (oder still bleiben "
                            "für Wake-Word) …[/dim]")
@@ -549,6 +565,7 @@ def cmd_chat(cfg, args) -> int:
        f"commands: save / load / quit[/dim]")
 
     engine, _ = _make_engine(cfg, world, not args.no_rag)
+    _attach_transcript(cfg, engine, world)
     if restore_state:
         engine.restore(restore_state)
         first = engine.turn(RESUME_DIRECTIVE[loc])

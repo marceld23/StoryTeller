@@ -86,6 +86,13 @@ file  = "data/storyteller.log"
 host = "0.0.0.0"
 port = 8080
 
+[moderation]
+# Spieler-Eingabe wird VOR der LLM-Antwort geprüft (OpenAI Moderation API).
+# Pro-Kategorie-Schwellen sind im Admin-Modul editierbar (data/moderation.json).
+enabled           = true
+model             = "omni-moderation-latest"
+default_threshold = 0.5
+
 [netcheck]
 # Kein WLAN beim Boot -> eigener AP + Captive-Portal (storyteller netcheck).
 enabled     = true

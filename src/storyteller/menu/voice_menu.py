@@ -25,12 +25,15 @@ def _match_keyword(text: str, keywords: dict[str, list[str]]) -> str | None:
 
 
 class VoiceMenu:
-    def __init__(self, cfg: Config, backend, prompts, stt, leds=None):
+    def __init__(self, cfg: Config, backend, prompts, stt, leds=None,
+                 ww=None, speak: bool = True):
         self.cfg = cfg
         self.backend = backend
         self.prompts = prompts
         self.stt = stt
         self.leds = leds
+        self.ww = ww          # optional WakeWord (gate the menu like the loop)
+        self.speak = speak
         self.locale = norm(cfg.general.locale)
         self.keywords = world_keywords(self.locale)
         self._load_kw = (("laden", "spielstand") if self.locale == "de"
@@ -95,11 +98,22 @@ class VoiceMenu:
     def run(self) -> dict:
         worlds = self._worlds()
         self.prompts.play("welcome", self.backend)
-        for _ in range(3):
+        for _ in range(6):
             self.prompts.play("choose_world", self.backend)
+            # Gate like the main loop: announce the wake word, then block on
+            # it (no blind 4 s listen / "not understood" spam on silence).
+            if self.ww is not None:
+                if self.speak:
+                    self.prompts.play("wake_hint", self.backend)
+                if self.leds:
+                    self.leds.idle()
+                if not self.ww.listen_blocking():
+                    import time
+                    time.sleep(2)
+                    continue
             said = self._ask()
             if not said.strip():
-                self.prompts.play("not_understood", self.backend)
+                # silence: no "not understood" — just wait for the wake word
                 continue
 
             choice = self._classify_llm(said, worlds)

@@ -106,6 +106,13 @@ class WebCfg(BaseModel):
     port: int = 8080
 
 
+class ModerationCfg(BaseModel):
+    enabled: bool = True
+    model: str = "omni-moderation-latest"
+    default_threshold: float = 0.5  # block a category at/above this score
+    # Per-category overrides live in data/moderation.json (admin-editable).
+
+
 class NetcheckCfg(BaseModel):
     enabled: bool = True
     iface: str = "wlan0"
@@ -143,6 +150,7 @@ class Config(BaseModel):
     cost: CostCfg = CostCfg()
     logging: LoggingCfg = LoggingCfg()
     web: WebCfg = WebCfg()
+    moderation: ModerationCfg = ModerationCfg()
     netcheck: NetcheckCfg = NetcheckCfg()
     voice_prompts: VoicePromptsCfg = VoicePromptsCfg()
     paths: PathsCfg = PathsCfg()

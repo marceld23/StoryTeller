@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+# Vendored from Seeed Studio `respeaker/usb_4_mic_array` (Apache-2.0).
+# Upstream: https://github.com/respeaker/usb_4_mic_array  (c) Seeed Technology.
+# Patched for Python 3.13 (.tostring() -> .tobytes()). Retained under
+# Apache-2.0, not relicensed. See THIRD_PARTY_NOTICES.md.
 
 import sys
 import struct

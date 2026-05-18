@@ -105,6 +105,13 @@ LANG_INSTRUCTION = {
     "en": "Respond in English.",
 }
 
+MODERATION_BLOCKED = {
+    "de": "Diese Eingabe kann ich nicht verarbeiten. Bitte formuliere es "
+          "anders und freundlicher.",
+    "en": "I can't process that input. Please rephrase it differently and "
+          "more kindly.",
+}
+
 # --- Engine/CLI directives ---
 OPENING_DIRECTIVE = {
     "de": ("[Beginne EINFACH und kurz: 3–5 kurze Sätze zur Ausgangslage, "

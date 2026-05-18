@@ -135,6 +135,7 @@ class StoryEngine:
         self.dynamics = StoryDynamics(self._rng)
         self._transition = False
         self._wrap_up = False
+        self.transcript = None  # optional Transcript recorder (set by caller)
 
     # --- Zustand ---
     def state(self) -> NarrativeState:
@@ -310,15 +311,20 @@ class StoryEngine:
                             a = json.loads(tc.function.arguments or "{}")
                         except json.JSONDecodeError:
                             a = {}
+                        _res = str(self._exec_tool(tc.function.name, a))
+                        if self.transcript:
+                            self.transcript.tool(tc.function.name, a, _res)
                         working.append({"role": "tool",
                                         "tool_call_id": tc.id,
-                                        "content": str(self._exec_tool(
-                                            tc.function.name, a))})
+                                        "content": _res})
                     continue
                 text = (msg.content or "").strip()
                 if text:
                     self.memory.append({"role": "assistant",
                                         "content": text})
+                    if self.transcript:
+                        self.transcript.assistant(
+                            text, self.state().value, self.cost.usd)
                     self._transition = False
                     self._trim()
                     return text
@@ -347,6 +353,22 @@ class StoryEngine:
         return self._complete(OPENING_DIRECTIVE[self.loc])
 
     def turn(self, player_utterance: str) -> str:
+        from ..i18n import MODERATION_BLOCKED
+        from .moderation import Moderator
+
+        internal = (player_utterance.startswith("[")
+                    and player_utterance.rstrip().endswith("]"))
+        if not internal:
+            if self.transcript:
+                self.transcript.user(player_utterance)
+            ok, flagged, _ = Moderator(self.cfg).check(player_utterance)
+            if self.transcript:
+                self.transcript.moderation(ok, flagged)
+            if not ok:
+                msg = MODERATION_BLOCKED[self.loc]
+                if self.transcript:
+                    self.transcript.assistant(msg, "blocked", self.cost.usd)
+                return msg
         return self._complete(player_utterance)
 
     def last_narration(self) -> str:

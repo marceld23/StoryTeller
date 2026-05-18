@@ -77,13 +77,23 @@ uv run storyteller chat [--world ID] [--locale de|en] [--load NAME]
 uv run storyteller demo --world sternenfahrt [--locale en] --text "…"
 uv run storyteller run [--world ID] [--ptt] [--text] [--silent] \
                        [--profile pi|pc] [--locale de|en] [--load NAME]
+uv run storyteller netcheck [--check]             # Wi-Fi onboarding (--check: read-only)
 uv run storyteller admin                          # web admin (uv sync --extra web)
 ```
 
-`run` without `--world` starts the voice menu; without a wake word it falls
-back to push-to-talk (Enter). In-loop voice commands: save / load / quit
-(localized). Install the wake word: `bash scripts/install_wakeword.sh`.
+`run` without `--world` starts the voice menu (wake-word gated); without a
+wake word it falls back to push-to-talk (Enter). During a story say
+**"Hey Jarvis" → "System"** for the spoken system menu (save / quit / undo /
+load / close). Install the wake word: `bash scripts/install_wakeword.sh`.
 Bluetooth (later): `bash scripts/setup_bluetooth.sh` + `[audio] backend="pipewire"`.
+
+## Documentation
+
+- [docs/SETUP_PI.md](docs/SETUP_PI.md) — Raspberry Pi 4 + ReSpeaker setup
+- [docs/SETUP_PC.md](docs/SETUP_PC.md) — running on a normal PC
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to play (voice & text)
+- [PLAN.md](PLAN.md) — architecture, decisions, roadmap
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — dependency licenses
 
 ## Story logic
 
@@ -93,3 +103,33 @@ architect plans the next one (RAG + context); the plan is adjustable via
 tool / prompt injection. An abstract **story dynamic** (new antagonist /
 unforeseen event …) spices planning and play without derailing the arc.
 Per-session cost cap (graceful wrap-up). Follow-up questions get short answers.
+
+## Safety
+
+Every player input is sent to the OpenAI moderation model
+(`omni-moderation-latest`) **before** the narrator answers; on a threshold
+hit the turn is politely refused. Thresholds are configurable in the admin
+website (**Moderation**). Played stories are recorded as transcripts
+(player input, moderation result, every LLM tool call + result, narrator
+replies) and viewable in the admin (**Verläufe**).
+
+## License
+
+This project's own source is **MIT** (see [LICENSE](LICENSE)). All required
+Python dependencies are permissive (MIT/BSD/Apache/MPL). Notable caveats —
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md):
+
+- **`pedalboard` is GPLv3** — only the *optional* `audiofx` extra (voice
+  reverb), dynamically imported with a pass-through fallback; not bundled.
+  Without it the project stays MIT-clean; if you enable and redistribute it,
+  GPLv3 applies to that combined work.
+- **openWakeWord** code is Apache-2.0, but its default pretrained models
+  (e.g. "hey jarvis") are **CC-BY-NC-SA 4.0 (non-commercial)**. Models are
+  downloaded at install, not shipped; for commercial use train/replace them.
+- Vendored ReSpeaker drivers (`hardware/pixel_ring_v2.py`,
+  `hardware/tuning.py`) are from Seeed Studio under **Apache-2.0**, retained
+  with attribution (not relicensed).
+
+Note: MIT permits commercial use; it cannot restrict commercial use to
+"by permission only" — that would require a non-open source-available
+license (e.g. PolyForm Noncommercial) instead.
