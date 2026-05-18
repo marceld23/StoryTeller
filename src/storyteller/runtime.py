@@ -7,11 +7,35 @@ Lets Storyteller run on a normal PC without a Pi/ReSpeaker:
 
 from __future__ import annotations
 
+import json
 import platform
 from functools import lru_cache
 from pathlib import Path
 
 from .config import Config
+
+_AUDIO_BACKENDS = ("auto", "alsa_softvol", "portable", "pipewire")
+
+
+def audio_override_path(cfg: Config):
+    return cfg.path("data/audio.json")
+
+
+def load_audio_override(cfg: Config) -> dict:
+    """Runtime audio override (admin/voice editable): {backend, pw_sink}."""
+    p = audio_override_path(cfg)
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def save_audio_override(cfg: Config, data: dict) -> None:
+    p = audio_override_path(cfg)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
 @lru_cache
@@ -50,8 +74,10 @@ def resolve_profile(cfg: Config) -> str:
 
 
 def resolve_backend_name(cfg: Config) -> str:
-    """Konkretes Audio-Backend (löst 'auto' anhand des Profils auf)."""
-    b = (cfg.audio.backend or "auto").lower()
-    if b != "auto":
+    """Concrete audio backend. Runtime override (data/audio.json) wins,
+    then config.audio.backend, then 'auto' -> by profile."""
+    ov = load_audio_override(cfg)
+    b = str(ov.get("backend") or cfg.audio.backend or "auto").lower()
+    if b in _AUDIO_BACKENDS and b != "auto":
         return b
     return "alsa_softvol" if resolve_profile(cfg) == "pi" else "portable"

@@ -177,6 +177,14 @@ def run_onboarding(cfg: Config) -> None:
     if not start_ap(cfg):
         log.error("could not start AP — giving up netcheck")
         return
+    # Offline spoken hint (cached prompt — no internet for TTS here).
+    try:
+        from ..audio.backend import get_backend
+        from ..voice.prompts import VoicePromptCache
+
+        VoicePromptCache(cfg).play("wifi_setup", get_backend(cfg))
+    except Exception as exc:
+        log.warning("wifi_setup prompt failed: %r", exc)
     try:
         import uvicorn
 

@@ -15,7 +15,9 @@ Before=storyteller.service storyteller-admin.service
 Type=oneshot
 RemainAfterExit=no
 User=root
-Environment=HOME=/root
+# HOME=/home/pi so root's aplay finds ~/.asoundrc (ALSA softvol) for the
+# offline "no Wi-Fi" voice hint; nmcli/reboot work regardless of HOME.
+Environment=HOME=/home/pi
 WorkingDirectory=/home/pi/storyteller
 ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli netcheck
 TimeoutStartSec=0

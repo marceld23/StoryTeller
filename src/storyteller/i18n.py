@@ -38,11 +38,18 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "goodbye": "Bis zum nächsten Mal.",
         "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
         "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
-                    "Spielstand laden, oder Menü schließen.",
+                    "Spielstand laden, Audio umschalten, oder Menü "
+                    "schließen.",
         "undone": "Der letzte Spielzug wurde zurückgenommen.",
         "closed": "Menü geschlossen. Weiter geht's.",
         "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
                      "um mich wieder zu wecken.",
+        "wifi_setup": "Kein WLAN gefunden. Verbinde dein Handy mit dem "
+                      "WLAN storyteller-wifi. Es öffnet sich automatisch "
+                      "eine Seite, auf der du dein WLAN auswählen und das "
+                      "Passwort eingeben kannst. Danach starte ich neu.",
+        "audio_bt_on": "Audioausgabe auf Bluetooth umgestellt.",
+        "audio_bt_off": "Audioausgabe zurück auf den Standard.",
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
@@ -59,11 +66,17 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "goodbye": "Until next time.",
         "error_retry": "There was a glitch. Please say it again.",
         "sys_menu": "System menu. Say: save, quit, undo turn, load game, "
-                    "or close menu.",
+                    "switch audio, or close menu.",
         "undone": "The last turn was undone.",
         "closed": "Menu closed. Let's continue.",
         "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
                      "wake me again.",
+        "wifi_setup": "No Wi-Fi found. Connect your phone to the Wi-Fi "
+                      "storyteller-wifi. A page opens automatically where "
+                      "you can pick your Wi-Fi and enter the password. "
+                      "Then I will restart.",
+        "audio_bt_on": "Audio output switched to Bluetooth.",
+        "audio_bt_off": "Audio output back to the default.",
     },
 }
 
@@ -168,7 +181,13 @@ WEB = {
         "nav_dash": "🏠 Dashboard", "nav_new": "➕ Neue Welt",
         "nav_gen": "🧙 Welt aus Prompt", "nav_saves": "💾 Spielstände",
         "nav_tr": "📜 Verläufe", "nav_mod": "🛡 Moderation",
-        "nav_api": "⚙ API",
+        "nav_api": "⚙ API", "nav_audio": "🔊 Audio",
+        "audio_title": "Audio-Ausgabe",
+        "audio_desc": "Backend zur Laufzeit umschalten (auch per Sprache: "
+                      "System, dann Audio). pipewire = Bluetooth (vorher "
+                      "scripts/setup_bluetooth.sh + Gerät koppeln).",
+        "audio_backend": "Backend", "audio_sink_ph": "PipeWire-Sink "
+                         "(leer = Default; wpctl status zeigt Namen)",
         "backend": "Storyteller — Backend", "config": "Konfiguration",
         "worlds": "Welten", "new_world": "➕ Neue Welt anlegen",
         "saves": "Spielstände", "view": "ansehen",
@@ -239,7 +258,13 @@ WEB = {
         "nav_dash": "🏠 Dashboard", "nav_new": "➕ New world",
         "nav_gen": "🧙 World from prompt", "nav_saves": "💾 Saves",
         "nav_tr": "📜 Transcripts", "nav_mod": "🛡 Moderation",
-        "nav_api": "⚙ API",
+        "nav_api": "⚙ API", "nav_audio": "🔊 Audio",
+        "audio_title": "Audio output",
+        "audio_desc": "Switch the backend at runtime (also by voice: "
+                      "System, then Audio). pipewire = Bluetooth (run "
+                      "scripts/setup_bluetooth.sh + pair a device first).",
+        "audio_backend": "Backend", "audio_sink_ph": "PipeWire sink "
+                         "(empty = default; wpctl status shows names)",
         "backend": "Storyteller — Backend", "config": "Configuration",
         "worlds": "Worlds", "new_world": "➕ Create new world",
         "saves": "Saves", "view": "view", "cost_cap": "cost cap",

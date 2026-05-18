@@ -8,12 +8,6 @@ documented in [README.md](README.md) and [docs/](docs/). This file now tracks
 
 ## Open
 
-### Phase 10 — Local speech models (optional, hardware-dependent)
-Local Whisper STT + local TTS behind the existing provider abstraction
-(`voice/stt.py` / `voice/tts.py`). **Requires a Raspberry Pi 5 + AI HAT
-(NPU)** — not latency-viable on the current Pi 4. Switchable via config
-(OpenAI ↔ local). Benefit: offline, no API cost, privacy.
-
 ### Phase 8 — Bluetooth output (built, not activatable here)
 `PipeWireBackend` + `scripts/setup_bluetooth.sh` exist behind the audio
 abstraction, but this Pi has no PipeWire, so it cannot be tested/activated

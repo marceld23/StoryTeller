@@ -106,6 +106,7 @@ def _page(T: dict, title: str, body: str) -> str:
         f"<a href='/saves'>{T['nav_saves']}</a>"
         f"<a href='/transcripts'>{T['nav_tr']}</a>"
         f"<a href='/moderation'>{T['nav_mod']}</a>"
+        f"<a href='/audio'>{T['nav_audio']}</a>"
         f"<a href='/docs'>{T['nav_api']}</a>"
         "<a onclick='stTheme()' title='Dark/Light'>🌓</a></nav>"
         f"<h1>{_esc(title)}</h1>{body}"
@@ -569,6 +570,36 @@ def create_app(cfg: Config | None = None):
         save_overrides(cfg, {"enabled": enabled is not None, "default": df,
                              "categories": cats})
         return RedirectResponse("/moderation", status_code=303)
+
+    @app.get("/audio", response_class=HTMLResponse)
+    def audio_form():
+        from ..runtime import load_audio_override, resolve_backend_name
+
+        ov = load_audio_override(cfg)
+        cur = str(ov.get("backend") or cfg.audio.backend or "auto")
+        sink = ov.get("pw_sink", cfg.audio.pw_sink or "")
+        opts = "".join(
+            f"<option{' selected' if cur == b else ''}>{b}</option>"
+            for b in ("auto", "alsa_softvol", "portable", "pipewire"))
+        return _page(T, T["audio_title"], (
+            f"<p>{T['audio_desc']}</p>"
+            f"<p><b>{T['audio_backend']} (effektiv):</b> "
+            f"{_esc(resolve_backend_name(cfg))}</p>"
+            "<form method='post' action='/audio'>"
+            f"<label>{T['audio_backend']}</label>"
+            f"<select name='backend'>{opts}</select>"
+            f"<input name='pw_sink' value='{_esc(sink)}' "
+            f"placeholder='{_esc(T['audio_sink_ph'])}'>"
+            f"<button>{T['save']}</button></form>"))
+
+    @app.post("/audio")
+    def audio_save(backend: str = Form("auto"), pw_sink: str = Form("")):
+        from ..runtime import save_audio_override
+
+        b = backend if backend in ("auto", "alsa_softvol", "portable",
+                                   "pipewire") else "auto"
+        save_audio_override(cfg, {"backend": b, "pw_sink": pw_sink.strip()})
+        return RedirectResponse("/audio", status_code=303)
 
     return app
 

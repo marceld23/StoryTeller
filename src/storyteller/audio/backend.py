@@ -346,7 +346,12 @@ _BACKENDS = {
 
 
 def get_backend(cfg: Config) -> AudioBackend:
-    """Factory: löst 'auto' anhand des Runtime-Profils auf."""
+    """Factory: runtime override + profile resolve the concrete backend."""
+    from ..runtime import load_audio_override
+
+    ov = load_audio_override(cfg)
+    if ov.get("pw_sink"):
+        cfg.audio.pw_sink = ov["pw_sink"]
     name = resolve_backend_name(cfg)
     cls = _BACKENDS.get(name)
     if cls is None:

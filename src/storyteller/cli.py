@@ -381,10 +381,12 @@ def cmd_run(cfg, args) -> int:
 
     def _sysmenu():
         """Spoken system menu; then replay the last narration. -> 'quit'|None."""
+        nonlocal backend
         if speak:
             prompts.play("sys_menu", backend)
         else:
-            rp("[dim]System: save / quit / undo / load / close[/dim]")
+            rp("[dim]System: save / quit / undo / load / audio / close"
+               "[/dim]")
         if text_mode:
             pick = input("System: ").strip()
         else:
@@ -399,6 +401,7 @@ def cmd_run(cfg, args) -> int:
                 ("quit", "beenden / quit the game"),
                 ("undo", "Spielzug zurück / undo the last turn"),
                 ("load", "Spielstand laden / load the latest save"),
+                ("audio", "Audio/Bluetooth umschalten / switch audio output"),
                 ("close", "Menü schließen / close menu and continue")]
         ch = _classify(cfg, pick, opts)
         if ch == "unknown":
@@ -411,6 +414,9 @@ def cmd_run(cfg, args) -> int:
             elif any(k in lw for k in ("zurück", "zuruck", "undo",
                                        "rückgäng", "ruckgang")):
                 ch = "undo"
+            elif any(k in lw for k in ("audio", "bluetooth", "blue tooth",
+                                       "lautsprecher", "ausgabe")):
+                ch = "audio"
             elif any(k in lw for k in ("lad", "load")):
                 ch = "close" if "spielstand" not in lw and "save" in lw \
                     else "load"
@@ -418,6 +424,36 @@ def cmd_run(cfg, args) -> int:
                 ch = "close"
         if ch == "quit":
             return "quit"
+        if ch == "audio":
+            from .runtime import (load_audio_override,
+                                  resolve_backend_name, save_audio_override)
+
+            ov = load_audio_override(cfg)
+            if resolve_backend_name(cfg) == "pipewire":
+                ov["backend"] = "auto"
+                amsg = "audio_bt_off"
+            else:
+                ov["backend"] = "pipewire"
+                amsg = "audio_bt_on"
+            save_audio_override(cfg, ov)
+            try:
+                backend = get_backend(cfg)
+                backend.set_volume(cfg.audio.default_volume_pct)
+            except Exception as exc:
+                log.warning("audio switch: %r", exc)
+            if speak:
+                try:
+                    prompts.play(amsg, backend)
+                except Exception:
+                    pass
+            else:
+                rp(f"[dim]({amsg})[/dim]")
+            last = engine.last_narration()
+            if last:
+                _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                     speak=speak)
+            return None
+
         if ch == "save":
             autosave()
             prompts.play("saved", backend) if speak \
