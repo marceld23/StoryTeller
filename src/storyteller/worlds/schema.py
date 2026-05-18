@@ -100,6 +100,18 @@ class FXPreset(BaseModel):
     distortion_drive_db: float | None = None
 
 
+class Tone(BaseModel):
+    """Per-world tonal / genre preferences (0 = none/light .. 5 = strong)."""
+
+    darkness: int = 2          # light-hearted .. grim
+    humor: int = 1
+    romance: int = 1
+    action: int = 3
+    horror: int = 1
+    pacing: str = "medium"     # slow | medium | fast
+    notes: str = ""            # free-text genre/tone preferences
+
+
 class World(BaseModel):
     # --- Kern / Beschreibung ---
     id: str
@@ -112,6 +124,12 @@ class World(BaseModel):
     mood: str = ""                         # Grundstimmung
     ambience: str = ""                     # Ambiente / Sinneseindrücke
     magic_physics: str = ""                # Physik- bzw. Magiesystem (Regeln)
+
+    # --- Dramaturgie-Steuerung (pro Welt) ---
+    complexity: str = "standard"           # simple | standard | rich
+    story_patterns: list[str] = Field(default_factory=list)  # leer = nach complexity
+    audience: str = "erwachsene"           # Zielgruppe / Alter, z.B. "12+"
+    tone: Tone = Field(default_factory=Tone)
 
     # --- Strukturierter Weltinhalt ---
     places: list[Place] = Field(default_factory=list)

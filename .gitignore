@@ -24,3 +24,10 @@ data/wait_sounds/
 .DS_Store
 data/moderation.json
 data/transcripts/
+
+# Worlds: keep only the seed worlds in git; ignore generated/admin worlds
+data/worlds/*
+!data/worlds/sternenfahrt.json
+!data/worlds/sternenfahrt.en.json
+!data/worlds/immerwald.json
+!data/worlds/immerwald.en.json

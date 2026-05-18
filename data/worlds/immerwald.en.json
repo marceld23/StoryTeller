@@ -9,6 +9,18 @@
   "mood": "Reverent, melancholy, threaded with lurking threat.",
   "ambience": "Moss and wet leaves, scent of resin, distant cracking, dim light through ancient crowns, a silence in which you hear your own heartbeat.",
   "magic_physics": "Magic draws on old pacts with the forest and the Otherworld. Every spell exacts a price (memory, time, blood). Iron disturbs fae magic; moonstone places thin the border to the Otherworld.",
+  "complexity": "rich",
+  "story_patterns": [],
+  "audience": "erwachsene",
+  "tone": {
+    "darkness": 3,
+    "humor": 1,
+    "romance": 2,
+    "action": 3,
+    "horror": 2,
+    "pacing": "medium",
+    "notes": ""
+  },
   "places": [
     {
       "name": "Grayhold",

@@ -9,6 +9,18 @@
   "mood": "Ehrfürchtig, schwermütig, von lauernder Bedrohung durchzogen.",
   "ambience": "Moos und nasses Laub, Harzduft, fernes Knacken, gedämpftes Licht durch uralte Kronen, Stille, in der man den eigenen Herzschlag hört.",
   "magic_physics": "Magie speist sich aus alten Pakten mit dem Wald und der Anderswelt. Jeder Zauber fordert einen Preis (Erinnerung, Zeit, Blut). Eisen stört Feenmagie; Mondsteinorte machen die Grenze zur Anderswelt dünn.",
+  "complexity": "rich",
+  "story_patterns": [],
+  "audience": "erwachsene",
+  "tone": {
+    "darkness": 3,
+    "humor": 1,
+    "romance": 2,
+    "action": 3,
+    "horror": 2,
+    "pacing": "medium",
+    "notes": ""
+  },
   "places": [
     {
       "name": "Die Graufeste",

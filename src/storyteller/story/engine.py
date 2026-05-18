@@ -24,6 +24,7 @@ import random
 from .blueprint import BlueprintTracker
 from .cost import CostTracker
 from .dynamics import INTEGRATION_RULE, StoryDynamics
+from .patterns import world_tone_line as _tone_line
 from .knowledge import KnownFacts
 from .random_events import RandomEvents
 from .substory import NarrativeState, SubstoryPlan, SubstoryPlanner
@@ -185,6 +186,7 @@ class StoryEngine:
             f"Erzählstil: {w.narration_style}\n"
             f"STIMMUNG: {w.mood or '–'}\nAMBIENTE: {w.ambience or '–'}\n"
             f"PHYSIK/MAGIE: {w.magic_physics or '–'}\n"
+            f"{_tone_line(w)}\n"
             f"AUSGANGSSITUATION: {w.starting_situation or '–'}\n"
             f"GLOSSAR (Begriffe konsistent verwenden; vollständig via "
             f"lookup_glossary): {gloss or '–'}\n"

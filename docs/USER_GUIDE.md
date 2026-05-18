@@ -70,6 +70,28 @@ Thresholds are configurable in the admin website (**Moderation**).
   tool call + result and the moderation outcome (why it answered as it did).
 - **Moderation:** enable/disable and set per-category thresholds.
 
+## Per-world dramaturgy (configurable in the admin)
+
+Each world has its own story controls (Welt → Basisdaten):
+
+- **Complexity:** `simple` (short, calm patterns: vignette, three-act,
+  kishōtenketsu, monster-of-week — few beats, low tension), `standard`
+  (try/fail, mystery, seven-point, fichtean …), `rich` (hero's journey,
+  Harmon story circle, Freytag, heist … — more beats, full tension).
+- **Story patterns:** optional whitelist of specific patterns; empty = use
+  the complexity's set. The planner picks one and instantiates its beat
+  skeleton for each new substory.
+- **Tone:** sliders 0–5 for darkness / humor / romance / action / horror,
+  a pacing (slow/medium/fast) and free-text genre/tone notes — the narrator
+  and the substory planner respect these.
+- **Audience:** target group / age (e.g. "12+", "erwachsene") — steers
+  content and vocabulary.
+
+**Generate a whole world from one prompt:** admin → **🧙 Welt aus Prompt** →
+describe the world in a few sentences; the LLM builds every artifact
+(description, places/persons/items/glossary/history/fragments, blueprint,
+random tables, tone, complexity, audience), it is saved and RAG-indexed.
+
 ## Wi-Fi onboarding (Pi)
 
 If the Pi finds no known Wi-Fi at boot it opens the AP **`storyteller-wifi`**

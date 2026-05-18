@@ -9,6 +9,18 @@
   "mood": "Einsam, angespannt, von kalter Ehrfurcht vor dem Unbekannten durchzogen.",
   "ambience": "Brummen der Reaktoren, Ozon und kalter Kabelstaub, das Ticken abkühlender Hüllenplatten, sterile Notbeleuchtung, Funken im All.",
   "magic_physics": "Keine Magie. Hyperraumsprünge brauchen Helium-3 und exakte Navigationsfenster; Fehlsprünge altern Materie oder verschlucken Schiffe. Der 'Schlund' verletzt diese Regeln — niemand weiß, warum.",
+  "complexity": "standard",
+  "story_patterns": [],
+  "audience": "erwachsene",
+  "tone": {
+    "darkness": 3,
+    "humor": 1,
+    "romance": 1,
+    "action": 4,
+    "horror": 2,
+    "pacing": "medium",
+    "notes": ""
+  },
   "places": [
     {
       "name": "Brücke der 'Wanderfalke'",

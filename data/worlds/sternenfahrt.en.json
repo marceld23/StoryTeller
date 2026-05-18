@@ -9,6 +9,18 @@
   "mood": "Lonely, tense, shot through with cold awe of the unknown.",
   "ambience": "Humming reactors, ozone and cold cable dust, the ticking of cooling hull plates, sterile emergency lighting, sparks in the void.",
   "magic_physics": "No magic. Hyperspace jumps need helium-3 and exact navigation windows; misjumps age matter or swallow ships. The 'Maw' breaks these rules — no one knows why.",
+  "complexity": "standard",
+  "story_patterns": [],
+  "audience": "erwachsene",
+  "tone": {
+    "darkness": 3,
+    "humor": 1,
+    "romance": 1,
+    "action": 4,
+    "horror": 2,
+    "pacing": "medium",
+    "notes": ""
+  },
   "places": [
     {
       "name": "Bridge of the 'Wanderfalcon'",

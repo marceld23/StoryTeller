@@ -57,6 +57,7 @@ short_term_memory_turns   = 12
 rag_top_k                 = 4    # weniger Fakten -> weniger Detailflut
 cost_cap_usd_per_session  = 2.0
 max_substory_beats        = 5    # Länge des Mini-Spannungsbogens pro Substory
+default_complexity        = "standard"  # simple|standard|rich (pro Welt überschreibbar)
 dynamic_event_prob        = 0.15 # Wahrsch. pro Zug für eine abstrakte Story-Dynamik (subtil)
 dynamics_in_planning      = true # Architekt darf (dezent) abstrakte Wendungen einplanen
 # Erzählstil-Leitlinie (frei editierbar): steuert Einfachheit/Länge.

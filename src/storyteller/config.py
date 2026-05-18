@@ -77,6 +77,7 @@ class StoryCfg(BaseModel):
     rag_top_k: int = 4
     cost_cap_usd_per_session: float = 2.0
     max_substory_beats: int = 5
+    default_complexity: str = "standard"  # simple|standard|rich (world overrides)
     dynamic_event_prob: float = 0.15
     dynamics_in_planning: bool = True
     narration_guidance: str = (

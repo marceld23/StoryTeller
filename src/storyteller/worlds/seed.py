@@ -23,6 +23,7 @@ from .schema import (
     Place,
     RandomEntry,
     RandomTable,
+    Tone,
     World,
 )
 
@@ -145,6 +146,10 @@ SCIFI = World(
                                     "Xeno-Archäologe."),
                     ]),
     ],
+    complexity="standard",
+    audience="erwachsene",
+    tone=Tone(darkness=3, humor=1, romance=1, action=4, horror=2,
+              pacing="medium"),
     wait_sound="scifi_ambient.wav",
     fx_preset=FXPreset(reverb_room_size=0.45, reverb_wet_level=0.15),
 )
@@ -264,6 +269,10 @@ FANTASY = World(
                                     "einer Bitte."),
                     ]),
     ],
+    complexity="rich",
+    audience="erwachsene",
+    tone=Tone(darkness=3, humor=1, romance=2, action=3, horror=2,
+              pacing="medium"),
     wait_sound="fantasy_ambient.wav",
     fx_preset=FXPreset(reverb_room_size=0.7, reverb_wet_level=0.22),
 )
@@ -388,6 +397,10 @@ SCIFI_EN = World(
                                     "archaeologist."),
                     ]),
     ],
+    complexity="standard",
+    audience="erwachsene",
+    tone=Tone(darkness=3, humor=1, romance=1, action=4, horror=2,
+              pacing="medium"),
     wait_sound="scifi_ambient.wav",
     fx_preset=FXPreset(reverb_room_size=0.45, reverb_wet_level=0.15),
 )
@@ -511,6 +524,10 @@ FANTASY_EN = World(
                                     "plea."),
                     ]),
     ],
+    complexity="rich",
+    audience="erwachsene",
+    tone=Tone(darkness=3, humor=1, romance=2, action=3, horror=2,
+              pacing="medium"),
     wait_sound="fantasy_ambient.wav",
     fx_preset=FXPreset(reverb_room_size=0.7, reverb_wet_level=0.22),
 )

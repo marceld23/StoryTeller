@@ -65,6 +65,7 @@ def _page(title: str, body: str) -> str:
         ".card{border:1px solid #ddd;border-radius:8px;padding:.8rem;margin:.6rem 0}"
         "</style>"
         "<nav><a href='/'>🏠 Dashboard</a><a href='/new'>➕ Neue Welt</a>"
+        "<a href='/generate'>🧙 Welt aus Prompt</a>"
         "<a href='/saves'>💾 Spielstände</a>"
         "<a href='/transcripts'>📜 Verläufe</a>"
         "<a href='/moderation'>🛡 Moderation</a>"
@@ -131,6 +132,40 @@ def create_app(cfg: Config | None = None):
         return _page("Spielstände", ("<ul>" + "".join(rows) + "</ul>")
                      if rows else "<p>Keine Spielstände.</p>")
 
+    @app.get("/generate", response_class=HTMLResponse)
+    def generate_form():
+        return _page("Welt aus Prompt generieren", (
+            "<p>Beschreibe deine Welt in ein paar Sätzen — das LLM baut "
+            "daraus eine komplette Welt (Beschreibung, Ort/Person/Gegenstand/"
+            "Glossar/Historie/Fragmente, Blueprint, Zufallslisten, Ton, "
+            "Komplexität, Zielgruppe).</p>"
+            "<form method='post' action='/generate'>"
+            "<textarea name='prompt' rows='6' placeholder='z.B. \"Eine "
+            "düstere Cyberpunk-Megacity; der Spieler ist eine abtrünnige "
+            "Kopfgeldjägerin; Fokus Intrigen und Verrat; Zielgruppe "
+            "erwachsene\"' required></textarea>"
+            "<button>Welt generieren</button></form>"))
+
+    @app.post("/generate")
+    def generate_do(prompt: str = Form(...)):
+        from ..worlds.generate import generate_world
+
+        try:
+            w = generate_world(cfg, prompt)
+            save_world(cfg, w)
+        except Exception as exc:
+            return _page("Fehler", f"<p>Generierung fehlgeschlagen: "
+                         f"{_esc(exc)}</p><p><a href='/generate'>zurück"
+                         "</a></p>")
+        try:
+            from ..story.rag import WorldRAG
+
+            WorldRAG(cfg).index_world(w, force=True,
+                                     locale=cfg.general.locale)
+        except Exception:
+            pass
+        return RedirectResponse(f"/w/{w.id}", status_code=303)
+
     @app.get("/new", response_class=HTMLResponse)
     def new_form():
         f = lambda n, p, ta=False: (  # noqa: E731
@@ -189,6 +224,28 @@ def create_app(cfg: Config | None = None):
             f"<textarea name='ambience'>{_esc(w.ambience)}</textarea>"
             f"<textarea name='magic_physics'>{_esc(w.magic_physics)}</textarea>"
             f"<textarea name='premise'>{_esc(w.blueprint.premise)}</textarea>"
+            "<label>Komplexität</label><select name='complexity'>"
+            + "".join(f"<option{' selected' if w.complexity==c else ''}>"
+                      f"{c}</option>" for c in ("simple", "standard", "rich"))
+            + "</select>"
+            f"<input name='audience' value='{_esc(w.audience)}' "
+            "placeholder='Zielgruppe / Alter, z.B. 12+'>"
+            f"<input name='story_patterns' "
+            f"value='{_esc(','.join(w.story_patterns))}' "
+            "placeholder='Muster (leer=nach Komplexität): three_act,mystery,…'>"
+            f"<label>Ton — düster/Humor/Romanze/Action/Horror (0–5), "
+            f"Tempo, Notizen</label>"
+            f"<input name='t_dark' value='{w.tone.darkness}'>"
+            f"<input name='t_humor' value='{w.tone.humor}'>"
+            f"<input name='t_rom' value='{w.tone.romance}'>"
+            f"<input name='t_act' value='{w.tone.action}'>"
+            f"<input name='t_hor' value='{w.tone.horror}'>"
+            "<select name='t_pace'>"
+            + "".join(f"<option{' selected' if w.tone.pacing==p else ''}>"
+                      f"{p}</option>" for p in ("slow", "medium", "fast"))
+            + "</select>"
+            f"<input name='t_notes' value='{_esc(w.tone.notes)}' "
+            "placeholder='Ton-/Genre-Notizen'>"
             "<button>Basisdaten speichern</button></form>")
 
         secs = (
@@ -249,7 +306,20 @@ def create_app(cfg: Config | None = None):
                     starting_situation: str = Form(""),
                     narration_style: str = Form(""), mood: str = Form(""),
                     ambience: str = Form(""), magic_physics: str = Form(""),
-                    premise: str = Form("")):
+                    premise: str = Form(""), complexity: str = Form("standard"),
+                    audience: str = Form("erwachsene"),
+                    story_patterns: str = Form(""), t_dark: str = Form("2"),
+                    t_humor: str = Form("1"), t_rom: str = Form("1"),
+                    t_act: str = Form("3"), t_hor: str = Form("1"),
+                    t_pace: str = Form("medium"), t_notes: str = Form("")):
+        from ..story.patterns import PATTERNS, norm_complexity
+
+        def _i(v, d):
+            try:
+                return max(0, min(5, int(float(v))))
+            except Exception:
+                return d
+
         w = load_world(cfg, wid)
         w.description = description
         w.starting_situation = starting_situation
@@ -259,6 +329,18 @@ def create_app(cfg: Config | None = None):
         w.magic_physics = magic_physics
         if premise:
             w.blueprint.premise = premise
+        w.complexity = norm_complexity(complexity)
+        w.audience = audience or "erwachsene"
+        w.story_patterns = [p.strip() for p in story_patterns.split(",")
+                            if p.strip() in PATTERNS]
+        w.tone.darkness = _i(t_dark, 2)
+        w.tone.humor = _i(t_humor, 1)
+        w.tone.romance = _i(t_rom, 1)
+        w.tone.action = _i(t_act, 3)
+        w.tone.horror = _i(t_hor, 1)
+        w.tone.pacing = t_pace if t_pace in ("slow", "medium", "fast") \
+            else "medium"
+        w.tone.notes = t_notes
         save_world(cfg, w)
         return RedirectResponse(f"/w/{wid}", status_code=303)
 

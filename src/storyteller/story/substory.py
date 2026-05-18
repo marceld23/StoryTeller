@@ -110,22 +110,34 @@ class SubstoryPlanner:
             except Exception:
                 grounding = ""
 
+        from .patterns import choose_pattern, world_tone_line
+
+        pat = choose_pattern(world, self.cfg)
+        skeleton = "\n".join(
+            f"  {i+1}. {a} (Ziel: {g}, ~Spannung {t})"
+            for i, (a, g, t) in enumerate(pat["beats"]))
         user = (
             f"WELT: {world.name} ({world.genre}). {world.description}\n"
-            f"Spielerrolle: {world.player_role}\n\n"
+            f"Spielerrolle: {world.player_role}\n"
+            f"{world_tone_line(world)}\n\n"
             f"MAKRO-BOGEN:\n{macro_guidance}\n\n"
             f"Dem Spieler bekannt: {known_summary}\n"
             f"Vorige Substory (Abschluss): {previous_summary or '–'}\n"
             f"Letzte Spieler-/Erzähl-Signale: {recent or '–'}\n\n"
             f"Etablierte Weltfakten (nutzen, nicht widersprechen):\n"
             f"{grounding or '(keine)'}\n\n"
+            f"STRUKTUR {pat['name']} — {pat['shape']}\n"
+            f"Instanziiere GENAU dieses Beat-Gerüst weltkonkret "
+            f"({pat['n_beats']} Beats, Spannung der Kurve folgend, max "
+            f"{pat['tension_cap']}):\n{skeleton}\n\n"
             + (f"OPTIONALE ABSTRAKTE WENDUNG (dezent einplanen, z.B. in einem "
-               f"Beat oder im resolution_hint): {dynamic_hint}. {INTEGRATION_RULE}\n\n"
-               if dynamic_hint else "")
-            + f"Plane jetzt die nächste Substory "
-            f"(max. {self.cfg.story.max_substory_beats} Beats).\n"
-            f"{LANG_INSTRUCTION[loc]}"
+               f"Beat oder im resolution_hint): {dynamic_hint}. "
+               f"{INTEGRATION_RULE}\n\n" if dynamic_hint else "")
+            + f"Plane jetzt die nächste Substory ({pat['n_beats']} Beats, "
+            f"passend zu Ton & Zielgruppe).\n{LANG_INSTRUCTION[loc]}"
         )
+        _cap_n = pat["n_beats"]
+        _cap_t = pat["tension_cap"]
         client = get_client(self.cfg)
         try:
             resp = client.chat.completions.create(
@@ -139,9 +151,10 @@ class SubstoryPlanner:
             data = json.loads(resp.choices[0].message.content or "{}")
             beats = [Beat(name=b.get("name", f"Beat {i+1}"),
                           goal=b.get("goal", ""),
-                          tension=max(0, min(10, int(b.get("tension", 5)))))
-                     for i, b in enumerate(data.get("beats", [])[
-                         : self.cfg.story.max_substory_beats])]
+                          tension=max(0, min(_cap_t,
+                                             int(b.get("tension", 5)))))
+                     for i, b in enumerate(
+                         data.get("beats", [])[:_cap_n])]
             if not beats:
                 beats = [Beat(name="Aufhänger", goal=data.get("hook", ""),
                               tension=3),
