@@ -95,6 +95,47 @@ def save_settings(cfg: Config, data: dict) -> None:
     p.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def model_overrides_path(cfg: Config):
+    return cfg.path("data/models.json")
+
+
+def load_model_overrides(cfg: Config) -> dict:
+    """Runtime model override (admin-editable): subset of ModelsCfg fields."""
+    p = model_overrides_path(cfg)
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def save_model_overrides(cfg: Config, data: dict) -> None:
+    """Merge `data` into data/models.json (keeps untouched keys)."""
+    p = model_overrides_path(cfg)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    merged = {**load_model_overrides(cfg), **data}
+    p.write_text(json.dumps(merged, ensure_ascii=False, indent=2))
+
+
+def apply_model_overrides(cfg: Config) -> None:
+    """Mutate cfg.models in place with values from data/models.json.
+
+    Called once at config load so the admin UI can change models without
+    touching config.toml. Unknown / wrong-typed keys are silently ignored.
+    """
+    ov = load_model_overrides(cfg)
+    if not ov:
+        return
+    for key, val in ov.items():
+        if not hasattr(cfg.models, key):
+            continue
+        try:
+            setattr(cfg.models, key, val)
+        except Exception:
+            continue
+
+
 def resolve_profile(cfg: Config) -> str:
     """Liefert 'pi' oder 'pc' (auto-erkannt, falls profile=auto)."""
     p = (cfg.runtime.profile or "auto").lower()

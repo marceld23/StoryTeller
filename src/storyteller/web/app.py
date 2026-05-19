@@ -107,6 +107,7 @@ def _page(T: dict, title: str, body: str) -> str:
         f"<a href='/transcripts'>{T['nav_tr']}</a>"
         f"<a href='/moderation'>{T['nav_mod']}</a>"
         f"<a href='/audio'>{T['nav_audio']}</a>"
+        f"<a href='/models'>{T['nav_models']}</a>"
         f"<a href='/docs'>{T['nav_api']}</a>"
         "<a onclick='stTheme()' title='Dark/Light'>🌓</a></nav>"
         f"<h1>{_esc(title)}</h1>{body}"
@@ -634,6 +635,70 @@ def create_app(cfg: Config | None = None):
             except Exception:
                 pass
         return RedirectResponse("/audio", status_code=303)
+
+    @app.get("/models", response_class=HTMLResponse)
+    def models_form():
+        m = cfg.models
+        return _page(T, T["models_title"], (
+            f"<p>{T['models_desc']}</p>"
+            "<form method='post' action='/models'>"
+            f"<label>{T['models_story']}</label>"
+            f"<input name='story_llm' value='{_esc(m.story_llm)}'>"
+            f"<label>{T['models_gen']}</label>"
+            f"<input name='gen_llm' value='{_esc(m.gen_llm)}' "
+            f"placeholder='{_esc(T['models_gen_ph'])}'>"
+            f"<label>{T['models_planner']}</label>"
+            f"<input name='planner_llm' value='{_esc(m.planner_llm)}' "
+            f"placeholder='{_esc(T['models_planner_ph'])}'>"
+            f"<label>{T['models_temp']}</label>"
+            f"<input type='number' step='0.05' min='0' max='2' "
+            f"name='llm_temperature' value='{m.llm_temperature}'>"
+            f"<label>{T['models_freq']}</label>"
+            f"<input type='number' step='0.05' min='-2' max='2' "
+            f"name='frequency_penalty' value='{m.frequency_penalty}'>"
+            f"<label>{T['models_pres']}</label>"
+            f"<input type='number' step='0.05' min='-2' max='2' "
+            f"name='presence_penalty' value='{m.presence_penalty}'>"
+            f"<button>{T['save']}</button></form>"))
+
+    @app.post("/models")
+    def models_save(story_llm: str = Form(""), gen_llm: str = Form(""),
+                    planner_llm: str = Form(""),
+                    llm_temperature: str = Form(""),
+                    frequency_penalty: str = Form(""),
+                    presence_penalty: str = Form("")):
+        from ..runtime import save_model_overrides
+
+        data: dict = {}
+        # Only the strings the admin actually provided. Empty for the two
+        # fallback fields is meaningful ("use story_llm"), so we KEEP
+        # empty strings for gen_llm/planner_llm but require non-empty for
+        # story_llm itself.
+        if story_llm.strip():
+            data["story_llm"] = story_llm.strip()
+        data["gen_llm"] = gen_llm.strip()
+        data["planner_llm"] = planner_llm.strip()
+
+        def _f(name: str, raw: str, lo: float, hi: float):
+            try:
+                v = float(raw)
+            except (TypeError, ValueError):
+                return
+            data[name] = max(lo, min(hi, v))
+
+        _f("llm_temperature", llm_temperature, 0.0, 2.0)
+        _f("frequency_penalty", frequency_penalty, -2.0, 2.0)
+        _f("presence_penalty", presence_penalty, -2.0, 2.0)
+
+        save_model_overrides(cfg, data)
+        # Mutate the admin process' cfg so the dashboard reflects it now.
+        for k, v in data.items():
+            if hasattr(cfg.models, k):
+                try:
+                    setattr(cfg.models, k, v)
+                except Exception:
+                    pass
+        return RedirectResponse("/models", status_code=303)
 
     return app
 

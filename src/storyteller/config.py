@@ -218,4 +218,11 @@ def load_config(config_path: str | None = None) -> Config:
         data = tomllib.loads(cfg_file.read_text())
     cfg = Config(**data)
     cfg.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+    # Admin-editable runtime override (data/models.json) wins over config.toml.
+    try:
+        from .runtime import apply_model_overrides
+
+        apply_model_overrides(cfg)
+    except Exception:
+        pass
     return cfg

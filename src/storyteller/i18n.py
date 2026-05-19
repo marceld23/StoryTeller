@@ -248,6 +248,21 @@ WEB = {
         "nav_gen": "🧙 Welt aus Prompt", "nav_saves": "💾 Spielstände",
         "nav_tr": "📜 Verläufe", "nav_mod": "🛡 Moderation",
         "nav_api": "⚙ API", "nav_audio": "🔊 Audio",
+        "nav_models": "🧠 Modelle",
+        "models_title": "Modelle",
+        "models_desc": ("Modellnamen und Erzähl-Parameter. Änderungen "
+                        "werden in data/models.json gespeichert und "
+                        "überschreiben config.toml. Greifen sofort für "
+                        "diese Admin-Sicht; für die laufende Erzähl-"
+                        "Schleife erst nach Neustart von storyteller.service."),
+        "models_story": "Erzähler-Modell (story_llm)",
+        "models_planner": "Architekt + Zusammenfasser (planner_llm)",
+        "models_planner_ph": "leer = wie story_llm",
+        "models_gen": "Welt-/Inhalts-Generierung (gen_llm)",
+        "models_gen_ph": "leer = wie story_llm",
+        "models_temp": "Temperatur (Erzähler)",
+        "models_freq": "frequency_penalty (Anti-Wiederholung)",
+        "models_pres": "presence_penalty (Themen-Vielfalt)",
         "audio_title": "Audio-Ausgabe",
         "audio_desc": "Backend zur Laufzeit umschalten (auch per Sprache: "
                       "System, dann Audio). pipewire = Bluetooth (vorher "
@@ -330,6 +345,21 @@ WEB = {
         "nav_gen": "🧙 World from prompt", "nav_saves": "💾 Saves",
         "nav_tr": "📜 Transcripts", "nav_mod": "🛡 Moderation",
         "nav_api": "⚙ API", "nav_audio": "🔊 Audio",
+        "nav_models": "🧠 Models",
+        "models_title": "Models",
+        "models_desc": ("Model names and narration parameters. Changes are "
+                        "saved to data/models.json and override config.toml. "
+                        "They apply immediately to this admin view; the "
+                        "running narrator loop picks them up only after "
+                        "restarting storyteller.service."),
+        "models_story": "Narrator model (story_llm)",
+        "models_planner": "Architect + summariser (planner_llm)",
+        "models_planner_ph": "empty = same as story_llm",
+        "models_gen": "World / content generation (gen_llm)",
+        "models_gen_ph": "empty = same as story_llm",
+        "models_temp": "Temperature (narrator)",
+        "models_freq": "frequency_penalty (anti-repetition)",
+        "models_pres": "presence_penalty (topic variety)",
         "audio_title": "Audio output",
         "audio_desc": "Switch the backend at runtime (also by voice: "
                       "System, then Audio). pipewire = Bluetooth (run "
