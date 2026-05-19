@@ -121,6 +121,7 @@ class World(BaseModel):
     player_role: str
     starting_situation: str = ""           # Beschreibung der Ausgangssituation
     narration_style: str = ""              # Erzählton (technisch)
+    voice_sample: str = ""                 # 1-2 Beispielsätze im Stil der Welt (Stil-Anker)
     mood: str = ""                         # Grundstimmung
     ambience: str = ""                     # Ambiente / Sinneseindrücke
     magic_physics: str = ""                # Physik- bzw. Magiesystem (Regeln)

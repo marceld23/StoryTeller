@@ -141,7 +141,7 @@ class SubstoryPlanner:
         client = get_client(self.cfg)
         try:
             resp = client.chat.completions.create(
-                model=self.cfg.models.story_llm,
+                model=self.cfg.models.planner,
                 messages=[{"role": "system", "content": _PLANNER_SYS},
                           {"role": "user", "content": user}],
                 response_format={"type": "json_object"},

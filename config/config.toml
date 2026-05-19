@@ -9,13 +9,16 @@ profile = "auto"     # auto | pi | pc
 #       sonst => pc (portables sounddevice-Backend, kein LED nötig).
 
 [models]
-story_llm        = "gpt-5.4-mini"            # Erzähler + Story-Generierung
+story_llm        = "gpt-5.4-mini"            # ERZÄHLER — hier lohnt ein starkes Modell
+planner_llm      = ""                        # Architekt + Zusammenfasser; leer => story_llm (billiger wählen, um story_llm hochstufen zu können)
 stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
 tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper kann KEIN TTS)
 tts_voice        = "ballad"
 embedding        = "text-embedding-3-small"  # RAG-Embeddings
 embedding_dim    = 512                       # Matryoshka-Trunkierung (kleiner = sparsamer)
 llm_temperature  = 0.9
+frequency_penalty = 0.0   # Anti-Wiederholung Erzähler; 0=aus, sanft 0.2–0.4 empfohlen
+presence_penalty  = 0.0   # dito (Themen-Vielfalt); 0=aus
 
 [stt]
 provider = "openai"   # openai | local_whisper  (local => Phase 10, nur Pi 5 + AI HAT)
@@ -70,6 +73,10 @@ max_substory_beats        = 5    # Länge des Mini-Spannungsbogens pro Substory
 default_complexity        = "standard"  # simple|standard|rich (pro Welt überschreibbar)
 dynamic_event_prob        = 0.15 # Wahrsch. pro Zug für eine abstrakte Story-Dynamik (subtil)
 dynamics_in_planning      = true # Architekt darf (dezent) abstrakte Wendungen einplanen
+long_term_memory          = true # Langzeitged.: aus dem Fenster fallende Züge in rollende Synopse verdichten
+synopsis_max_chars        = 900  # Maximale Länge der Synopse (knapp halten)
+synopsis_batch            = 8    # so viele alte Nachrichten auf einmal verdichten (selten => billig)
+beat_nudge_after          = 3    # nach so vielen Zügen am selben Sub-Beat sanft an advance_beat erinnern (0=aus)
 # Erzählstil-Leitlinie (frei editierbar): steuert Einfachheit/Länge.
 narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
 

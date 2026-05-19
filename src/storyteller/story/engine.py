@@ -88,6 +88,14 @@ TOOLS = [
                        "Richtung deutlich ändert (Notiz wird mitgeführt).",
         "parameters": {"type": "object", "properties": {
             "change": {"type": "string"}}, "required": ["change"]}}},
+    {"type": "function", "function": {
+        "name": "track_character",
+        "description": "Merke/aktualisiere den Zustand einer Figur (Stimmung, "
+                       "Status, offenes Versprechen) — für Konsistenz über "
+                       "viele Züge. Kurz halten.",
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string"},
+            "state": {"type": "string"}}, "required": ["name", "state"]}}},
 ]
 
 CO_CREATION = (
@@ -137,6 +145,9 @@ class StoryEngine:
         self._transition = False
         self._wrap_up = False
         self.transcript = None  # optional Transcript recorder (set by caller)
+        self.synopsis = ""               # rolling long-term memory
+        self.char_state: dict[str, str] = {}  # name -> short status (continuity)
+        self._beat_turns = 0             # narrator turns on the current sub-beat
 
     # --- Zustand ---
     def state(self) -> NarrativeState:
@@ -165,6 +176,7 @@ class StoryEngine:
             self.known.summary(), self._recent(), prev, dyn_hint,
             locale=self.loc)
         self._transition = bool(prev)
+        self._beat_turns = 0
 
     # --- Prompt ---
     def _system(self, retrieved: list[dict], dynamic: str | None = None,
@@ -180,10 +192,29 @@ class StoryEngine:
         gloss = "; ".join(f"{g.term}={g.definition}"
                           for g in getattr(w, "glossary", [])[:12])
         rtables = ", ".join(t.name for t in w.random_tables)
+
+        from ..i18n import (
+            BEAT_NUDGE,
+            CHARSTATE_LABEL,
+            SYNOPSIS_LABEL,
+            VOICE_SAMPLE_LABEL,
+        )
+
+        vsample = (f"{VOICE_SAMPLE_LABEL[self.loc]}\n{w.voice_sample}\n"
+                   if getattr(w, "voice_sample", "") else "")
+        syn = (f"{SYNOPSIS_LABEL[self.loc]}\n{self.synopsis}\n\n"
+               if self.synopsis else "")
+        chars = "; ".join(f"{k}: {v}" for k, v in self.char_state.items())
+        chars = (f"{CHARSTATE_LABEL[self.loc]} {chars}\n\n" if chars else "")
+        nudge = (BEAT_NUDGE[self.loc]
+                 if (not brief and self.cfg.story.beat_nudge_after
+                     and self._beat_turns >= self.cfg.story.beat_nudge_after)
+                 else "")
         return (
             f"Du bist der ERZÄHLER der Welt {w.name} ({w.genre}).\n"
             f"{w.description}\nSpielerrolle: {w.player_role}\n"
             f"Erzählstil: {w.narration_style}\n"
+            f"{vsample}"
             f"STIMMUNG: {w.mood or '–'}\nAMBIENTE: {w.ambience or '–'}\n"
             f"PHYSIK/MAGIE: {w.magic_physics or '–'}\n"
             f"{_tone_line(w)}\n"
@@ -195,14 +226,18 @@ class StoryEngine:
             f"{CO_CREATION}\n\n"
             f"MAKRO-SPANNUNGSBOGEN:\n{self.macro.guidance()}\n\n"
             f"{self.substory.as_prompt_block(self._transition)}\n\n"
+            f"{syn}"
             f"Dem Spieler bereits bekannt: {self.known.summary()}\n\n"
+            f"{chars}"
             f"Hintergrundwissen (nur einbauen, wenn es JETZT zur Szene passt; "
             f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
             f"{self._guidance()}\n{self._lang_rule()}\n"
             "Tools bei Bedarf still nutzen (get_world_overview, "
             "retrieve_world_fact, lookup_glossary, roll_random_event, "
-            "roll_story_dynamic) — das Ergebnis IMMER in einfache, kurze "
-            "Erzählung verwandeln, niemals Fakten oder Listen vorlesen."
+            "roll_story_dynamic, track_character) — das Ergebnis IMMER in "
+            "einfache, kurze Erzählung verwandeln, niemals Fakten oder "
+            "Listen vorlesen."
+            + nudge
             + (BRIEF_RULE if brief else "")
         )
 
@@ -259,6 +294,7 @@ class StoryEngine:
                                        args.get("note", ""))
         if name == "advance_beat" and s:
             s.advance()
+            self._beat_turns = 0
             b = s.current_beat()
             return f"Sub-Beat -> {b.name if b else '?'}"
         if name == "complete_substory" and s:
@@ -272,6 +308,20 @@ class StoryEngine:
         if name == "adjust_substory_plan" and s:
             s.adjustments.append(args.get("change", ""))
             return "Substory-Plan angepasst (wird weiter berücksichtigt)."
+        if name == "track_character":
+            nm = (args.get("name") or "").strip()
+            stt_ = (args.get("state") or "").strip()
+            if not nm:
+                return "(kein Name)"
+            if stt_:
+                self.char_state[nm] = stt_[:160]
+            else:
+                self.char_state.pop(nm, None)
+            # keep the block bounded (oldest dropped first)
+            if len(self.char_state) > 12:
+                for k in list(self.char_state)[:-12]:
+                    self.char_state.pop(k, None)
+            return f"Figur gemerkt: {nm}"
         return "(Tool nicht verfügbar)"
 
     def _complete(self, user_text: str) -> str:
@@ -282,7 +332,11 @@ class StoryEngine:
         retrieved: list[dict] = []
         if self.rag:
             try:
-                retrieved = self.rag.retrieve(self.world.id, user_text,
+                # Query expansion: the bare utterance often lacks context;
+                # blend in the recent narration so retrieval is on-topic.
+                rec = self._recent()
+                q = f"{user_text} {rec}".strip() if rec else user_text
+                retrieved = self.rag.retrieve(self.world.id, q,
                                               locale=self.loc)
             except Exception:
                 retrieved = []
@@ -301,6 +355,12 @@ class StoryEngine:
                 use_tools = i < max_tool_rounds
                 kw = {"model": self.cfg.models.story_llm, "messages": working,
                       "temperature": self.cfg.models.llm_temperature}
+                # Anti-repetition: only sent when configured non-zero, so
+                # the default stays byte-for-byte the previous request.
+                if self.cfg.models.frequency_penalty:
+                    kw["frequency_penalty"] = self.cfg.models.frequency_penalty
+                if self.cfg.models.presence_penalty:
+                    kw["presence_penalty"] = self.cfg.models.presence_penalty
                 if use_tools:
                     kw["tools"] = TOOLS
                 resp = client.chat.completions.create(**kw)
@@ -328,6 +388,8 @@ class StoryEngine:
                         self.transcript.assistant(
                             text, self.state().value, self.cost.usd)
                     self._transition = False
+                    if not brief:
+                        self._beat_turns += 1
                     self._trim()
                     return text
             return "…"
@@ -345,8 +407,64 @@ class StoryEngine:
 
     def _trim(self) -> None:
         keep = self.cfg.story.short_term_memory_turns * 2
-        if len(self.memory) > keep:
+        if not self.cfg.story.long_term_memory:
+            if len(self.memory) > keep:
+                self.memory = self.memory[-keep:]
+            return
+        batch = max(2, int(self.cfg.story.synopsis_batch))
+        if len(self.memory) <= keep + batch:
+            return
+        dropped = self.memory[:batch]
+        if self._fold_into_synopsis(dropped):
+            self.memory = self.memory[batch:]
+        elif len(self.memory) > keep + batch * 3:
+            # summariser persistently failing: cap context, accept the loss
             self.memory = self.memory[-keep:]
+
+    def _fold_into_synopsis(self, dropped: list[dict]) -> bool:
+        """Fold messages leaving the window into the rolling synopsis.
+
+        Uses the (cheap) planner model. Fail-soft: on any error returns
+        False so the caller keeps the messages and retries next time.
+        """
+        from ..i18n import SUMMARIZER_SYS
+
+        convo = "\n".join(
+            f"{'Spieler' if m.get('role') == 'user' else 'Erzähler'}: "
+            f"{m.get('content', '')}" for m in dropped).strip()
+        if not convo:
+            return True  # nothing worth keeping -> safe to drop
+        limit = int(self.cfg.story.synopsis_max_chars)
+        user = (
+            f"BISHERIGE ZUSAMMENFASSUNG:\n{self.synopsis or '(noch nichts)'}"
+            f"\n\nNEUER ABSCHNITT (chronologisch danach):\n{convo}\n\n"
+            f"Aktualisiere die Zusammenfassung. Maximal {limit} Zeichen, "
+            f"knapp, faktentreu, nur Fließtext."
+        )
+        try:
+            client = get_client(self.cfg)
+            resp = client.chat.completions.create(
+                model=self.cfg.models.planner,
+                messages=[
+                    {"role": "system", "content": SUMMARIZER_SYS[self.loc]},
+                    {"role": "user", "content": user}],
+            )
+            self.cost.record_chat(resp.usage)
+            txt = (resp.choices[0].message.content or "").strip()
+            if not txt:
+                return False
+            self.synopsis = txt[:limit]
+            if self.transcript:
+                self.transcript.note(
+                    f"[Langzeit-Synopse aktualisiert, "
+                    f"{len(self.synopsis)} Zeichen]")
+            return True
+        except Exception as exc:
+            import logging
+
+            logging.getLogger("storyteller").warning(
+                "Synopsis-Verdichtung fehlgeschlagen: %r", exc)
+            return False
 
     # --- API ---
     def opening(self) -> str:
@@ -401,6 +519,9 @@ class StoryEngine:
             "substory": self.substory.model_dump() if self.substory else None,
             "known": self.known.to_list(),
             "cost": self.cost.snapshot(),
+            "synopsis": self.synopsis,
+            "char_state": self.char_state,
+            "beat_turns": self._beat_turns,
         }
 
     def restore(self, state: dict) -> None:
@@ -411,3 +532,6 @@ class StoryEngine:
         self.known = KnownFacts(state.get("known", []))
         self.cost = CostTracker.restore(self.cfg, state.get("cost", {}))
         self.planner.cost = self.cost
+        self.synopsis = state.get("synopsis", "")
+        self.char_state = dict(state.get("char_state", {}))
+        self._beat_turns = int(state.get("beat_turns", 0))

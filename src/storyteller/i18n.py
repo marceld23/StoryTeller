@@ -184,6 +184,45 @@ Q_PREFIXES = {
            "may i", "do i", "is there", "are there", "remind", "remember"),
 }
 
+# --- Long-term memory: rolling synopsis ---
+SUMMARIZER_SYS = {
+    "de": ("Du verdichtest den Spielverlauf zu einem knappen, faktentreuen "
+           "Gedächtnis. Schreibe NUR Fließtext: etablierte Ereignisse, "
+           "Entscheidungen, Beziehungen und offene Fäden. Keine "
+           "Ausschmückung, keine Wiederholung, keine Anrede, keine "
+           "Überschriften. Behalte Wichtiges aus der bisherigen "
+           "Zusammenfassung und integriere das Neue chronologisch."),
+    "en": ("You compress the play so far into a terse, faithful memory. "
+           "Write ONLY prose: established events, decisions, relationships "
+           "and open threads. No embellishment, no repetition, no "
+           "salutations, no headings. Keep what matters from the prior "
+           "summary and integrate the new part chronologically."),
+}
+SYNOPSIS_LABEL = {
+    "de": ("BISHER GESCHEHEN (Langzeit-Gedächtnis — als Kontinuität nutzen, "
+           "NICHT vorlesen):"),
+    "en": ("STORY SO FAR (long-term memory — use for continuity, do NOT "
+           "read aloud):"),
+}
+CHARSTATE_LABEL = {
+    "de": "FIGUREN-STAND (Konsistenz wahren; track_character zum Aktualisieren):",
+    "en": "CHARACTER STATE (keep consistent; use track_character to update):",
+}
+VOICE_SAMPLE_LABEL = {
+    "de": ("STILPROBE (NUR Tonfall, Rhythmus und Wortwahl nachahmen — den "
+           "Inhalt NICHT übernehmen):"),
+    "en": ("STYLE SAMPLE (imitate ONLY tone, rhythm and word choice — do "
+           "NOT reuse its content):"),
+}
+BEAT_NUDGE = {
+    "de": ("\nHINWEIS: Dieser Sub-Beat läuft schon mehrere Züge. Wenn das "
+           "Beat-Ziel erreicht scheint, jetzt advance_beat (oder bei "
+           "Auflösung complete_substory) aufrufen — nicht künstlich dehnen."),
+    "en": ("\nNOTE: this sub-beat has run for several turns. If its goal "
+           "seems reached, call advance_beat now (or complete_substory if "
+           "resolved) — do not stretch it artificially."),
+}
+
 
 # --- In-loop voice command keywords ---
 CMD_KEYWORDS = {

@@ -14,13 +14,22 @@ ROOT = Path(__file__).resolve().parents[2]  # /home/pi/storyteller
 
 
 class ModelsCfg(BaseModel):
-    story_llm: str = "gpt-5.4-mini"
+    story_llm: str = "gpt-5.4-mini"            # narrator (quality matters)
+    planner_llm: str = ""                      # architect+summarizer; ""=story_llm
     stt: str = "gpt-4o-mini-transcribe"
     tts: str = "gpt-4o-mini-tts"
     tts_voice: str = "ballad"
     embedding: str = "text-embedding-3-small"
     embedding_dim: int = 512
     llm_temperature: float = 0.9
+    # Anti-repetition for the narrator. 0 = off (safe default, no behaviour
+    # change); a mild 0.2-0.4 noticeably reduces repeated openers/phrases.
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+
+    @property
+    def planner(self) -> str:
+        return self.planner_llm or self.story_llm
 
 
 class STTCfg(BaseModel):
@@ -91,6 +100,15 @@ class StoryCfg(BaseModel):
     default_complexity: str = "standard"  # simple|standard|rich (world overrides)
     dynamic_event_prob: float = 0.15
     dynamics_in_planning: bool = True
+    # Long-term memory: fold turns that fall out of the short window into a
+    # rolling synopsis injected into the system prompt (continuity over a
+    # long session). Folds in batches to keep cost/latency low.
+    long_term_memory: bool = True
+    synopsis_max_chars: int = 900
+    synopsis_batch: int = 8        # fold this many old messages at once
+    # Gentle nudge: after this many narrator turns on the same sub-beat,
+    # remind the model it MAY advance_beat/complete_substory (0 = off).
+    beat_nudge_after: int = 3
     narration_guidance: str = (
         "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. "
         "Pro Antwort nur EINE Situation und höchstens ein bis zwei neue "
