@@ -102,6 +102,83 @@ class AudioBackend(ABC):
     def mic_frames(self, sr: int, frame_len: int,
                    stop: threading.Event) -> Iterator: ...
 
+    def record_until_silence(self, wav_path: str) -> None:
+        """Record a player turn that ends on a trailing pause.
+
+        Keeps listening WHILE the player speaks (energy-based VAD over
+        `mic_frames`), so nothing is cut off mid-sentence; stops after
+        `capture.silence_seconds` of quiet, after `capture.max_seconds`
+        at the latest, and gives up if nobody speaks within
+        `capture.start_timeout_s`. Shared by every backend; writes a
+        16-bit mono WAV (stdlib `wave`, no extra deps).
+        """
+        import wave
+
+        import numpy as np
+
+        c = self.cfg.capture
+        sr = int(self.cfg.audio.input_sample_rate)
+        frame_len = max(160, sr // 50)          # ~20 ms frames
+        fdur = frame_len / sr
+        cal_n = max(1, int(0.3 / fdur))         # ~0.3 s ambient calibration
+        preroll_max = max(1, int(0.3 / fdur))   # keep speech onset
+        stop = threading.Event()
+
+        cal: list[float] = []
+        noise: float | None = None
+        preroll: list = []
+        collected: list = []
+        speaking = False
+        spoken = 0.0
+        quiet = 0.0
+        elapsed = 0.0
+        hot = 0  # consecutive voiced frames before we trust speech onset
+        try:
+            for frame in self.mic_frames(sr, frame_len, stop):
+                f = np.asarray(frame, dtype=np.float32)
+                rms = float(np.sqrt(np.mean(f * f))) if f.size else 0.0
+                elapsed += fdur
+                if noise is None:
+                    cal.append(rms)
+                    preroll.append(frame)
+                    if len(preroll) > preroll_max:
+                        preroll.pop(0)
+                    if len(cal) >= cal_n:
+                        noise = sorted(cal)[len(cal) // 2]  # median floor
+                    continue
+                thr = max(noise * 3.0, 300.0)
+                voiced = rms >= thr
+                if not speaking:
+                    preroll.append(frame)
+                    if len(preroll) > preroll_max:
+                        preroll.pop(0)
+                    hot = hot + 1 if voiced else 0
+                    if hot >= 2:                # ~40 ms of real speech
+                        speaking = True
+                        collected.extend(preroll)
+                        spoken = quiet = 0.0
+                    elif elapsed >= c.start_timeout_s:
+                        break                   # nobody spoke
+                else:
+                    collected.append(frame)
+                    spoken += fdur
+                    quiet = 0.0 if voiced else quiet + fdur
+                    if spoken >= c.min_seconds and \
+                            quiet >= c.silence_seconds:
+                        break
+                    if spoken >= c.max_seconds:
+                        break
+        finally:
+            stop.set()
+
+        pcm = (np.concatenate(collected).astype("<i2").tobytes()
+               if collected else b"")
+        with wave.open(wav_path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(sr)
+            w.writeframes(pcm)
+
 
 class AlsaSoftvolBackend(AudioBackend):
     """Pi: Lautstärke via `amixer` (softvol), I/O via aplay/arecord."""

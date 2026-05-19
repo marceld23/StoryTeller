@@ -21,6 +21,14 @@ llm_temperature  = 0.9
 provider = "openai"   # openai | local_whisper  (local => Phase 10, nur Pi 5 + AI HAT)
 language = "de"
 
+[capture]
+# Sprachaufnahme endet bei einer Sprechpause statt nach fester Zeit —
+# der Spieler darf so lange reden wie er will (bis max_seconds).
+max_seconds     = 30.0   # harte Obergrenze (Kosten-/Endlos-Schutz)
+silence_seconds = 1.2    # Pause, die den Zug beendet
+start_timeout_s = 6.0    # gar nicht gesprochen -> Abbruch, neu fragen
+min_seconds     = 0.5    # nie vor dieser Zeit beenden (1. Atemzug ignor.)
+
 [tts]
 provider    = "openai"  # openai | local  (local => Phase 10, nur Pi 5 + AI HAT)
 format      = "pcm"     # 24 kHz mono s16le — ideal für Reverb

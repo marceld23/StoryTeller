@@ -338,7 +338,7 @@ def cmd_run(cfg, args) -> int:
                 with tempfile.NamedTemporaryFile(suffix=".wav",
                                                  delete=False) as t:
                     aw = t.name
-                backend.record_wav(aw, 4)
+                backend.record_until_silence(aw)
                 ans = stt.transcribe(aw).strip().lower()
             except Exception:
                 ans = ""
@@ -418,7 +418,7 @@ def cmd_run(cfg, args) -> int:
             with tempfile.NamedTemporaryFile(suffix=".wav",
                                              delete=False) as t:
                 w = t.name
-            backend.record_wav(w, 5)
+            backend.record_until_silence(w)
             pick = stt.transcribe(w).strip()
         rp(f"[cyan][Du][/cyan] {pick}")
         opts = [("save", "speichern / save the game"),
@@ -552,7 +552,7 @@ def cmd_run(cfg, args) -> int:
                     with tempfile.NamedTemporaryFile(suffix=".wav",
                                                      delete=False) as t:
                         wav = t.name
-                    backend.record_wav(wav, 6)
+                    backend.record_until_silence(wav)
                     said = stt.transcribe(wav).strip()
                 rp(f"[cyan][Du][/cyan] {said}")
                 low = said.lower()

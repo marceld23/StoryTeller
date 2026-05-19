@@ -34,6 +34,15 @@ class TTSCfg(BaseModel):
     sample_rate: int = 24000
 
 
+class CaptureCfg(BaseModel):
+    # Speech capture stops on a trailing pause instead of a hard cutoff,
+    # so the player can speak as long as they want (within max_seconds).
+    max_seconds: float = 30.0      # hard cap (cost guard / runaway)
+    silence_seconds: float = 1.2   # pause that ends the turn
+    start_timeout_s: float = 6.0   # no speech at all -> give up, re-prompt
+    min_seconds: float = 0.5       # never end before this (ignore 1st breath)
+
+
 class GeneralCfg(BaseModel):
     locale: str = "de"  # de | en
 
@@ -143,6 +152,7 @@ class PathsCfg(BaseModel):
 class Config(BaseModel):
     general: GeneralCfg = GeneralCfg()
     runtime: RuntimeCfg = RuntimeCfg()
+    capture: CaptureCfg = CaptureCfg()
     models: ModelsCfg = ModelsCfg()
     stt: STTCfg = STTCfg()
     tts: TTSCfg = TTSCfg()

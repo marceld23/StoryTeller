@@ -58,7 +58,7 @@ class VoiceMenu:
             self.leds.listen()
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
             path = t.name
-        self.backend.record_wav(path, seconds)
+        self.backend.record_until_silence(path)
         try:
             return self.stt.transcribe(path)
         except Exception:
