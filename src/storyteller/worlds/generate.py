@@ -7,6 +7,11 @@ a thin world that breaks RAG + narration.
   history, fragments, random_tables), a SECOND targeted LLM call fills
   ONLY the missing parts. Worst-case +1 call per generation; worlds are
   generated rarely.
+
+Calls route through `get_gen_client` (long HTTP timeout, low retry count),
+since big-model JSON-mode generation takes ~60-90 s and would otherwise
+time out on the live-loop client. An optional `progress` callback receives
+short status strings the admin UI surfaces on the job status page.
 """
 
 from __future__ import annotations
@@ -14,10 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 
 from ..config import Config
-from ..oai import get_client
+from ..oai import get_gen_client
 from .schema import Beat, Blueprint, World
+
+_log = logging.getLogger("storyteller.gen")
 
 _SYS = (
     "You are a world designer for an interactive audio storyteller. From the "
@@ -70,6 +78,8 @@ _LIST_SHAPES = {
                      '"entries":[{"weight":1,"text":""}]}]',
 }
 
+ProgressFn = Callable[[str], None]
+
 
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "_", (s or "").lower()).strip("_")
@@ -81,15 +91,22 @@ def _fill(data: dict, key: str, default: str) -> None:
         data[key] = default
 
 
-def _fill_missing_lists(cfg: Config, prompt: str, data: dict) -> None:
-    """Second pass: ask the LLM to fill ONLY the missing content lists.
+def _p(progress: ProgressFn | None, msg: str) -> None:
+    _log.info("%s", msg)
+    if progress is not None:
+        try:
+            progress(msg)
+        except Exception:
+            pass
 
-    Triggered when story-critical lists are empty after the first pass.
-    Fail-soft: on any error, leaves the lists empty (schema defaults []).
-    """
+
+def _fill_missing_lists(cfg: Config, prompt: str, data: dict,
+                        progress: ProgressFn | None = None) -> None:
+    """Second pass: ask the LLM to fill ONLY the missing content lists."""
     missing = [k for k in _ALL_LISTS if not data.get(k)]
     if not any(k in _STORY_LISTS for k in missing):
         return
+    _p(progress, f"Zweiter Pass: ergänze {', '.join(missing)}…")
     shape = "{" + ", ".join(f'"{k}":{_LIST_SHAPES[k]}' for k in missing) + "}"
     sys = (
         "You complete a partially designed world. Return JSON ONLY in this "
@@ -108,7 +125,7 @@ def _fill_missing_lists(cfg: Config, prompt: str, data: dict) -> None:
         f"Add the missing parts ONLY: {', '.join(missing)}."
     )
     try:
-        r = get_client(cfg).chat.completions.create(
+        r = get_gen_client(cfg).chat.completions.create(
             model=cfg.models.gen,
             messages=[{"role": "system", "content": sys},
                       {"role": "user", "content": user}],
@@ -118,20 +135,24 @@ def _fill_missing_lists(cfg: Config, prompt: str, data: dict) -> None:
         for k in missing:
             if extra.get(k):
                 data[k] = extra[k]
+        _p(progress, "Zweiter Pass fertig.")
     except Exception as exc:  # pragma: no cover - network/API path
-        logging.getLogger("storyteller").warning(
-            "Welt-Fill-Pass fehlgeschlagen: %r", exc)
+        _log.warning("Welt-Fill-Pass fehlgeschlagen: %r", exc)
+        _p(progress, f"Zweiter Pass fehlgeschlagen: {exc!r}")
 
 
-def generate_world(cfg: Config, prompt: str) -> World:
-    """One prompt -> a validated, fully-populated World. Raises on hard failure."""
-    r = get_client(cfg).chat.completions.create(
+def generate_world(cfg: Config, prompt: str,
+                   progress: ProgressFn | None = None) -> World:
+    """One prompt -> a validated, fully-populated World."""
+    _p(progress, f"Welt-Skelett wird vom Modell ({cfg.models.gen}) entworfen…")
+    r = get_gen_client(cfg).chat.completions.create(
         model=cfg.models.gen,
         messages=[{"role": "system", "content": _SYS},
                   {"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )
     data = json.loads(r.choices[0].message.content or "{}")
+    _p(progress, "Skelett da, fülle fehlende Felder…")
 
     # --- Identity / required-by-schema scaffolding ---
     data.setdefault("name", "Neue Welt")
@@ -151,7 +172,6 @@ def generate_world(cfg: Config, prompt: str) -> World:
           "vereinzelte Geräusche, sanftes Licht, ein Hauch Bewegung")
     _fill(data, "magic_physics",
           "weitgehend realistisch; Ausnahmen werden im Spiel erklärt")
-    # voice_sample is the optional style anchor (added by P4).
     _fill(data, "voice_sample",
           "Die Welt atmet langsam. Etwas wartet — du musst es nur "
           "bemerken.")
@@ -173,6 +193,7 @@ def generate_world(cfg: Config, prompt: str) -> World:
 
     # --- Content lists: second LLM pass if anything narratively load-
     # bearing is missing (RAG depends on places/persons/fragments etc.).
-    _fill_missing_lists(cfg, prompt, data)
+    _fill_missing_lists(cfg, prompt, data, progress=progress)
 
+    _p(progress, "Welt validieren…")
     return World.model_validate(data)

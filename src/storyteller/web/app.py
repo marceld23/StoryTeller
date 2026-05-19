@@ -18,7 +18,8 @@ import json
 
 from ..config import Config, load_config
 from ..i18n import norm, web
-from ..oai import get_client
+from ..oai import get_gen_client
+from .jobs import JobRegistry
 from ..worlds.registry import all_world_ids, load_world, save_world
 from ..worlds.schema import (
     Beat,
@@ -60,10 +61,11 @@ def _kind_fields(T: dict) -> dict:
     }
 
 
-def _page(T: dict, title: str, body: str) -> str:
+def _page(T: dict, title: str, body: str, head_extra: str = "") -> str:
     return (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"{head_extra}"
         f"<title>{_esc(title)}</title>"
         # apply saved theme before paint (no flash)
         "<script>try{var t=localStorage.getItem('st-theme');"
@@ -96,10 +98,24 @@ def _page(T: dict, title: str, body: str) -> str:
         # theme-aware tints (work on light & dark)
         ".b-user{background:rgba(90,140,255,.14)}"
         ".b-ok{background:rgba(60,180,90,.16)}"
-        ".b-bad{background:rgba(220,60,60,.16)}</style>"
+        ".b-bad{background:rgba(220,60,60,.16)}"
+        # spinner used by stSubmit() on slow forms
+        ".spin{display:none;width:1em;height:1em;margin-left:.5rem;"
+        "border:2px solid var(--bd);border-top-color:var(--link);"
+        "border-radius:50%;animation:sp .8s linear infinite;"
+        "vertical-align:middle}"
+        "@keyframes sp{to{transform:rotate(360deg)}}"
+        "button[disabled]{opacity:.6;cursor:wait}</style>"
         "<script>function stTheme(){var d=document.documentElement,"
         "c=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=c;"
-        "try{localStorage.setItem('st-theme',c);}catch(e){}}</script>"
+        "try{localStorage.setItem('st-theme',c);}catch(e){}}"
+        # Disables the submit button + shows a spinner on slow forms.
+        "function stSubmit(f){var b=f.querySelector('button[type=submit]')"
+        "||f.querySelector('button');"
+        "if(b){b.disabled=true;b.textContent=b.dataset.busy||"
+        "(b.textContent+'…');}"
+        "var s=f.querySelector('.spin');if(s)s.style.display='inline-block';"
+        "return true;}</script>"
         f"<nav><a href='/'>{T['nav_dash']}</a>"
         f"<a href='/new'>{T['nav_new']}</a>"
         f"<a href='/generate'>{T['nav_gen']}</a>"
@@ -123,6 +139,7 @@ def create_app(cfg: Config | None = None):
     T = web(loc)
     KF = _kind_fields(T)
     app = FastAPI(title="Storyteller Admin")
+    JOBS = JobRegistry(max_workers=2)
 
     def _add_form(wid: str, kind: str) -> str:
         label, ph = KF[kind]
@@ -180,29 +197,36 @@ def create_app(cfg: Config | None = None):
     def generate_form():
         return _page(T, T["gen_title"], (
             f"<p>{T['gen_desc']}</p>"
-            "<form method='post' action='/generate'>"
+            "<form method='post' action='/generate' "
+            "onsubmit='return stSubmit(this)'>"
             f"<textarea name='prompt' rows='6' placeholder="
             f"'{_esc(T['gen_ph'])}' required></textarea>"
-            f"<button>{T['gen_btn']}</button></form>"))
+            f"<button data-busy=\"{_esc(T['btn_busy_gen'])}\">"
+            f"{T['gen_btn']}</button>"
+            "<span class='spin'></span></form>"))
 
     @app.post("/generate")
     def generate_do(prompt: str = Form(...)):
         from ..worlds.generate import generate_world
 
-        try:
-            w = generate_world(cfg, prompt)
+        def _work(job):
+            w = generate_world(cfg, prompt, progress=job.progress)
+            job.progress("Welt wird gespeichert…")
             save_world(cfg, w)
-        except Exception as exc:
-            return _page(T, T["error"],
-                         f"<p>{T['gen_failed']}: {_esc(exc)}</p>"
-                         f"<p><a href='/generate'>{T['back']}</a></p>")
-        try:
-            from ..story.rag import WorldRAG
+            try:
+                from ..story.rag import WorldRAG
 
-            WorldRAG(cfg).index_world(w, force=True, locale=loc)
-        except Exception:
-            pass
-        return RedirectResponse(f"/w/{w.id}", status_code=303)
+                job.progress("RAG wird indexiert…")
+                n = WorldRAG(cfg).index_world(w, force=True, locale=loc)
+                job.progress(f"RAG fertig ({n} Fakten).")
+            except Exception as exc:
+                # non-fatal: world is on disk, just no fresh index
+                job.progress(f"RAG-Index fehlgeschlagen (Welt gespeichert): "
+                             f"{exc!r}")
+            return f"/w/{w.id}"
+
+        j = JOBS.submit("world-gen", T["job_title_gen"], _work)
+        return RedirectResponse(f"/jobs/{j.id}", status_code=303)
 
     @app.get("/new", response_class=HTMLResponse)
     def new_form():
@@ -336,16 +360,22 @@ def create_app(cfg: Config | None = None):
         adds = "".join(_add_form(wid, k) for k in
                        ("place", "person", "item", "glossary", "history",
                         "fragment", "rtable", "rentry"))
-        llm = (f"<form method='post' action='/w/{wid}/suggest'>"
+        llm = (f"<form method='post' action='/w/{wid}/suggest' "
+               "onsubmit='return stSubmit(this)'>"
                f"<b>{T['llm_title']}</b><select name='kind'>"
                + "".join(f"<option value='{k}'>{_esc(KF[k][0])}</option>"
                          for k in ("fragment", "place", "person", "item",
                                    "glossary", "history"))
                + f"</select><textarea name='prompt' "
                f"placeholder='{_esc(T['llm_ph'])}'></textarea>"
-               f"<button>{T['llm_btn']}</button></form>")
-        reindex = (f"<form method='post' action='/w/{wid}/reindex'>"
-                   f"<button>{T['reindex_btn']}</button></form>")
+               f"<button data-busy=\"{_esc(T['btn_busy_suggest'])}\">"
+               f"{T['llm_btn']}</button>"
+               "<span class='spin'></span></form>")
+        reindex = (f"<form method='post' action='/w/{wid}/reindex' "
+                   "onsubmit='return stSubmit(this)'>"
+                   f"<button data-busy=\"{_esc(T['btn_busy_reindex'])}\">"
+                   f"{T['reindex_btn']}</button>"
+                   "<span class='spin'></span></form>")
         return _page(T, w.name, (
             f"<p><a href='/'>&larr; {T['nav_dash']}</a> | {_esc(w.genre)} | "
             f"{T['player']}: {_esc(w.player_role)}</p>"
@@ -440,32 +470,76 @@ def create_app(cfg: Config | None = None):
             "\",\"f1\":\"name/title/term\",\"f2\":\"description/text/"
             "definition\",\"f3\":\"role/properties/time or empty\","
             "\"f4\":\"tags,comma or empty\"}. Use the world's language.")
-        try:
-            r = get_client(cfg).chat.completions.create(
-                model=cfg.models.gen,
-                messages=[{"role": "system", "content": sysmsg},
-                          {"role": "user", "content": prompt}],
-                response_format={"type": "json_object"})
-            sug = r.choices[0].message.content or "{}"
-        except Exception as exc:
-            sug = json.dumps({"kind": kind, "f1": "",
-                              "f2": f"({T['error']}: {exc})",
-                              "f3": "", "f4": ""})
-        return RedirectResponse(f"/w/{wid}?sug={html.escape(sug)}",
-                                status_code=303)
+
+        def _work(job):
+            job.progress(f"Vorschlag ({label}) wird vom Modell "
+                         f"({cfg.models.gen}) erstellt…")
+            try:
+                r = get_gen_client(cfg).chat.completions.create(
+                    model=cfg.models.gen,
+                    messages=[{"role": "system", "content": sysmsg},
+                              {"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"})
+                sug = r.choices[0].message.content or "{}"
+                job.progress("Vorschlag fertig.")
+            except Exception as exc:
+                # Surface error inside the world page, not as job error,
+                # so the admin sees the context.
+                sug = json.dumps({"kind": kind, "f1": "",
+                                  "f2": f"({T['error']}: {exc})",
+                                  "f3": "", "f4": ""})
+                job.progress(f"LLM-Fehler weitergereicht: {exc!r}")
+            return f"/w/{wid}?sug={html.escape(sug)}"
+
+        j = JOBS.submit("world-suggest", T["job_title_suggest"], _work)
+        return RedirectResponse(f"/jobs/{j.id}", status_code=303)
 
     @app.post("/w/{wid}/reindex")
     def world_reindex(wid: str):
-        try:
+        def _work(job):
             from ..story.rag import WorldRAG
 
+            job.progress(f"RAG wird neu indexiert für {wid}…")
             n = WorldRAG(cfg).index_world(load_world(cfg, wid), force=True,
                                           locale=loc)
-            msg = f"{n} {T['reindexed']}"
-        except Exception as exc:
-            msg = f"{T['error']}: {exc}"
-        return _page(T, T["reindex_t"], f"<p>{_esc(msg)}</p>"
-                     f"<p><a href='/w/{wid}'>{T['back']}</a></p>")
+            job.progress(f"{n} {T['reindexed']}")
+            return f"/w/{wid}"
+
+        j = JOBS.submit("world-reindex", T["job_title_reindex"], _work)
+        return RedirectResponse(f"/jobs/{j.id}", status_code=303)
+
+    @app.get("/jobs/{jid}", response_class=HTMLResponse)
+    def job_status(jid: str):
+        j = JOBS.get(jid)
+        if not j:
+            return _page(T, T["error"],
+                         f"<p>{T['job_not_found']}</p>"
+                         f"<p><a href='/'>{T['nav_dash']}</a></p>")
+        if j.status == "done":
+            return RedirectResponse(j.result_url or "/", status_code=303)
+        if j.status == "error":
+            tb = ""
+            if j.traceback:
+                tb = (f"<details><summary>{T['job_traceback']}</summary>"
+                      f"<pre>{_esc(j.traceback)}</pre></details>")
+            return _page(T, T["error"], (
+                f"<p><b>{T['job_error_h']}:</b> "
+                f"{_esc(j.error or '')}</p>"
+                f"<p>{T['job_kind']}: {_esc(j.title or j.kind)}</p>"
+                f"<p><small>{T['job_detail']}: {_esc(j.detail)}</small></p>"
+                f"{tb}"
+                f"<p><a href='/'>{T['nav_dash']}</a> | "
+                f"<a href='javascript:history.back()'>{T['back']}</a></p>"))
+        # running -> auto-refresh
+        return _page(T, T["job_running_h"], (
+            f"<p><b>{_esc(j.title or j.kind)}</b></p>"
+            f"<p>{T['job_elapsed']}: {int(j.elapsed)} s</p>"
+            f"<p>{T['job_detail']}: <span class='spin' "
+            "style='display:inline-block'></span> "
+            f"<code>{_esc(j.detail or '…')}</code></p>"
+            f"<p><small>{T['job_hint']}</small></p>"
+            f"<p><a href='/jobs/{jid}'>{T['job_refresh']}</a></p>"
+        ), head_extra="<meta http-equiv='refresh' content='3'>")
 
     @app.get("/transcripts", response_class=HTMLResponse)
     def transcripts_list():
