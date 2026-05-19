@@ -573,11 +573,25 @@ def create_app(cfg: Config | None = None):
 
     @app.get("/audio", response_class=HTMLResponse)
     def audio_form():
-        from ..runtime import load_audio_override, resolve_backend_name
+        from ..runtime import (
+            effective_volume,
+            load_audio_override,
+            resolve_backend_name,
+        )
 
         ov = load_audio_override(cfg)
         cur = str(ov.get("backend") or cfg.audio.backend or "auto")
         sink = ov.get("pw_sink", cfg.audio.pw_sink or "")
+        vol = effective_volume(cfg)
+        live = None
+        try:
+            from ..audio.backend import get_backend
+
+            live = get_backend(cfg).get_volume()
+        except Exception:
+            live = None
+        live_txt = (f" ({T['audio_volume_now']}: {live} %)"
+                    if isinstance(live, int) else "")
         opts = "".join(
             f"<option{' selected' if cur == b else ''}>{b}</option>"
             for b in ("auto", "alsa_softvol", "portable", "pipewire"))
@@ -590,15 +604,34 @@ def create_app(cfg: Config | None = None):
             f"<select name='backend'>{opts}</select>"
             f"<input name='pw_sink' value='{_esc(sink)}' "
             f"placeholder='{_esc(T['audio_sink_ph'])}'>"
+            f"<label>{T['audio_volume']}{live_txt}</label>"
+            f"<input type='number' name='volume' min='0' max='100' "
+            f"value='{vol}'>"
+            f"<small>{T['audio_volume_hint']}</small>"
             f"<button>{T['save']}</button></form>"))
 
     @app.post("/audio")
-    def audio_save(backend: str = Form("auto"), pw_sink: str = Form("")):
+    def audio_save(backend: str = Form("auto"), pw_sink: str = Form(""),
+                   volume: str = Form("")):
         from ..runtime import save_audio_override
 
         b = backend if backend in ("auto", "alsa_softvol", "portable",
                                    "pipewire") else "auto"
-        save_audio_override(cfg, {"backend": b, "pw_sink": pw_sink.strip()})
+        try:
+            vol = max(0, min(100, int(float(volume))))
+        except (TypeError, ValueError):
+            vol = None
+        data = {"backend": b, "pw_sink": pw_sink.strip()}
+        if vol is not None:
+            data["volume"] = vol
+        save_audio_override(cfg, data)
+        if vol is not None:
+            try:
+                from ..audio.backend import get_backend
+
+                get_backend(cfg).set_volume(vol)
+            except Exception:
+                pass
         return RedirectResponse("/audio", status_code=303)
 
     return app

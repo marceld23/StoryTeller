@@ -215,6 +215,11 @@ WEB = {
                       "scripts/setup_bluetooth.sh + Gerät koppeln).",
         "audio_backend": "Backend", "audio_sink_ph": "PipeWire-Sink "
                          "(leer = Default; wpctl status zeigt Namen)",
+        "audio_volume": "Lautstärke (0–100 %)",
+        "audio_volume_hint": "Wirkt am Pi (ALSA) sofort — auch auf eine "
+                             "laufende Erzählung; im PC-Modus erst beim "
+                             "nächsten Start.",
+        "audio_volume_now": "aktuell",
         "backend": "Storyteller — Backend", "config": "Konfiguration",
         "worlds": "Welten", "new_world": "➕ Neue Welt anlegen",
         "saves": "Spielstände", "view": "ansehen",
@@ -292,6 +297,11 @@ WEB = {
                       "scripts/setup_bluetooth.sh + pair a device first).",
         "audio_backend": "Backend", "audio_sink_ph": "PipeWire sink "
                          "(empty = default; wpctl status shows names)",
+        "audio_volume": "Volume (0–100%)",
+        "audio_volume_hint": "On the Pi (ALSA) this takes effect "
+                             "immediately — even during a running story; "
+                             "in PC mode only at the next start.",
+        "audio_volume_now": "current",
         "backend": "Storyteller — Backend", "config": "Configuration",
         "worlds": "Worlds", "new_world": "➕ Create new world",
         "saves": "Saves", "view": "view", "cost_cap": "cost cap",

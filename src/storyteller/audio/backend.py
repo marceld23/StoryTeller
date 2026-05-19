@@ -346,8 +346,12 @@ _BACKENDS = {
 
 
 def get_backend(cfg: Config) -> AudioBackend:
-    """Factory: runtime override + profile resolve the concrete backend."""
-    from ..runtime import load_audio_override
+    """Factory: runtime override + profile resolve the concrete backend.
+
+    The persisted playback volume (data/audio.json, admin-editable) is
+    re-applied here, so every start honours the last setting.
+    """
+    from ..runtime import effective_volume, load_audio_override
 
     ov = load_audio_override(cfg)
     if ov.get("pw_sink"):
@@ -356,4 +360,9 @@ def get_backend(cfg: Config) -> AudioBackend:
     cls = _BACKENDS.get(name)
     if cls is None:
         raise ValueError(f"unbekanntes Audio-Backend: {name!r}")
-    return cls(cfg)
+    be = cls(cfg)
+    try:
+        be.set_volume(effective_volume(cfg))
+    except Exception:  # pragma: no cover - HW-/install-abhängig
+        pass
+    return be

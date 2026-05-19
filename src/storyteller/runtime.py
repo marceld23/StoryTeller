@@ -33,9 +33,20 @@ def load_audio_override(cfg: Config) -> dict:
 
 
 def save_audio_override(cfg: Config, data: dict) -> None:
+    """Merge `data` into data/audio.json (keeps untouched keys)."""
     p = audio_override_path(cfg)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    merged = {**load_audio_override(cfg), **data}
+    p.write_text(json.dumps(merged, ensure_ascii=False, indent=2))
+
+
+def effective_volume(cfg: Config) -> int:
+    """Persisted playback volume (data/audio.json) or the config default."""
+    v = load_audio_override(cfg).get("volume")
+    try:
+        return max(0, min(100, int(v)))
+    except (TypeError, ValueError):
+        return max(0, min(100, int(cfg.audio.default_volume_pct)))
 
 
 @lru_cache
