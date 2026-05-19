@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[2]  # /home/pi/storyteller
 class ModelsCfg(BaseModel):
     story_llm: str = "gpt-5.4-mini"            # narrator (quality matters)
     planner_llm: str = ""                      # architect+summarizer; ""=story_llm
+    # One-shot, high-stakes calls that build NEW content (world generation
+    # from a prompt, world-piece suggestions in the admin UI). Defaults to
+    # the big "gpt-5.4" — these calls are rare; structural quality pays
+    # off for every subsequent session.
+    gen_llm: str = "gpt-5.4"
     stt: str = "gpt-4o-mini-transcribe"
     tts: str = "gpt-4o-mini-tts"
     tts_voice: str = "ballad"
@@ -30,6 +35,10 @@ class ModelsCfg(BaseModel):
     @property
     def planner(self) -> str:
         return self.planner_llm or self.story_llm
+
+    @property
+    def gen(self) -> str:
+        return self.gen_llm or self.story_llm
 
 
 class STTCfg(BaseModel):
@@ -109,6 +118,8 @@ class StoryCfg(BaseModel):
     # Gentle nudge: after this many narrator turns on the same sub-beat,
     # remind the model it MAY advance_beat/complete_substory (0 = off).
     beat_nudge_after: int = 3
+    # Upper bound for KnownFacts entries (oldest noteless evicted first).
+    known_facts_cap: int = 30
     narration_guidance: str = (
         "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. "
         "Pro Antwort nur EINE Situation und höchstens ein bis zwei neue "

@@ -11,6 +11,7 @@ profile = "auto"     # auto | pi | pc
 [models]
 story_llm        = "gpt-5.4-mini"            # ERZÄHLER — hier lohnt ein starkes Modell
 planner_llm      = ""                        # Architekt + Zusammenfasser; leer => story_llm (billiger wählen, um story_llm hochstufen zu können)
+gen_llm          = "gpt-5.4"                 # WELT-/INHALTS-GENERIERUNG (einmalig pro Welt/Vorschlag) — Default das große Modell; leer => story_llm
 stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
 tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper kann KEIN TTS)
 tts_voice        = "ballad"
@@ -77,6 +78,7 @@ long_term_memory          = true # Langzeitged.: aus dem Fenster fallende Züge 
 synopsis_max_chars        = 900  # Maximale Länge der Synopse (knapp halten)
 synopsis_batch            = 8    # so viele alte Nachrichten auf einmal verdichten (selten => billig)
 beat_nudge_after          = 3    # nach so vielen Zügen am selben Sub-Beat sanft an advance_beat erinnern (0=aus)
+known_facts_cap           = 30   # Obergrenze Spieler-Fakten (ältester ohne Notiz wird verdrängt)
 # Erzählstil-Leitlinie (frei editierbar): steuert Einfachheit/Länge.
 narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
 

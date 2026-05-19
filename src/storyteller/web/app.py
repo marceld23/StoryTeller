@@ -144,6 +144,7 @@ def create_app(cfg: Config | None = None):
         return _page(T, T["backend"], (
             f"<div class='card'><b>{T['config']}</b><br>"
             f"Story-LLM: {_esc(m.story_llm)}<br>"
+            f"Gen-LLM: {_esc(m.gen)} | Planner: {_esc(m.planner)}<br>"
             f"STT/TTS: {_esc(m.stt)} / {_esc(m.tts)} ({_esc(m.tts_voice)})"
             f"<br>Audio: {_esc(cfg.audio.backend)} | {T['cost_cap']} "
             f"${cfg.story.cost_cap_usd_per_session} | Locale: {loc}</div>"
@@ -440,7 +441,7 @@ def create_app(cfg: Config | None = None):
             "\"f4\":\"tags,comma or empty\"}. Use the world's language.")
         try:
             r = get_client(cfg).chat.completions.create(
-                model=cfg.models.story_llm,
+                model=cfg.models.gen,
                 messages=[{"role": "system", "content": sysmsg},
                           {"role": "user", "content": prompt}],
                 response_format={"type": "json_object"})

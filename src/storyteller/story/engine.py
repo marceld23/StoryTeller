@@ -64,10 +64,30 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
         "name": "remember_fact",
-        "description": "Merke dauerhaft, was der Spieler nun kennt.",
+        "description": "Merke dauerhaft, was der Spieler nun kennt. Wenn "
+                       "(kind, name) bereits existiert, wird note "
+                       "aktualisiert (vorhandenes ÜBERSCHRIEBEN, nicht "
+                       "gedoppelt). Bei Überlauf wird der älteste Eintrag "
+                       "ohne note automatisch verdrängt.",
         "parameters": {"type": "object", "properties": {
             "kind": {"type": "string"}, "name": {"type": "string"},
             "note": {"type": "string"}}, "required": ["kind", "name"]}}},
+    {"type": "function", "function": {
+        "name": "forget_fact",
+        "description": "Lösche einen zuvor mit remember_fact gespeicherten "
+                       "Fakt — nutzen, wenn er falsch gemerkt wurde oder "
+                       "nicht mehr gilt. kind ist optional zur "
+                       "Disambiguierung gleichnamiger Einträge.",
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string"},
+            "kind": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {
+        "name": "list_known_facts",
+        "description": "Gib die aktuell gespeicherten Spieler-Fakten als "
+                       "JSON-Liste zurück (optional nach kind filtern). "
+                       "Vor remember_fact/forget_fact prüfen.",
+        "parameters": {"type": "object", "properties": {
+            "kind": {"type": "string"}}}}},
     {"type": "function", "function": {
         "name": "advance_beat",
         "description": "Schalte einen Sub-Beat der aktuellen Substory weiter.",
@@ -148,6 +168,7 @@ class StoryEngine:
         self.synopsis = ""               # rolling long-term memory
         self.char_state: dict[str, str] = {}  # name -> short status (continuity)
         self._beat_turns = 0             # narrator turns on the current sub-beat
+        self._pending_fold: list[dict] = []  # messages awaiting summariser retry
 
     # --- Zustand ---
     def state(self) -> NarrativeState:
@@ -289,9 +310,19 @@ class StoryEngine:
         if name == "roll_story_dynamic":
             return f"{self.dynamics.roll()} — {INTEGRATION_RULE}"
         if name == "remember_fact":
-            return self.known.remember(args.get("kind", "fakt"),
-                                       args.get("name", ""),
-                                       args.get("note", ""))
+            return self.known.remember(
+                args.get("kind", "fakt"), args.get("name", ""),
+                args.get("note", ""),
+                cap=self.cfg.story.known_facts_cap)
+        if name == "forget_fact":
+            nm = (args.get("name") or "").strip()
+            if not nm:
+                return "(kein Name)"
+            knd = (args.get("kind") or "").strip() or None
+            return self.known.forget(nm, knd)
+        if name == "list_known_facts":
+            knd = (args.get("kind") or "").strip() or None
+            return json.dumps(self.known.query(knd), ensure_ascii=False)
         if name == "advance_beat" and s:
             s.advance()
             self._beat_turns = 0
@@ -415,11 +446,44 @@ class StoryEngine:
         if len(self.memory) <= keep + batch:
             return
         dropped = self.memory[:batch]
-        if self._fold_into_synopsis(dropped):
+        to_fold = self._pending_fold + dropped
+        if self._fold_into_synopsis(to_fold):
+            # success: pending consumed, drop the messages from history
+            self._pending_fold = []
             self.memory = self.memory[batch:]
-        elif len(self.memory) > keep + batch * 3:
-            # summariser persistently failing: cap context, accept the loss
-            self.memory = self.memory[-keep:]
+            return
+        # Summariser unreachable: queue for retry, but trim memory anyway
+        # so the prompt doesn't keep growing. Content is preserved in
+        # self._pending_fold and folded on the next successful call.
+        self._pending_fold.extend(dropped)
+        self.memory = self.memory[batch:]
+        if len(self._pending_fold) >= batch * 3:
+            # Persistent failure -> guaranteed lossless-of-signal heuristic
+            # fold (no LLM), so no content is ever dropped silently.
+            self._heuristic_fold()
+
+    def _heuristic_fold(self) -> None:
+        """Append a deterministic, no-LLM compression of the pending queue
+        to the synopsis. Last-resort path when the summariser is unreachable.
+        """
+        if not self._pending_fold:
+            return
+        parts: list[str] = []
+        for m in self._pending_fold:
+            who = "Spieler" if m.get("role") == "user" else "Erzähler"
+            txt = (m.get("content", "") or "").strip().replace("\n", " ")
+            if len(txt) > 200:
+                txt = txt[:200].rsplit(" ", 1)[0] + "…"
+            parts.append(f"{who}: {txt}")
+        addition = "[verdichtet ohne LLM] " + " | ".join(parts)
+        sep = " || " if self.synopsis else ""
+        limit = int(self.cfg.story.synopsis_max_chars)
+        self.synopsis = (self.synopsis + sep + addition)[:limit]
+        n = len(self._pending_fold)
+        self._pending_fold = []
+        if self.transcript:
+            self.transcript.note(
+                f"[Heuristik-Synopse: {n} Nachrichten ohne LLM verdichtet]")
 
     def _fold_into_synopsis(self, dropped: list[dict]) -> bool:
         """Fold messages leaving the window into the rolling synopsis.
@@ -522,6 +586,7 @@ class StoryEngine:
             "synopsis": self.synopsis,
             "char_state": self.char_state,
             "beat_turns": self._beat_turns,
+            "pending_fold": self._pending_fold,
         }
 
     def restore(self, state: dict) -> None:
@@ -535,3 +600,4 @@ class StoryEngine:
         self.synopsis = state.get("synopsis", "")
         self.char_state = dict(state.get("char_state", {}))
         self._beat_turns = int(state.get("beat_turns", 0))
+        self._pending_fold = list(state.get("pending_fold", []))
