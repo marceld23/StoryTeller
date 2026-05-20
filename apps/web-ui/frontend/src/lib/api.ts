@@ -1,0 +1,43 @@
+// Backend address. Override via VITE_BACKEND env var (e.g. http://pi.local:8090).
+export const BACKEND =
+  (import.meta.env.VITE_BACKEND as string | undefined) ?? 'http://localhost:8090';
+
+export type WorldSummary = {
+  id: string;
+  name: string;
+  genre: string;
+  player_role: string;
+  description: string;
+};
+
+export type CreatedSession = {
+  thread_id: string;
+  world_id: string;
+  opening: string;
+};
+
+export async function listWorlds(): Promise<WorldSummary[]> {
+  const r = await fetch(`${BACKEND}/api/worlds`);
+  if (!r.ok) throw new Error(`worlds: ${r.status}`);
+  return r.json();
+}
+
+export async function createSession(
+  world_id: string,
+  thread_id?: string
+): Promise<CreatedSession> {
+  const r = await fetch(`${BACKEND}/api/sessions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ world_id, thread_id })
+  });
+  if (!r.ok) throw new Error(`createSession: ${r.status}`);
+  return r.json();
+}
+
+/** Open a play WebSocket. Resolves to a connected socket. */
+export function openPlaySocket(thread_id: string, world_id: string): WebSocket {
+  const wsBase = BACKEND.replace(/^http/, 'ws');
+  const url = `${wsBase}/ws/play/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}`;
+  return new WebSocket(url);
+}

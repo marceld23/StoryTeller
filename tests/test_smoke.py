@@ -1,7 +1,7 @@
 """Smoke-Tests für das Gerüst (Phase 0)."""
 
-from storyteller.config import load_config
-from storyteller.worlds.seed import SEED_WORLDS
+from storyteller_core.config import load_config
+from storyteller_core.worlds.seed import SEED_WORLDS
 
 
 def test_config_loads():

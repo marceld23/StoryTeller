@@ -9,6 +9,17 @@ __pycache__/
 build/
 dist/
 
+# Node / yarn / SvelteKit
+node_modules/
+.svelte-kit/
+.yarn/cache
+.yarn/install-state.gz
+apps/**/build/
+
+# LangGraph checkpointer (per-session story state)
+data/checkpoints.db
+data/checkpoints.db-*
+
 # Laufzeitdaten
 data/saves/
 data/rag.db
@@ -19,6 +30,8 @@ data/*.log
 # Regenerable audio caches (rebuild: storyteller voice-prompts / wait-sounds):
 data/voice_prompts/
 data/wait_sounds/
+
+%APPDATA%/*
 
 # OS
 .DS_Store

@@ -1,0 +1,9 @@
+node_modules
+.svelte-kit
+.yarn/cache
+.yarn/install-state.gz
+build
+dist
+.env
+.env.*
+!.env.example
