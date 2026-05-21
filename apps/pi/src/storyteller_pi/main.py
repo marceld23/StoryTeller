@@ -154,6 +154,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         else:
             rp("[yellow]Wake-Word nicht verfügbar -> Push-to-talk[/yellow]")
 
+    # Guard: with neither a wake word nor a keyboard (no TTY, e.g. under
+    # systemd) the loop has no way to get input and would busy-error on
+    # input(). Fail fast with a clear message instead of an audible error
+    # loop. Fix: bash scripts/install_wakeword.sh (uv sync prunes it).
+    if ww is None and not text_mode and not sys.stdin.isatty():
+        log.error("no wake word and no TTY — cannot read input as a service. "
+                  "Run scripts/install_wakeword.sh (uv sync prunes the "
+                  "wake-word packages), then restart storyteller.")
+        return 1
+
     # --- start greeting + optional intro (cached, offline-safe) ---
     if speak and not text_mode:
         from storyteller_hardware.runtime import load_settings, save_settings
