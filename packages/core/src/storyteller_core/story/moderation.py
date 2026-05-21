@@ -9,9 +9,12 @@ the game), but a flagged category at/above its threshold blocks the turn.
 from __future__ import annotations
 
 import json
+import logging
 
 from ..config import Config
 from ..oai import get_client
+
+log = logging.getLogger("storyteller.moderation")
 
 
 def overrides_path(cfg: Config):
@@ -23,7 +26,8 @@ def load_overrides(cfg: Config) -> dict:
     if p.exists():
         try:
             return json.loads(p.read_text())
-        except Exception:
+        except Exception as exc:
+            log.warning("moderation overrides unreadable (%s): %r", p, exc)
             return {}
     return {}
 
@@ -57,8 +61,10 @@ class Moderator:
             res = r.results[0]
             cs = res.category_scores
             scores = cs.model_dump() if hasattr(cs, "model_dump") else dict(cs)
-        except Exception:
-            return True, [], {}  # fail-open: never break play on API error
+        except Exception as exc:
+            # fail-open: never break play on an API hiccup, but make it visible
+            log.warning("moderation check failed, allowing turn: %r", exc)
+            return True, [], {}
         flagged = [
             {"category": c, "score": round(float(s), 4),
              "threshold": self.threshold(c)}

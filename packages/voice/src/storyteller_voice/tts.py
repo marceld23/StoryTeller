@@ -10,7 +10,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import numpy as np
-
 from storyteller_core.config import Config
 from storyteller_core.oai import get_client
 

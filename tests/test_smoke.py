@@ -1,4 +1,4 @@
-"""Smoke-Tests für das Gerüst (Phase 0)."""
+"""Smoke tests for the workspace scaffolding."""
 
 from storyteller_core.config import load_config
 from storyteller_core.worlds.seed import SEED_WORLDS
@@ -7,7 +7,7 @@ from storyteller_core.worlds.seed import SEED_WORLDS
 def test_config_loads():
     cfg = load_config()
     assert cfg.models.story_llm
-    assert cfg.audio.backend in {"alsa_softvol", "pipewire"}
+    assert cfg.audio.backend in {"auto", "alsa_softvol", "portable", "pipewire"}
 
 
 def test_two_seed_worlds():

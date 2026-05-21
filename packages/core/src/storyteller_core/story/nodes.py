@@ -32,7 +32,7 @@ from .dynamics import INTEGRATION_RULE, StoryDynamics
 from .knowledge import KnownFacts
 from .moderation import Moderator
 from .patterns import world_tone_line as _tone_line
-from .state import TURN_SCOPED_KEYS, EngineContext
+from .state import EngineContext
 from .substory import SubstoryPlan, SubstoryPlanner
 from .tools import TOOLS, dispatch_tool
 

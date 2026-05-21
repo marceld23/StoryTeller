@@ -11,7 +11,8 @@ holds no story state of its own.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .graph import get_compiled
 from .state import EngineContext

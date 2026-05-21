@@ -24,7 +24,6 @@ import tempfile
 import time
 
 from rich import print as rp
-
 from storyteller_core.config import load_config
 from storyteller_core.i18n import CMD_KEYWORDS, RESTORE_DIRECTIVE, norm
 from storyteller_core.story.engine import StoryEngine
@@ -366,7 +365,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if any(k in low for k in cmd_kw["quit"]):
                     break
                 reply = _say(cfg, world, backend, tts, fx, leds,
-                             lambda: engine.turn(said), speak=speak)
+                             lambda s=said: engine.turn(s), speak=speak)
                 rp(f"[green][Erzähler][/green] {reply}")
                 pending_follow = follow_enabled
             except Exception as exc:

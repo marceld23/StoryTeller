@@ -21,7 +21,6 @@ import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Optional
 
 _log = logging.getLogger("storyteller.jobs")
 
@@ -33,10 +32,10 @@ class Job:
     title: str = ""                     # human label for the status page
     status: str = "running"             # running | done | error
     started: float = field(default_factory=time.time)
-    finished: Optional[float] = None
-    result_url: Optional[str] = None    # where to redirect when done
-    error: Optional[str] = None         # short error text
-    traceback: Optional[str] = None     # full traceback (collapsible)
+    finished: float | None = None
+    result_url: str | None = None    # where to redirect when done
+    error: str | None = None         # short error text
+    traceback: str | None = None     # full traceback (collapsible)
     detail: str = ""                    # free-form latest progress line
 
     @property
@@ -91,7 +90,7 @@ class JobRegistry:
         self._exec.submit(_run)
         return j
 
-    def get(self, jid: str) -> Optional[Job]:
+    def get(self, jid: str) -> Job | None:
         return self.jobs.get(jid)
 
     def _prune(self, max_age: float = 3600.0, keep_min: int = 20) -> None:

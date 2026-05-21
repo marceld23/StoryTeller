@@ -9,7 +9,6 @@ import json
 
 import numpy as np
 import soundfile as sf
-
 from storyteller_core.config import Config
 from storyteller_core.i18n import VOICE_PROMPTS, norm
 

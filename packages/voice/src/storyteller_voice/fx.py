@@ -7,7 +7,6 @@ Install: `uv sync --extra audiofx`. If pedalboard is missing -> pass-through.
 from __future__ import annotations
 
 import numpy as np
-
 from storyteller_core.config import Config
 
 

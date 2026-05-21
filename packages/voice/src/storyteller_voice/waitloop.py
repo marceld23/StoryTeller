@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-
 from storyteller_core.config import Config
 
 

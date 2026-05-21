@@ -25,7 +25,6 @@ class WakeWord:
         self.available = False
         try:
             from openwakeword.model import Model
-
             from storyteller_core.i18n import norm
 
             loc = norm(cfg.general.locale)

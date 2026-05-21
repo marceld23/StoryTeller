@@ -17,11 +17,9 @@ import sys
 
 from rich.console import Console
 from rich.panel import Panel
-
 from storyteller_core.config import load_config
 from storyteller_core.story.engine import StoryEngine
 from storyteller_core.worlds.registry import all_world_ids, load_world
-
 
 console = Console()
 
@@ -160,7 +158,6 @@ def cmd_worlds(_args: argparse.Namespace) -> int:
 
 def cmd_seed(_args: argparse.Namespace) -> int:
     """Write built-in seed worlds into data/worlds/ if not already present."""
-    from pathlib import Path
 
     from storyteller_core.config import ROOT
     from storyteller_core.worlds.seed import SEED_WORLDS
@@ -202,6 +199,17 @@ def cmd_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prune(args: argparse.Namespace) -> int:
+    """Bound the checkpoint DB: keep N newest checkpoints per thread."""
+    from storyteller_core.story.graph import prune_checkpoints
+
+    cfg = load_config()
+    keep = args.keep if args.keep is not None \
+        else cfg.story.checkpoint_keep_per_thread
+    console.print(prune_checkpoints(keep_per_thread=keep))
+    return 0
+
+
 # --------------------------------------------------------------------------
 # entry
 # --------------------------------------------------------------------------
@@ -234,6 +242,13 @@ def _build_parser() -> argparse.ArgumentParser:
     phist.add_argument("--world", help="world id")
     phist.add_argument("--thread", help="session id")
     phist.set_defaults(func=cmd_history)
+
+    pprune = sub.add_parser(
+        "prune", help="bound the checkpoint DB (keep N newest per thread)")
+    pprune.add_argument("--keep", type=int, default=None,
+                        help="checkpoints to keep per thread "
+                             "(default: config story.checkpoint_keep_per_thread)")
+    pprune.set_defaults(func=cmd_prune)
 
     return p
 

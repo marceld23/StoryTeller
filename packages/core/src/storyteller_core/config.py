@@ -10,6 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+
 def _find_repo_root() -> Path:
     here = Path(__file__).resolve()
     for parent in here.parents:
@@ -128,6 +129,9 @@ class StoryCfg(BaseModel):
     beat_nudge_after: int = 3
     # Upper bound for KnownFacts entries (oldest noteless evicted first).
     known_facts_cap: int = 30
+    # Checkpoint retention: keep this many checkpoints per session thread
+    # (0 = unlimited). `storyteller-cli prune` enforces it.
+    checkpoint_keep_per_thread: int = 100
     narration_guidance: str = (
         "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. "
         "Pro Antwort nur EINE Situation und höchstens ein bis zwei neue "
@@ -226,11 +230,34 @@ def load_config(config_path: str | None = None) -> Config:
         data = tomllib.loads(cfg_file.read_text())
     cfg = Config(**data)
     cfg.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-    # Admin-editable runtime override (data/models.json) wins over config.toml.
-    try:
-        from .runtime import apply_model_overrides
-
-        apply_model_overrides(cfg)
-    except Exception:
-        pass
+    _apply_model_overrides(cfg)
     return cfg
+
+
+def _apply_model_overrides(cfg: Config) -> None:
+    """Apply admin-editable model overrides (data/models.json) onto cfg.models.
+
+    Lives in core (no hardware dependency); the admin writes the file and the
+    Pi voice loop / web backends pick it up on next load. Unknown / bad keys
+    are logged and skipped.
+    """
+    import json
+    import logging
+
+    log = logging.getLogger("storyteller.config")
+    p = ROOT / "data" / "models.json"
+    if not p.exists():
+        return
+    try:
+        ov = json.loads(p.read_text())
+    except Exception as exc:
+        log.warning("data/models.json unreadable, ignored: %r", exc)
+        return
+    for key, val in (ov or {}).items():
+        if not hasattr(cfg.models, key):
+            log.warning("unknown model override key %r ignored", key)
+            continue
+        try:
+            setattr(cfg.models, key, val)
+        except Exception as exc:
+            log.warning("model override %s=%r ignored: %r", key, val, exc)

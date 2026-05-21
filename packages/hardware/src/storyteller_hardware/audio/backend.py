@@ -20,7 +20,6 @@ from storyteller_core.config import Config
 
 from ..runtime import resolve_backend_name
 
-
 # ---------- ALSA-Helfer (Pi/Linux) ----------
 
 def _alsa_loop(pcm_bytes: bytes, sr: int, out_pcm: str,

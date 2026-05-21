@@ -105,7 +105,7 @@ class WorldRAG:
         from sqlite_vec import serialize_float32
 
         embs = self._embed([t for _, t in items])
-        for (ftype, text), emb in zip(items, embs):
+        for (ftype, text), emb in zip(items, embs, strict=False):
             db.execute(
                 "INSERT INTO world_facts(world_id, embedding, fact_type,"
                 " content) VALUES (?,?,?,?)",

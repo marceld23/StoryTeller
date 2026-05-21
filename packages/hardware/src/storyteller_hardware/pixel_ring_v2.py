@@ -17,7 +17,7 @@ class PixelRing:
 
     def mono(self, color):
         self.write(1, [(color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 0])
-    
+
     def set_color(self, rgb=None, r=0, g=0, b=0):
         if rgb:
             self.mono(rgb)
@@ -47,10 +47,10 @@ class PixelRing:
         self.write(6, data)
 
     customize = show
-        
+
     def set_brightness(self, brightness):
         self.write(0x20, [brightness])
-    
+
     def set_color_palette(self, a, b):
         self.write(0x21, [(a >> 16) & 0xFF, (a >> 8) & 0xFF, a & 0xFF, 0, (b >> 16) & 0xFF, (b >> 8) & 0xFF, b & 0xFF, 0])
 

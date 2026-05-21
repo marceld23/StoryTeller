@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Vendored from Seeed Studio `respeaker/usb_4_mic_array` (Apache-2.0).
 # Upstream: https://github.com/respeaker/usb_4_mic_array  (c) Seeed Technology.
 # Patched for Python 3.13 (.tostring() -> .tobytes()). Retained under
 # Apache-2.0, not relicensed. See THIRD_PARTY_NOTICES.md.
 
-import sys
 import struct
+import sys
+
 import usb.core
 import usb.util
 
@@ -78,7 +78,7 @@ class Tuning:
             return
 
         if data[5] == 'ro':
-            raise ValueError('{} is read-only'.format(name))
+            raise ValueError(f'{name} is read-only')
 
         id = data[0]
 
@@ -182,16 +182,16 @@ def main():
                 print('{:24} {}'.format('name', 'value'))
                 print('-------------------------------')
                 for name in sorted(PARAMETERS.keys()):
-                    print('{:24} {}'.format(name, dev.read(name)))
+                    print(f'{name:24} {dev.read(name)}')
             else:
                 name = sys.argv[1].upper()
                 if name in PARAMETERS:
                     if len(sys.argv) > 2:
                         dev.write(name, sys.argv[2])
-                    
-                    print('{}: {}'.format(name, dev.read(name)))
+
+                    print(f'{name}: {dev.read(name)}')
                 else:
-                    print('{} is not a valid name'.format(name))
+                    print(f'{name} is not a valid name')
 
             dev.close()
     else:

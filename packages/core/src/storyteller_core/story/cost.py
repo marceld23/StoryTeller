@@ -43,6 +43,6 @@ class CostTracker:
         return {"input": self.input, "output": self.output, "embed": self.embed}
 
     @classmethod
-    def restore(cls, cfg: Config, d: dict) -> "CostTracker":
+    def restore(cls, cfg: Config, d: dict) -> CostTracker:
         d = d or {}
         return cls(cfg, d.get("input", 0), d.get("output", 0), d.get("embed", 0))

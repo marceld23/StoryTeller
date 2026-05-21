@@ -117,3 +117,59 @@ def reset_compiled() -> None:
     global _compiled, _checkpointer
     _compiled = None
     _checkpointer = None
+
+
+# --------------------------------------------------------------------------
+# retention / maintenance
+# --------------------------------------------------------------------------
+
+def prune_checkpoints(db_path: Path | None = None,
+                      keep_per_thread: int = 100) -> dict:
+    """Bound checkpoint DB growth: keep the newest `keep_per_thread`
+    checkpoints per (thread, namespace), delete older ones + orphaned writes.
+
+    `checkpoint_id` is time-ordered, so newest = max id. `keep_per_thread<=0`
+    disables pruning. Defensive: a no-op if the expected tables are absent.
+    Returns {"checkpoints_deleted", "writes_deleted", "kept_per_thread"}.
+    """
+    import logging
+
+    log = logging.getLogger("storyteller.maintenance")
+    out = {"checkpoints_deleted": 0, "writes_deleted": 0,
+           "kept_per_thread": keep_per_thread}
+    if keep_per_thread <= 0:
+        return out
+    from ..config import ROOT
+
+    path = db_path or (ROOT / "data" / "checkpoints.db")
+    if not Path(path).exists():
+        return out
+    try:
+        conn = sqlite3.connect(str(path))
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "checkpoints" not in tables:
+            conn.close()
+            return out
+        cur = conn.execute(
+            "DELETE FROM checkpoints WHERE rowid IN ("
+            "  SELECT rowid FROM ("
+            "    SELECT rowid, ROW_NUMBER() OVER ("
+            "      PARTITION BY thread_id, checkpoint_ns "
+            "      ORDER BY checkpoint_id DESC) AS rn FROM checkpoints"
+            "  ) WHERE rn > ?)", (keep_per_thread,))
+        out["checkpoints_deleted"] = cur.rowcount
+        if "writes" in tables:
+            cur = conn.execute(
+                "DELETE FROM writes WHERE (thread_id, checkpoint_ns, "
+                "checkpoint_id) NOT IN (SELECT thread_id, checkpoint_ns, "
+                "checkpoint_id FROM checkpoints)")
+            out["writes_deleted"] = cur.rowcount
+        conn.commit()
+        conn.execute("VACUUM")
+        conn.commit()
+        conn.close()
+        log.info("pruned checkpoints: %s", out)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("checkpoint prune failed: %r", exc)
+    return out

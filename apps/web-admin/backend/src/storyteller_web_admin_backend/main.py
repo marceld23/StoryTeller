@@ -17,10 +17,12 @@ Endpoints (Phase 4b scope):
   GET    /api/settings/moderation                 moderation thresholds
   PUT    /api/settings/moderation                 update moderation thresholds
 
-  POST   /api/worlds/generate                     async LLM world generation (stub: 501)
-  POST   /api/worlds/{world_id}/reindex           async RAG reindex (stub: 501)
+  POST   /api/worlds/generate                     async LLM world generation (job)
+  POST   /api/worlds/{world_id}/reindex           async RAG reindex (job)
+  POST   /api/worlds/{world_id}/suggest           one schema-shaped content piece
   GET    /api/jobs/{job_id}                       job status
-  GET    /api/transcripts                         list transcripts (stub: 501)
+  GET    /api/transcripts                          list transcripts
+  GET    /api/transcripts/{name}                   parsed transcript events
 
 Run: storyteller-web-admin  (binds 0.0.0.0:8080)
 """
@@ -36,7 +38,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
 from storyteller_core.config import ROOT, load_config
 from storyteller_core.worlds.registry import all_world_ids, load_world, save_world
 from storyteller_core.worlds.schema import World
@@ -82,7 +83,8 @@ def _read_json(p: Path, default: Any) -> Any:
         return default
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        log.warning("unreadable JSON %s, using default: %r", p, exc)
         return default
 
 
@@ -139,7 +141,7 @@ def replace_world(world_id: str, payload: dict) -> dict:
     try:
         w = World(**payload)
     except Exception as exc:
-        raise HTTPException(422, f"invalid world: {exc}")
+        raise HTTPException(422, f"invalid world: {exc}") from exc
     save_world(cfg, w)
     return {"ok": True, "id": w.id}
 
@@ -373,7 +375,7 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
         )
         data = json.loads(r.choices[0].message.content or "{}")
     except Exception as exc:
-        raise HTTPException(502, f"gen model error: {exc!r}")
+        raise HTTPException(502, f"gen model error: {exc!r}") from exc
 
     # keep only known keys; coerce tags to list[str], other fields to str
     piece: dict = {}
