@@ -168,8 +168,9 @@ viewable in the admin UI (`/transcripts`).
 
 ## Documentation
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the system is built (engine, apps, data)
 - [AGENTS.md](AGENTS.md) — monorepo conventions (uv, yarn, package boundaries)
-- [PLAN.md](PLAN.md) — what's done, what's open, in what order
+- [PLAN.md](PLAN.md) — what's still open
 - [docs/SETUP_PI.md](docs/SETUP_PI.md) — Raspberry Pi + ReSpeaker
 - [docs/SETUP_PC.md](docs/SETUP_PC.md) — PC setup (no Pi/no ReSpeaker)
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to play

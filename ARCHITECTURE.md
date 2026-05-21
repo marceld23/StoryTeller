@@ -1,0 +1,230 @@
+# Storyteller — Architecture
+
+How the system is built. For conventions see [AGENTS.md](AGENTS.md), for
+setup/usage [README.md](README.md) + [docs/](docs/), for open work
+[PLAN.md](PLAN.md).
+
+---
+
+## 1. Overview
+
+Storyteller is an interactive, voice-controlled narrator powered by the OpenAI
+API and a [LangGraph](https://langchain-ai.github.io/langgraph/) story engine.
+The **engine and all OpenAI calls run on a host** (Raspberry Pi or PC); the
+ways to interact with it are separate apps:
+
+| Mode | App / entry point | Notes |
+|---|---|---|
+| Pi voice appliance | `storyteller-pi run` | ReSpeaker + wake word + LED ring + ALSA |
+| PC text REPL | `storyteller-cli chat` | keyboard, no audio |
+| Browser play | `storyteller-web-ui` (`:8090`) | text or hold-to-talk voice (WebSocket) |
+| Admin | `storyteller-web-admin` (`:8080`) | world editor, generation, transcripts, settings |
+
+All four share the same `storyteller_core` engine and worlds; only the I/O
+shell differs.
+
+---
+
+## 2. Monorepo layout
+
+A [uv workspace](https://docs.astral.sh/uv/concepts/workspaces/): one root
+`.venv`, one `uv.lock`. Layering is strict — **apps depend on packages, and
+within packages `hardware`/`voice` depend on `core`, never the reverse.**
+
+```
+packages/
+  core/      storyteller_core       engine (LangGraph), worlds, config, i18n, RAG, persistence
+  voice/     storyteller_voice      STT / TTS / FX, wait-loop, wake word, prompt cache  (API-coupled, no HW I/O)
+  hardware/  storyteller_hardware   audio backends, LED ring, ReSpeaker, voice menu, Wi-Fi onboarding, runtime profile
+apps/
+  cli/       storyteller_cli              text REPL: chat / info / worlds / seed / history / prune
+  pi/        storyteller_pi               Pi voice loop (run) + Wi-Fi onboarding (netcheck)
+  web-ui/    backend (FastAPI+WS) + frontend (SvelteKit SPA)   player
+  web-admin/ backend (FastAPI JSON) + frontend (SvelteKit SPA) admin
+```
+
+Python: **uv only**. Frontends: **yarn 4 only**, built static (see §7).
+
+---
+
+## 3. Story engine (`storyteller_core.story`)
+
+A thin façade [`StoryEngine`](packages/core/src/storyteller_core/story/engine.py)
+wraps a compiled `langgraph.StateGraph`. The engine holds **no story state of
+its own** — per-session state lives in the LangGraph checkpointer, keyed by
+`thread_id`; non-serializable handles (Config, World, RAG, Transcript) travel
+in an `EngineContext` via `RunnableConfig.configurable`.
+
+```python
+engine = StoryEngine(cfg, world, rag=rag, transcript=tr, thread_id="pi-immerwald")
+engine.opening()          # first narration
+engine.turn(user_text)    # -> narration string
+engine.undo_last()        # roll back one turn (checkpoint rewind)
+engine.history() / engine.rewind_to(cp_id)   # branching ("what if…")
+```
+
+### Graph topology ([graph.py](packages/core/src/storyteller_core/story/graph.py), [nodes.py](packages/core/src/storyteller_core/story/nodes.py))
+
+```
+START → init_turn → moderate ──blocked──→ blocked_finalize → END
+                            └──ok──→ fanout
+   fanout ─┬→ ensure_substory ─┐
+           ├→ retrieve_rag ─────┤  (pre-narrator phase, in parallel)
+           ├→ roll_dynamic ─────┤
+           └→ compute_flags ────┘
+                                 ↓
+                          build_prompt → narrate
+   narrate ─tool_calls?─→ dispatch_tools ─complete_substory?─→ replan → narrate
+           └─text────────→ finalize → END
+```
+
+The pre-narrator fan-out (moderation already done; substory ensure, RAG
+retrieval, dynamic roll, flags) runs **concurrently** — wall-clock latency is
+`max()` not `sum()`. After the narrator calls `complete_substory`, an in-turn
+`replan` node plans the next substory before narrating again.
+
+### State ([state.py](packages/core/src/storyteller_core/story/state.py))
+
+`StoryState` (a `TypedDict`, persisted by `SqliteSaver`):
+- **Long-lived**: `locale`, `memory` (chat messages), `substory`, `macro_index`,
+  `known_facts`, `synopsis`, `char_state`, `beat_turns`, `cost`, `pending_fold`.
+- **Turn-scoped** (reset by `init_turn`): `user_text`, `moderation_ok`,
+  `retrieved`, `dyn_hint`, `brief`, `wrap_up`, `transition`, `response`,
+  `system_prompt`, `pending_tool_calls`, `narrate_iter`, `just_completed_substory`.
+
+### Dramaturgy
+
+- **Macro arc** ([blueprint.py](packages/core/src/storyteller_core/story/blueprint.py)) — premise + beats with rising tension; `macro_index` tracks position.
+- **Substory** ([substory.py](packages/core/src/storyteller_core/story/substory.py)) — a mini-arc planned by the *architect* (planner LLM) from a beat skeleton chosen by world `complexity` ([patterns.py](packages/core/src/storyteller_core/story/patterns.py): three-act, mystery, hero's journey, kishōtenketsu, …).
+- **Story dynamics** ([dynamics.py](packages/core/src/storyteller_core/story/dynamics.py)) — abstract twists ("a new antagonist", "an unforeseen event") woven in subtly, never resetting the arc.
+- **Long-term memory** — when the short window (`short_term_memory_turns`) overflows, old turns are folded into a rolling `synopsis` (cheap planner model, batched, fail-soft via `pending_fold`); injected as "story so far".
+- **Known facts / character state** — `remember_fact`/`forget_fact`/`list_known_facts` and `track_character` tools ([tools.py](packages/core/src/storyteller_core/story/tools.py)); both bounded and injected into the system prompt.
+
+### Tools the narrator LLM can call ([tools.py](packages/core/src/storyteller_core/story/tools.py))
+`retrieve_world_fact`, `lookup_glossary`, `get_world_overview`,
+`roll_random_event`, `roll_story_dynamic`, `remember_fact`, `forget_fact`,
+`list_known_facts`, `track_character`, `advance_beat`, `complete_substory`,
+`get_/adjust_substory_plan`.
+
+### RAG ([rag.py](packages/core/src/storyteller_core/story/rag.py))
+Per-`(world, locale)` retrieval with **sqlite-vec** + OpenAI embeddings
+(`data/rag.db`, partition key `<world_id>:<locale>`). The retrieval query
+blends the player utterance with recent narration.
+
+### Moderation & cost
+Every external player input is checked by the OpenAI moderation model **before**
+the narrator answers ([moderation.py](packages/core/src/storyteller_core/story/moderation.py); per-category thresholds in `data/moderation.json`, fail-open + logged).
+A per-session USD cost cap ([cost.py](packages/core/src/storyteller_core/story/cost.py)) triggers a graceful wrap-up. Played sessions are recorded as JSONL transcripts ([transcript.py](packages/core/src/storyteller_core/story/transcript.py)).
+
+---
+
+## 4. Voice pipeline (`storyteller_voice`)
+
+- **STT / TTS** ([stt.py](packages/voice/src/storyteller_voice/stt.py), [tts.py](packages/voice/src/storyteller_voice/tts.py)) — OpenAI; TTS returns PCM for direct playback.
+- **FX** ([fx.py](packages/voice/src/storyteller_voice/fx.py)) — optional `pedalboard` reverb (GPLv3 `audiofx` extra, dynamically imported with a pass-through fallback → MIT-clean without it).
+- **Wait-loop** ([waitloop.py](packages/voice/src/storyteller_voice/waitloop.py)) — per-world ambience plays (LED *think*) while the LLM/TTS run.
+- **Wake word** ([wakeword.py](packages/voice/src/storyteller_voice/wakeword.py)) — openWakeWord (ONNX). `config.wakeword.model` (+ `model_de`/`model_en`) selects a built-in name or a custom `.onnx`.
+- **Prompt cache** ([prompts.py](packages/voice/src/storyteller_voice/prompts.py)) — fixed menu/intro lines rendered once via TTS and cached to `data/voice_prompts/<locale>/*.wav` (token/latency saver; live fallback + re-render on text change).
+
+---
+
+## 5. Hardware abstraction (`storyteller_hardware`)
+
+- **Audio backends** ([audio/backend.py](packages/hardware/src/storyteller_hardware/audio/backend.py)) — one ABC, three impls: `AlsaSoftvolBackend` (Pi, `amixer` softvol + aplay/arecord), `PortableBackend` (PC, `sounddevice`, software gain), `PipeWireBackend` (Bluetooth). All expose `loop_play`, `mic_frames`, `record_until_silence` (VAD: stops on a trailing pause), `set/get_volume`. `get_backend(cfg)` resolves the concrete backend and applies the persisted volume.
+- **Runtime profile** ([runtime.py](packages/hardware/src/storyteller_hardware/runtime.py)) — auto-detects `pi` vs `pc` (ReSpeaker present?); reads/writes the `data/*.json` runtime overrides (audio, settings).
+- **LED ring** ([leds.py](packages/hardware/src/storyteller_hardware/leds.py)) + vendored ReSpeaker drivers (`pixel_ring_v2.py`, `tuning.py`, Seeed, Apache-2.0). LED is a no-op off-Pi.
+- **Voice menu** ([menu/voice_menu.py](packages/hardware/src/storyteller_hardware/menu/voice_menu.py)) — LLM-classified world selection; at start it listens twice before gating on the wake word.
+- **Wi-Fi onboarding** ([net/onboarding.py](packages/hardware/src/storyteller_hardware/net/onboarding.py)) — if offline at boot, opens an AP + captive portal (`storyteller-pi netcheck`).
+
+---
+
+## 6. Web apps
+
+Both backends are **FastAPI** processes that **also serve their SvelteKit SPA**
+as static files (built with `@sveltejs/adapter-static`, SPA fallback). A
+catch-all route returns the asset if present, else `index.html` — so client
+deep links work. One process, one port, no Node at runtime.
+
+- **web-ui** (`:8090`, [main.py](apps/web-ui/backend/src/storyteller_web_ui_backend/main.py)) — REST: `/api/worlds`, `/api/sessions`, session state/undo; WebSocket: `/ws/play/{thread}` (text) and `/ws/voice/{thread}` (browser `MediaRecorder` → server STT → `engine.turn` → server TTS → WAV frame back). Frontend: world picker with resume, text chat with auto-reconnect, `/voice` hold-to-talk.
+- **web-admin** (`:8080`, [main.py](apps/web-admin/backend/src/storyteller_web_admin_backend/main.py)) — REST JSON for worlds (CRUD), settings (models/audio/moderation overrides), async jobs (world **generation** + RAG **reindex** via an in-process [JobRegistry](apps/web-admin/backend/src/storyteller_web_admin_backend/jobs.py)), per-piece LLM **suggest**, **transcripts**. Frontend: structured world editor, generation with job polling, transcript viewer, settings.
+
+**Security** (both): an HTTP middleware gates `/api/*` (except `/api/health`)
+with an optional shared bearer token (`STORYTELLER_WEB_TOKEN`; empty = open
+LAN, the default). WebSockets authenticate via `?token=`. CORS is restricted
+to `web.allowed_origins` (the SPA is same-origin and needs none). Player turn
+and generation-prompt lengths are capped. Both frontends attach the token and
+prompt for it on a 401. Theme: dark default + light, toggle persisted.
+
+---
+
+## 7. Configuration & overrides ([config.py](packages/core/src/storyteller_core/config.py))
+
+- `config/config.toml` — all tunables (models, audio, story, capture,
+  moderation, netcheck, web, …), validated by Pydantic.
+- `.env` — `OPENAI_API_KEY`, optional `STORYTELLER_WEB_TOKEN`.
+- **Runtime overrides** (admin- or voice-editable, gitignored) layered on top
+  at load time: `data/models.json` (model names + penalties), `data/audio.json`
+  (backend, sink, volume), `data/moderation.json` (thresholds),
+  `data/settings.json` (intro on/off).
+- `ROOT` is auto-found (the dir with `pyproject.toml` + `packages/`), so all
+  apps resolve `data/`, `config/` and worlds consistently.
+
+---
+
+## 8. Persistence & data (`data/`, all gitignored except seed worlds)
+
+| Path | What |
+|---|---|
+| `checkpoints.db` | LangGraph `SqliteSaver` — per-`thread_id` session state. Bound with `storyteller-cli prune`. |
+| `worlds/<id>.json`, `<id>.en.json` | World definitions (seed worlds are committed; generated ones are not) |
+| `rag.db` | sqlite-vec embeddings, per `(world, locale)` |
+| `transcripts/*.jsonl` | played sessions (input, moderation, tool calls, narration) |
+| `voice_prompts/<locale>/*.wav` | cached menu/intro audio |
+| `*.json` (models/audio/moderation/settings) | runtime overrides |
+
+---
+
+## 9. External services (OpenAI)
+
+Two clients ([oai.py](packages/core/src/storyteller_core/oai.py)): the
+**live-loop** client (`timeout=30`, `max_retries=5`) for narrator/STT/TTS/
+moderation, and the **generator** client (`get_gen_client`, `timeout=180`,
+`max_retries=1`) for the slow world-generation / suggestion calls. Models
+(all configurable, with admin overrides): `story_llm` (narrator),
+`planner_llm` (architect + summariser; default = story_llm), `gen_llm`
+(world/content generation; default the larger model), `stt`, `tts`,
+`embedding`, `moderation`.
+
+---
+
+## 10. Deployment (systemd)
+
+| Service | Runs | Port |
+|---|---|---|
+| `storyteller.service` | `storyteller-pi run` | — (voice) |
+| `storyteller-admin.service` | `storyteller-web-admin` | `:8080` |
+| `storyteller-web-ui.service` | `storyteller-web-ui` | `:8090` |
+| `storyteller-netcheck.service` | `storyteller-pi netcheck` | boot Wi-Fi onboarding |
+
+Bring-up: `uv sync` → `scripts/install_wakeword.sh` (re-run after every
+`uv sync`) → `scripts/build_frontends.sh` → `scripts/install_services.sh`.
+See [docs/SETUP_PI.md](docs/SETUP_PI.md).
+
+---
+
+## 11. Tooling, tests, CI
+
+- `ruff` (lint) + `pytest` + `mypy` (advisory) configured in the root
+  `pyproject.toml` `[dependency-groups] dev`.
+- `tests/` — offline tests (mocked OpenAI client): config overrides, KnownFacts,
+  world-generation hardening, checkpoint prune, smoke.
+- `.github/workflows/ci.yml` — `uv sync --frozen` → ruff → pytest → mypy.
+
+---
+
+## 12. Localization
+
+`config.general.locale` (`de` | `en`, per-run `--locale`) drives narration
+language, voice-prompt audio, menu keywords, STT language and world content.
+German prompts are authored verbatim; worlds exist per locale
+(`<id>.json` / `<id>.en.json`) with isolated RAG partitions.
