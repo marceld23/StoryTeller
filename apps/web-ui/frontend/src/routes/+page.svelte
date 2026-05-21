@@ -11,8 +11,21 @@
   let input: string = $state('');
   let thinking: boolean = $state(false);
   let connected: boolean = $state(false);
+  let status: 'idle' | 'connected' | 'reconnecting' | 'closed' = $state('idle');
   let error: string = $state('');
   let ws: WebSocket | null = null;
+  let closing = false;          // user navigated away -> don't reconnect
+  let attempts = 0;             // reconnect backoff counter
+
+  // A previously-started session for the chosen world (resume offer).
+  let resumable = $derived(chosenWorld ? savedThread(chosenWorld) : null);
+
+  function savedThread(world: string): string | null {
+    try { return localStorage.getItem('st-thread-' + world); } catch { return null; }
+  }
+  function rememberThread(world: string, thread: string) {
+    try { localStorage.setItem('st-thread-' + world, thread); } catch { /* ignore */ }
+  }
 
   onMount(async () => {
     try {
@@ -24,46 +37,64 @@
   });
 
   onDestroy(() => {
-    if (ws) ws.close();
+    closing = true;
+    ws?.close();
   });
 
-  async function startSession() {
-    if (!chosenWorld) return;
-    error = '';
-    lines = [];
-    thinking = false;
-    try {
-      const sess = await createSession(chosenWorld);
-      threadId = sess.thread_id;
-      lines.push({ who: 'narrator', text: sess.opening });
-
-      ws = openPlaySocket(threadId, chosenWorld);
-      ws.onopen = () => { connected = true; };
-      ws.onclose = () => { connected = false; };
-      ws.onerror = (ev) => { error = `ws error`; };
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.type === 'thinking') {
-            thinking = true;
-          } else if (msg.type === 'narration') {
-            thinking = false;
-            // The first narration after connect is the opening repeated by
-            // the WS handshake; skip if identical to the last narration we
-            // already have.
-            const last = lines[lines.length - 1];
-            if (!(last && last.who === 'narrator' && last.text === msg.text)) {
-              lines.push({ who: 'narrator', text: msg.text });
-            }
-          } else if (msg.type === 'error') {
-            thinking = false;
-            error = msg.message;
-            lines.push({ who: 'system', text: `Fehler: ${msg.message}` });
+  function connect() {
+    ws = openPlaySocket(threadId, chosenWorld);
+    ws.onopen = () => { connected = true; status = 'connected'; attempts = 0; };
+    ws.onerror = () => { /* close handler drives reconnect */ };
+    ws.onclose = () => {
+      connected = false;
+      if (closing) return;
+      if (attempts >= 6) { status = 'closed'; return; }
+      status = 'reconnecting';
+      const delay = Math.min(1000 * 2 ** attempts, 8000);
+      attempts += 1;
+      setTimeout(() => { if (!closing) connect(); }, delay);
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'thinking') {
+          thinking = true;
+        } else if (msg.type === 'narration') {
+          thinking = false;
+          // Skip the narration echoed on (re)connect if we already have it.
+          const last = lines[lines.length - 1];
+          if (!(last && last.who === 'narrator' && last.text === msg.text)) {
+            lines.push({ who: 'narrator', text: msg.text });
           }
-        } catch (e) {
-          console.error('bad ws message', ev.data);
+        } else if (msg.type === 'error') {
+          thinking = false;
+          error = msg.message;
+          lines.push({ who: 'system', text: `Fehler: ${msg.message}` });
         }
-      };
+      } catch {
+        console.error('bad ws message', ev.data);
+      }
+    };
+  }
+
+  function reconnectNow() {
+    attempts = 0; closing = false; status = 'reconnecting'; connect();
+  }
+
+  async function startSession(resume: boolean) {
+    if (!chosenWorld) return;
+    error = ''; lines = []; thinking = false; closing = false; attempts = 0;
+    try {
+      if (resume && savedThread(chosenWorld)) {
+        // Resume: reuse the thread; the server replays the last narration.
+        threadId = savedThread(chosenWorld) as string;
+      } else {
+        const sess = await createSession(chosenWorld);
+        threadId = sess.thread_id;
+        lines.push({ who: 'narrator', text: sess.opening });
+      }
+      rememberThread(chosenWorld, threadId);
+      connect();
     } catch (e) {
       error = String(e);
     }
@@ -112,12 +143,24 @@
             <option value={w.id}>{w.name} ({w.genre})</option>
           {/each}
         </select>
-        <button onclick={startSession} disabled={!chosenWorld}>
-          Geschichte beginnen
-        </button>
+        {#if resumable}
+          <button onclick={() => startSession(true)}>Fortsetzen</button>
+          <button class="ghost" onclick={() => startSession(false)}>Neu beginnen</button>
+        {:else}
+          <button onclick={() => startSession(false)} disabled={!chosenWorld}>
+            Geschichte beginnen
+          </button>
+        {/if}
       {/if}
     </section>
   {:else}
+    {#if status === 'reconnecting'}
+      <p class="banner">Verbindung verloren – verbinde neu…</p>
+    {:else if status === 'closed'}
+      <p class="banner">Verbindung getrennt.
+        <button class="link" onclick={reconnectNow}>Neu verbinden</button>
+      </p>
+    {/if}
     <section class="chat">
       {#each lines as line, i (i)}
         <div class={'line ' + line.who}>{line.text}</div>
@@ -151,6 +194,12 @@
     flex-direction: column;
     min-height: 100vh;
   }
+  .banner {
+    background: var(--surface-2); color: var(--fg);
+    border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem; border-radius: 4px;
+  }
+  .ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+  .link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; text-decoration: underline; }
   header {
     display: flex;
     justify-content: space-between;
