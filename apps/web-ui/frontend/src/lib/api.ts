@@ -21,9 +21,34 @@ export type CreatedSession = {
   opening: string;
 };
 
+function authToken(): string {
+  try { return localStorage.getItem('st-token') || ''; } catch { return ''; }
+}
+
+function authHeaders(): Record<string, string> {
+  const t = authToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+function on401(r: Response): void {
+  if (r.status === 401 && typeof window !== 'undefined') {
+    const t = window.prompt('Zugriffstoken (STORYTELLER_WEB_TOKEN):');
+    if (t) {
+      try { localStorage.setItem('st-token', t); } catch { /* ignore */ }
+      location.reload();
+    }
+  }
+}
+
+/** Append the auth token to a WS URL (browsers can't set WS headers). */
+function wsToken(): string {
+  const t = authToken();
+  return t ? `&token=${encodeURIComponent(t)}` : '';
+}
+
 export async function listWorlds(): Promise<WorldSummary[]> {
-  const r = await fetch(`${BACKEND}/api/worlds`);
-  if (!r.ok) throw new Error(`worlds: ${r.status}`);
+  const r = await fetch(`${BACKEND}/api/worlds`, { headers: authHeaders() });
+  if (!r.ok) { on401(r); throw new Error(`worlds: ${r.status}`); }
   return r.json();
 }
 
@@ -33,24 +58,24 @@ export async function createSession(
 ): Promise<CreatedSession> {
   const r = await fetch(`${BACKEND}/api/sessions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ world_id, thread_id })
   });
-  if (!r.ok) throw new Error(`createSession: ${r.status}`);
+  if (!r.ok) { on401(r); throw new Error(`createSession: ${r.status}`); }
   return r.json();
 }
 
 /** Open a text-play WebSocket. */
 export function openPlaySocket(thread_id: string, world_id: string): WebSocket {
   const wsBase = BACKEND.replace(/^http/, 'ws');
-  const url = `${wsBase}/ws/play/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}`;
+  const url = `${wsBase}/ws/play/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}${wsToken()}`;
   return new WebSocket(url);
 }
 
 /** Open a voice-play WebSocket (binary frames = audio). */
 export function openVoiceSocket(thread_id: string, world_id: string): WebSocket {
   const wsBase = BACKEND.replace(/^http/, 'ws');
-  const url = `${wsBase}/ws/voice/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}`;
+  const url = `${wsBase}/ws/voice/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}${wsToken()}`;
   const ws = new WebSocket(url);
   ws.binaryType = 'arraybuffer';
   return ws;

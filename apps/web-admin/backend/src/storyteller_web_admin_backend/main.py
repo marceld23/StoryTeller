@@ -46,14 +46,32 @@ from .jobs import JobRegistry
 
 log = logging.getLogger("storyteller.web_admin")
 
+_CFG = load_config()
+_TOKEN = _CFG.web.auth_token
+
 app = FastAPI(title="StoryTeller Admin")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CFG.web.allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _auth(request, call_next):
+    """Shared-token gate. Active only when STORYTELLER_WEB_TOKEN is set.
+    Protects /api/* (except /api/health); the static SPA loads freely and
+    sends the token on its API calls."""
+    from fastapi.responses import JSONResponse
+
+    p = request.url.path
+    if _TOKEN and p.startswith("/api/") and p != "/api/health":
+        if request.headers.get("authorization", "") != f"Bearer {_TOKEN}":
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
 
 JOBS = JobRegistry()
 
@@ -281,6 +299,9 @@ def generate_world(payload: GeneratePayload) -> dict:
     prompt = (payload.prompt or "").strip()
     if not prompt:
         raise HTTPException(422, "prompt is empty")
+    if len(prompt) > _CFG.web.max_prompt_chars:
+        raise HTTPException(413, f"prompt too long "
+                                 f"(max {_CFG.web.max_prompt_chars} chars)")
 
     cfg = _cfg()
     loc = norm(cfg.general.locale)

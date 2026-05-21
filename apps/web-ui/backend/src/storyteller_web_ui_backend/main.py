@@ -47,14 +47,38 @@ log = logging.getLogger("storyteller.web_ui")
 
 app = FastAPI(title="StoryTeller Play")
 
-# Permissive CORS for local SvelteKit dev (yarn dev runs on :5173 by default).
+_CFG = load_config()
+_TOKEN = _CFG.web.auth_token
+
+# Same-origin in production (SPA served by this backend); allow-list covers
+# `yarn dev`. Tighten via web.allowed_origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CFG.web.allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _auth(request, call_next):
+    """Shared-token gate for /api/* (except /api/health). Active only when
+    STORYTELLER_WEB_TOKEN is set. WebSockets authenticate via ?token=."""
+    from fastapi.responses import JSONResponse
+
+    p = request.url.path
+    if _TOKEN and p.startswith("/api/") and p != "/api/health":
+        if request.headers.get("authorization", "") != f"Bearer {_TOKEN}":
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
+def _ws_authorized(websocket) -> bool:
+    """WS auth via ?token= query (browsers can't set WS headers)."""
+    if not _TOKEN:
+        return True
+    return websocket.query_params.get("token", "") == _TOKEN
 
 
 def _cfg():
@@ -191,6 +215,9 @@ async def ws_play(websocket: WebSocket, thread_id: str,
       server -> client  {"type": "state", "data": {...}}
       server -> client  {"type": "error", "message": str}
     """
+    if not _ws_authorized(websocket):
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     try:
         engine = _make_engine(world_id, thread_id)
@@ -208,6 +235,12 @@ async def ws_play(websocket: WebSocket, thread_id: str,
             if mtype == "turn":
                 user_text = (msg.get("text") or "").strip()
                 if not user_text:
+                    continue
+                if len(user_text) > _CFG.web.max_turn_chars:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Eingabe zu lang "
+                                   f"(max {_CFG.web.max_turn_chars} Zeichen)."})
                     continue
                 await websocket.send_json({"type": "thinking"})
                 try:
@@ -301,6 +334,9 @@ async def ws_voice(websocket: WebSocket, thread_id: str,
 
     On connect the server sends the opening (text + audio).
     """
+    if not _ws_authorized(websocket):
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     cfg = _cfg()
     try:

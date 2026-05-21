@@ -157,6 +157,17 @@ class LoggingCfg(BaseModel):
 class WebCfg(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8080
+    # Optional shared-token auth for the web backends. Empty = disabled
+    # (open LAN). Set via env STORYTELLER_WEB_TOKEN (kept out of the repo).
+    auth_token: str = ""
+    # Cross-origin allow-list. The built SPA is served same-origin (needs no
+    # CORS); these cover `yarn dev`. Tighten/extend as needed.
+    allowed_origins: list[str] = [
+        "http://localhost:5173", "http://localhost:5174",
+    ]
+    # Hard caps on player/admin free-text input (cost/abuse guard).
+    max_turn_chars: int = 2000
+    max_prompt_chars: int = 4000
 
 
 class ModerationCfg(BaseModel):
@@ -230,6 +241,7 @@ def load_config(config_path: str | None = None) -> Config:
         data = tomllib.loads(cfg_file.read_text())
     cfg = Config(**data)
     cfg.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+    cfg.web.auth_token = os.environ.get("STORYTELLER_WEB_TOKEN", cfg.web.auth_token)
     _apply_model_overrides(cfg)
     return cfg
 
