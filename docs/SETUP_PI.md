@@ -4,6 +4,17 @@ Target: Raspberry Pi 4, Debian 13 (trixie), Python 3.13, ReSpeaker USB Mic
 Array v2.0 (USB id `2886:0018`, ALSA card `ArrayUAC10`) with a speaker on its
 3.5 mm line-out.
 
+## Required hardware
+
+- **Raspberry Pi 4** (4 GB+ recommended) with Raspberry Pi OS / Debian 13.
+- **ReSpeaker USB Mic Array v2.0** (Seeed) — far-field mic + LED ring; also
+  the audio output (a speaker on its 3.5 mm line-out).
+- A small **speaker** for the ReSpeaker line-out (active or passive 3.5 mm).
+- **5 V USB power bank** (or 5 V/3 A USB-C supply) to run the Pi — a power
+  bank makes it portable. Use one that can power a Pi 4 (≥ 3 A / 15 W).
+- microSD card (16 GB+) and Wi-Fi (the captive-portal onboarding sets it up
+  if there is no known network at boot).
+
 ## 1. Prerequisites
 
 ```bash
