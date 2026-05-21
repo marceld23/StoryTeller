@@ -6,19 +6,23 @@ into the story, following a dramatic arc.
 
 ## Starting
 
-- Pi / voice: `uv run storyteller run` (or it autostarts via systemd).
-- PC / text: `uv run storyteller chat` (no audio needed).
+- **Pi / voice:** `uv run --package storyteller-pi storyteller-pi run`
+  (or it autostarts via systemd).
+- **PC / text:** `uv run --package storyteller-cli storyteller-cli chat`.
+- **Browser:** open the player UI at `http://<host>:8090` (play backend
+  running); pick a world, then play by text or hold-to-talk.
 
-On `run` without `--world` you first hear the **world menu**:
-*"Which world…?"* — answer naturally, e.g. *"something in space"* →
-Starfaring, *"dragons and magic"* → Everwood. You can also say *"load"* to
-resume the last save. (Recognition is LLM-based, so free phrasing works.)
+On `run` without `--world` you first hear the **world menu**: *"Which
+world…?"* — answer naturally, e.g. *"something in space"* → Starfaring,
+*"dragons and magic"* → Everwood. (Recognition is LLM-based, so free phrasing
+works.) Each world resumes where you last left it; pass `--new` to start it
+over from scratch.
 
 ## Talking to the narrator (voice loop)
 
 1. Say the wake word **"Hey Jarvis"**. The LED ring shows *listen*.
-2. Speak your action freely (~6 s), e.g. *"I open the echo recorder and
-   listen closely."*
+2. Speak your action freely — recording ends automatically when you pause,
+   e.g. *"I open the echo recorder and listen closely."*
 3. The LED shows *think* and a per-world ambience plays while the system
    works; then the narrator answers (LED *speak*).
 4. **Follow-up:** right after the narrator finishes you may answer
@@ -33,46 +37,51 @@ planned sub-stories, with occasional surprises that never derail the arc.
 
 1. Be in listening mode (wake word, or the follow-up window).
 2. Say just **"System"** (or "Menu") — short.
-3. You hear: *save, quit, undo turn, load game, close menu.*
+3. You hear: *quit, undo turn, audio (Bluetooth) on/off, intro on/off,
+   close menu.*
 4. Answer freely. Then the last narrator message is replayed and play
    continues.
 
-In **chat** mode there is no spoken menu — type `save` / `load` / `quit`
-(also `undo` via `quit`/Ctrl-D to exit).
+In **chat** mode there is no spoken menu — type `/undo` to roll back a turn,
+`/state` to inspect, `/quit` (or Ctrl-D) to exit.
 
-## Save / load
+## Sessions & resuming
 
-- Voice: via the system menu, or say "save" / "load".
-- The latest autosave is reloaded with "load"; CLI: `run --load <name>`.
-- Saves are listed in the admin website under **Spielstände**.
+There is no manual save/load — every turn is **checkpointed automatically**
+(LangGraph `SqliteSaver` in `data/checkpoints.db`). Each world has a stable
+session, so simply starting that world again continues where you stopped.
+"Undo" rolls back one turn. To begin a world fresh, start with `--new`.
 
 ## Localization (German / English)
 
-Set `config [general] locale = de | en`, or per run `--locale de|en`.
-This changes narration language, the cached menu audio, world content and
-speech recognition. German prompts are kept verbatim.
+Set `config [general] locale = de | en`, or per run `--locale de|en`. This
+changes narration language, the menu/wait audio, world content and speech
+recognition. German prompts are kept verbatim.
 
 ## Safety / moderation
 
 Every player input is checked by the OpenAI moderation model **before** the
 narrator answers. If it crosses a threshold the turn is refused politely.
-Thresholds are configurable in the admin website (**Moderation**).
+Thresholds are configurable in the admin website (**Settings → Moderation**).
 
 ## Admin website
 
-`http://<host>:8080` (Pi) or `http://localhost:8080` (PC, `--extra web`):
+`http://<host>:8080` (Pi) or `http://localhost:8080` (PC):
 
-- **Dashboard / worlds:** create & edit worlds; add places, persons, items,
-  glossary, history, fragments, random tables — optionally **LLM-written**;
-  "RAG neu indexieren" after changes.
-- **Spielstände:** saved games.
-- **Verläufe:** played stories as chat transcripts, including every LLM
-  tool call + result and the moderation outcome (why it answered as it did).
-- **Moderation:** enable/disable and set per-category thresholds.
+- **Worlds:** create & edit worlds with a structured editor — core fields,
+  tone sliders, blueprint/beats, and content lists (places, persons, items,
+  glossary, history, fragments, random tables), each with **✨ per-piece LLM
+  suggest**; "RAG reindex" after changes.
+- **Generate (🧙):** build a whole world from one prompt (runs as a job with
+  a live status page, then opens the new world).
+- **Transcripts:** played stories as chat transcripts, including every LLM
+  tool call + result and the moderation outcome.
+- **Settings:** model names + narration params, audio backend, moderation
+  thresholds.
 
 ## Per-world dramaturgy (configurable in the admin)
 
-Each world has its own story controls (Welt → Basisdaten):
+Each world has its own story controls (Worlds → editor):
 
 - **Complexity:** `simple` (short, calm patterns: vignette, three-act,
   kishōtenketsu, monster-of-week — few beats, low tension), `standard`
@@ -86,21 +95,17 @@ Each world has its own story controls (Welt → Basisdaten):
   and the substory planner respect these.
 - **Audience:** target group / age (e.g. "12+", "erwachsene") — steers
   content and vocabulary.
-
-**Generate a whole world from one prompt:** admin → **🧙 Welt aus Prompt** →
-describe the world in a few sentences; the LLM builds every artifact
-(description, places/persons/items/glossary/history/fragments, blueprint,
-random tables, tone, complexity, audience), it is saved and RAG-indexed.
+- **Voice sample:** 1–2 example sentences that anchor the narrative tone.
 
 ## Wi-Fi onboarding (Pi)
 
 If the Pi finds no known Wi-Fi at boot it opens the AP **`storyteller-wifi`**
 (WPA2, password from config). Connect a phone — a captive page pops up
 automatically; pick your Wi-Fi, enter the key. The Pi saves it, reboots and
-uses it from then on. (`storyteller netcheck --check` reports connectivity
+uses it from then on. (`storyteller-pi netcheck --check` reports connectivity
 without ever starting the AP.)
 
 ## Quitting
 
-Say "quit"/"beenden" (or via the system menu), or Ctrl-C. State is
-auto-saved.
+Say "quit"/"beenden" (or via the system menu), or Ctrl-C. The session is
+already checkpointed, so nothing is lost.

@@ -7,10 +7,9 @@ Array v2.0 (USB id `2886:0018`, ALSA card `ArrayUAC10`) with a speaker on its
 ## 1. Prerequisites
 
 ```bash
-# uv (package/venv manager)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# alsa-utils provides aplay/arecord/amixer (usually present)
-sudo apt install -y alsa-utils
+curl -LsSf https://astral.sh/uv/install.sh | sh   # uv (package/venv manager)
+sudo apt install -y alsa-utils                     # aplay/arecord/amixer
+sudo apt install -y nodejs                          # Node 20 — only to build the web UIs
 ```
 
 Put your OpenAI key in `/home/pi/storyteller/.env`:
@@ -19,7 +18,7 @@ Put your OpenAI key in `/home/pi/storyteller/.env`:
 OPENAI_API_KEY=sk-...
 ```
 
-## 2. ReSpeaker hardware
+## 2. ReSpeaker hardware + dependencies
 
 ```bash
 cd /home/pi/storyteller
@@ -27,28 +26,25 @@ cd /home/pi/storyteller
 # udev rule (LED ring + DSP tuning, non-root) — then replug the ReSpeaker
 sudo bash scripts/setup_system.sh
 
-# core dependencies
-uv sync
+uv sync                                                 # workspace venv
+uv run --package storyteller-cli storyteller-cli seed   # seed worlds (de + en)
 ```
 
 `~/.asoundrc` is installed by this repo: playback via ALSA **softvol**
 (`plug:respeaker_softvol`, the device has no hardware volume), capture via
-**dsnoop** (16 kHz mono, lets wake-word + recording share the mic).
+**dsnoop** (16 kHz mono, lets the wake word + recording share the mic).
+RAG indexing happens automatically when a world is first played; menu/wait
+audio is synthesized and cached on first use (no separate build step).
 
-Volume: `amixer -c ArrayUAC10 sset Master 20%` (the line-out is hot; default
-is 15 %).
-
-## 3. Verify hardware
+Quick hardware check:
 
 ```bash
-uv run storyteller hw-test     # volume, line-out tone, mic, LED ring, tuning
-uv run storyteller seed        # write the seed worlds (de + en)
-uv run storyteller rag build   # index worlds for retrieval (per locale)
-uv run storyteller voice-prompts build --all-locales   # cache menu audio
-uv run storyteller wait-sounds build                    # per-world ambience
+speaker-test -D plug:respeaker_softvol -c 1 -t sine -l 1   # line-out tone
+arecord -D respeaker_capture -f S16_LE -r 16000 -c 1 -d 3 /tmp/t.wav  # mic
+amixer -c ArrayUAC10 sset Master 20%        # line-out is hot; default is 15 %
 ```
 
-## 4. Wake word (default "hey jarvis")
+## 3. Wake word (default "hey jarvis")
 
 openWakeWord has no Python 3.13 wheels via pip deps, so install it apart:
 
@@ -58,30 +54,49 @@ bash scripts/install_wakeword.sh
 
 **Important:** any `uv sync` prunes these packages — re-run
 `install_wakeword.sh` afterwards. Without a wake word the loop falls back to
-push-to-talk / text mode.
+push-to-talk / text mode (not usable under systemd, which has no stdin).
+
+## 4. Build the web UIs (admin + player)
+
+The two web backends serve their SvelteKit SPAs as static files, so build
+them once (Node 20 + yarn 4 via corepack):
+
+```bash
+bash scripts/build_frontends.sh        # writes apps/*/frontend/build/
+```
 
 ## 5. Autostart (systemd)
 
 ```bash
-sudo bash scripts/install_services.sh    # storyteller + storyteller-admin
+sudo bash scripts/install_services.sh    # storyteller + storyteller-admin + storyteller-web-ui
 sudo bash scripts/install_netcheck.sh    # Wi-Fi onboarding (see USER_GUIDE)
 ```
 
-Both run on boot (`Restart=always`). Update after code changes:
+Services (all `Restart=always`):
+
+| Service | Command | Port |
+|---|---|---|
+| `storyteller.service`        | `storyteller-pi run`    | — (voice) |
+| `storyteller-admin.service`  | `storyteller-web-admin` | `:8080` |
+| `storyteller-web-ui.service` | `storyteller-web-ui`    | `:8090` |
+
+After code changes:
 
 ```bash
-sudo systemctl restart storyteller storyteller-admin
-# only if dependencies changed: uv sync && bash scripts/install_wakeword.sh
+sudo systemctl restart storyteller storyteller-admin storyteller-web-ui
+# if Python deps changed:  uv sync && bash scripts/install_wakeword.sh
+# if a frontend changed:   bash scripts/build_frontends.sh
 ```
 
 Logs: `journalctl -u storyteller -f` (also `data/storyteller.log`).
-Admin website: `http://<pi-ip>:8080`.
+Admin: `http://<pi-ip>:8080` · Player: `http://<pi-ip>:8090`.
 
 ## 6. Run manually
 
 ```bash
-uv run storyteller run            # voice loop (wake word "hey jarvis")
-uv run storyteller run --ptt      # push-to-talk (Enter) instead
+uv run --package storyteller-pi storyteller-pi run         # voice loop ("hey jarvis")
+uv run --package storyteller-pi storyteller-pi run --ptt   # push-to-talk (Enter)
+uv run --package storyteller-pi storyteller-pi run --text  # keyboard, no mic
 ```
 
 See [USER_GUIDE.md](USER_GUIDE.md) for how to play.
