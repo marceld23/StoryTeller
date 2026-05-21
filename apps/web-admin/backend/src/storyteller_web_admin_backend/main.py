@@ -262,30 +262,105 @@ def job_status(job_id: str) -> dict:
     }
 
 
+class GeneratePayload(BaseModel):
+    prompt: str
+
+
 @app.post("/api/worlds/generate")
-def generate_world_stub(_payload: dict) -> dict:
-    """Async LLM world generation. NOT IMPLEMENTED YET."""
-    raise HTTPException(
-        501,
-        "world generation endpoint is being ported from legacy_app.py in a "
-        "follow-up. See legacy_app.py for the previous implementation.",
-    )
+def generate_world(payload: GeneratePayload) -> dict:
+    """Async LLM world generation. Returns a job id to poll via /api/jobs/{id}.
+
+    On success the job's `result_url` is the new world id (so the frontend
+    can navigate to /worlds/<id>).
+    """
+    from storyteller_core.i18n import norm
+    from storyteller_core.worlds.generate import generate_world as _gen
+    from storyteller_core.worlds.registry import save_world as _save
+
+    prompt = (payload.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "prompt is empty")
+
+    cfg = _cfg()
+    loc = norm(cfg.general.locale)
+
+    def _work(job) -> str:
+        w = _gen(cfg, prompt, progress=job.progress)
+        job.progress("Welt wird gespeichert…")
+        _save(cfg, w)
+        try:
+            from storyteller_core.story.rag import WorldRAG
+            job.progress("RAG wird indexiert…")
+            n = WorldRAG(cfg).index_world(w, force=True, locale=loc)
+            job.progress(f"RAG fertig ({n} Fakten).")
+        except Exception as exc:  # non-fatal: world is on disk
+            job.progress(f"RAG-Index fehlgeschlagen (Welt gespeichert): {exc!r}")
+        return w.id
+
+    j = JOBS.submit("world-gen", f"Welt aus Prompt: {prompt[:40]}", _work)
+    return {"job_id": j.id}
 
 
 @app.post("/api/worlds/{world_id}/reindex")
-def reindex_world_stub(world_id: str) -> dict:
-    raise HTTPException(
-        501,
-        f"RAG reindex for '{world_id}' is being ported from legacy_app.py.",
-    )
+def reindex_world(world_id: str) -> dict:
+    from storyteller_core.i18n import norm
+
+    cfg = _cfg()
+    if world_id not in all_world_ids(cfg):
+        raise HTTPException(404, "unknown world")
+    loc = norm(cfg.general.locale)
+
+    def _work(job) -> str:
+        from storyteller_core.story.rag import WorldRAG
+        job.progress(f"RAG wird neu indexiert für {world_id}…")
+        n = WorldRAG(cfg).index_world(load_world(cfg, world_id), force=True,
+                                      locale=loc)
+        job.progress(f"{n} Fakten neu indexiert.")
+        return world_id
+
+    j = JOBS.submit("world-reindex", f"Reindex {world_id}", _work)
+    return {"job_id": j.id}
 
 
 @app.get("/api/transcripts")
-def list_transcripts_stub() -> dict:
-    raise HTTPException(
-        501,
-        "transcripts endpoint is being ported from legacy_app.py.",
-    )
+def list_transcripts() -> list[dict]:
+    import time as _t
+
+    d = ROOT / "data" / "transcripts"
+    if not d.exists():
+        return []
+    files = sorted(d.glob("*.jsonl"),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    out: list[dict] = []
+    for p in files:
+        try:
+            n = sum(1 for _ in p.open(encoding="utf-8"))
+        except Exception:
+            n = 0
+        out.append({
+            "name": p.name,
+            "stem": p.stem,
+            "events": n,
+            "mtime": p.stat().st_mtime,
+            "modified": _t.strftime("%Y-%m-%d %H:%M",
+                                    _t.localtime(p.stat().st_mtime)),
+        })
+    return out
+
+
+@app.get("/api/transcripts/{name}")
+def get_transcript(name: str) -> dict:
+    safe = name.replace("/", "").replace("..", "")
+    p = ROOT / "data" / "transcripts" / safe
+    if not p.exists():
+        raise HTTPException(404, "transcript not found")
+    events: list[dict] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        try:
+            events.append(json.loads(line))
+        except Exception:
+            continue
+    return {"name": p.name, "stem": p.stem, "events": events}
 
 
 # --------------------------------------------------------------------------

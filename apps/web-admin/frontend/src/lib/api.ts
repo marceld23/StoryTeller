@@ -57,6 +57,72 @@ export async function deleteWorld(id: string): Promise<unknown> {
   );
 }
 
+export type Job = {
+  id: string;
+  kind: string;
+  title: string;
+  status: 'running' | 'done' | 'error';
+  elapsed: number;
+  result_url: string | null;
+  error: string | null;
+  detail: string;
+};
+
+export type TranscriptSummary = {
+  name: string;
+  stem: string;
+  events: number;
+  modified: string;
+};
+
+export type TranscriptEvent = Record<string, unknown> & { type?: string };
+
+export async function generateWorld(prompt: string): Promise<{ job_id: string }> {
+  return _json(
+    await fetch(`${BACKEND}/api/worlds/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    })
+  );
+}
+
+export async function reindexWorld(id: string): Promise<{ job_id: string }> {
+  return _json(
+    await fetch(`${BACKEND}/api/worlds/${encodeURIComponent(id)}/reindex`, {
+      method: 'POST'
+    })
+  );
+}
+
+export async function getJob(id: string): Promise<Job> {
+  return _json(await fetch(`${BACKEND}/api/jobs/${encodeURIComponent(id)}`));
+}
+
+/** Poll a job until it leaves the "running" state. */
+export async function waitForJob(
+  id: string,
+  onProgress?: (j: Job) => void,
+  intervalMs = 2000
+): Promise<Job> {
+  for (;;) {
+    const j = await getJob(id);
+    onProgress?.(j);
+    if (j.status !== 'running') return j;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
+export async function listTranscripts(): Promise<TranscriptSummary[]> {
+  return _json(await fetch(`${BACKEND}/api/transcripts`));
+}
+
+export async function getTranscript(
+  name: string
+): Promise<{ name: string; stem: string; events: TranscriptEvent[] }> {
+  return _json(await fetch(`${BACKEND}/api/transcripts/${encodeURIComponent(name)}`));
+}
+
 export async function getSettings<T>(kind: 'models' | 'audio' | 'moderation'): Promise<T> {
   return _json(await fetch(`${BACKEND}/api/settings/${kind}`));
 }

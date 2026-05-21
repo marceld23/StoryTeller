@@ -1,12 +1,13 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { onMount } from 'svelte';
-  import { getWorld, putWorld } from '$lib/api';
+  import { getWorld, putWorld, reindexWorld, waitForJob, type Job } from '$lib/api';
 
   let raw: string = $state('');
   let error: string = $state('');
   let status: string = $state('');
   let loading: boolean = $state(true);
+  let reindexJob: Job | null = $state(null);
+  let reindexing: boolean = $state(false);
 
   $effect(() => {
     const id = page.params.id;
@@ -40,6 +41,26 @@
       error = String(e);
     }
   }
+
+  async function onReindex() {
+    error = '';
+    status = '';
+    reindexing = true;
+    reindexJob = null;
+    try {
+      const { job_id } = await reindexWorld(page.params.id);
+      const finished = await waitForJob(job_id, (j) => (reindexJob = j));
+      if (finished.status === 'error') {
+        error = finished.error ?? 'Reindex fehlgeschlagen';
+      } else {
+        status = finished.detail || 'Reindex fertig.';
+      }
+    } catch (e) {
+      error = String(e);
+    } finally {
+      reindexing = false;
+    }
+  }
 </script>
 
 <a href="/">← zurück</a>
@@ -58,7 +79,13 @@
   <textarea bind:value={raw} rows="40"></textarea>
   <div class="actions">
     <button onclick={onSave}>Speichern</button>
+    <button onclick={onReindex} disabled={reindexing}>
+      {reindexing ? 'Reindexiere…' : 'RAG neu indexieren'}
+    </button>
   </div>
+  {#if reindexJob}
+    <p class="hint">Reindex: {reindexJob.status} · {reindexJob.detail}</p>
+  {/if}
 {/if}
 
 <style>

@@ -45,14 +45,17 @@ stay as-is from `storyteller_hardware`.
 
 Needs Pi hardware on hand for end-to-end testing (ReSpeaker + ALSA + LEDs).
 
-### Admin endpoints — port the remaining bits from `legacy_app.py`
-Currently returning 501 on the new admin backend:
-- `POST /api/worlds/generate` — async LLM world generation (uses `JobRegistry`)
-- `POST /api/worlds/{id}/reindex` — async RAG reindex
-- `GET /api/transcripts`, `GET /api/transcripts/{id}` — transcript viewer
+### Admin endpoints — DONE (ported from `legacy_app.py`)
+Now live on the new admin backend, with frontend pages:
+- `POST /api/worlds/generate` — async LLM world generation (JobRegistry) →
+  `/generate` page with job polling, redirects to the new world on success
+- `POST /api/worlds/{id}/reindex` — async RAG reindex → button on the
+  world detail page
+- `GET /api/transcripts`, `GET /api/transcripts/{name}` — transcript list +
+  parsed-event viewer → `/transcripts` and `/transcripts/[name]` pages
 
-The frontend has nothing for these yet either — both ends need a small
-pass per feature.
+Still legacy-only: per-piece "suggest" (LLM suggestions for a single
+place/person/etc) — see `world_suggest` in `legacy_app.py`.
 
 ### Admin frontend — structured forms
 The world editor at `/worlds/[id]` is currently a raw JSON textarea (round-trips
