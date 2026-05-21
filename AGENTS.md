@@ -2,6 +2,9 @@
 
 This is a uv-workspace monorepo. Read this file before touching code.
 
+> **Two hard rules:** Python → always `uv` (never pip/poetry). JS/web frontends
+> → always **`yarn` 4.x** (never `npm`/`npx`/`pnpm`). No exceptions.
+
 ## Layout
 
 ```

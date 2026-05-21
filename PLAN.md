@@ -27,14 +27,17 @@ monorepo + LangGraph migration.
 
 ## Open
 
-### Voice in the web Play-UI
-Browser MediaRecorder → WS (`/ws/voice/{thread_id}`) → server-side STT
-(OpenAI Whisper) → `engine.turn` → server-side TTS → binary audio frames
-back to the browser → `<audio>`. The WS endpoint is reserved and currently
-returns "not implemented".
+### Voice in the web Play-UI — DONE (push-to-talk)
+Browser `MediaRecorder` → WS (`/ws/voice/{thread_id}`) → server-side STT
+(OpenAI Whisper) → `engine.turn` → server-side TTS → WAV frame back to the
+browser → `<audio>`. Frontend page `/voice` with a hold-to-talk button.
 
-Approx. work: 1-2 sessions. Hardest part is jitter-tolerant streaming on
-both ends.
+Verified: STT/TTS round-trip works standalone (synthesize → transcribe gives
+the phrase back). Browser end (mic capture + playback) is best tested on a
+real PC with a microphone.
+
+Possible follow-up: streaming STT/TTS (lower latency than push-to-talk),
+client-side VAD so the user doesn't have to hold a button, barge-in.
 
 ### `apps/pi` voice loop
 Skeleton in place; raises on `main()`. The pre-migration voice loop lives

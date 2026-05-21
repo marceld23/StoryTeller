@@ -91,6 +91,8 @@
     <h1>StoryTeller</h1>
     {#if threadId}
       <small>session: <code>{threadId}</code></small>
+    {:else}
+      <a href="/voice">🎤 Sprachmodus</a>
     {/if}
   </header>
 

@@ -41,7 +41,7 @@ class VoiceMenu:
 
     # --- world catalog (id, name, genre, short description) ---
     def _worlds(self) -> list[dict]:
-        from ..worlds.registry import all_world_ids, load_world
+        from storyteller_core.worlds.registry import all_world_ids, load_world
 
         out = []
         for wid in all_world_ids(self.cfg):
@@ -68,7 +68,7 @@ class VoiceMenu:
     def _classify_llm(self, said: str, worlds: list[dict]) -> str:
         """Returns a world id, 'load', or 'unknown'. Fails soft -> 'unknown'."""
         try:
-            from ..oai import get_client
+            from storyteller_core.oai import get_client
 
             ids = [w["id"] for w in worlds]
             catalog = "\n".join(

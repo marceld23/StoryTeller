@@ -22,7 +22,7 @@ class OpenAISTT(STT):
         self.cfg = cfg
 
     def transcribe(self, wav_path: str) -> str:
-        from ..i18n import norm
+        from storyteller_core.i18n import norm
 
         client = get_client(self.cfg)
         # STT-Sprache folgt der Locale (de/en); überschreibt stt.language.

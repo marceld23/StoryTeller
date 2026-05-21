@@ -26,7 +26,7 @@ class WakeWord:
         try:
             from openwakeword.model import Model
 
-            from ..i18n import norm
+            from storyteller_core.i18n import norm
 
             loc = norm(cfg.general.locale)
             name = (getattr(cfg.wakeword, f"model_{loc}", "")

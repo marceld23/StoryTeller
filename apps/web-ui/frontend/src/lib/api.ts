@@ -35,9 +35,18 @@ export async function createSession(
   return r.json();
 }
 
-/** Open a play WebSocket. Resolves to a connected socket. */
+/** Open a text-play WebSocket. */
 export function openPlaySocket(thread_id: string, world_id: string): WebSocket {
   const wsBase = BACKEND.replace(/^http/, 'ws');
   const url = `${wsBase}/ws/play/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}`;
   return new WebSocket(url);
+}
+
+/** Open a voice-play WebSocket (binary frames = audio). */
+export function openVoiceSocket(thread_id: string, world_id: string): WebSocket {
+  const wsBase = BACKEND.replace(/^http/, 'ws');
+  const url = `${wsBase}/ws/voice/${encodeURIComponent(thread_id)}?world_id=${encodeURIComponent(world_id)}`;
+  const ws = new WebSocket(url);
+  ws.binaryType = 'arraybuffer';
+  return ws;
 }

@@ -20,6 +20,7 @@ Run: storyteller-web-ui  (binds 0.0.0.0:8090)
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from pathlib import Path
@@ -241,27 +242,136 @@ async def ws_play(websocket: WebSocket, thread_id: str,
 # WebSocket: voice play (server-side STT/TTS)
 # --------------------------------------------------------------------------
 
+def _pcm_to_wav(pcm, sr: int) -> bytes:
+    """float32 mono [-1,1] -> 16-bit PCM WAV bytes (browser-playable)."""
+    import io
+    import wave
+
+    import numpy as np
+
+    clipped = np.clip(pcm, -1.0, 1.0)
+    i16 = (clipped * 32767.0).astype("<i2")
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(i16.tobytes())
+    return buf.getvalue()
+
+
+def _transcribe(cfg, audio: bytes, suffix: str = ".webm") -> str:
+    """Write the browser blob to a temp file and run STT (Whisper detects
+    the container from the file extension)."""
+    import os
+    import tempfile
+
+    from storyteller_voice.stt import get_stt
+
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(audio)
+        return get_stt(cfg).transcribe(path)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _synthesize_wav(cfg, text: str) -> bytes:
+    from storyteller_voice.tts import get_tts
+
+    pcm, sr = get_tts(cfg).synthesize(text)
+    return _pcm_to_wav(pcm, sr)
+
+
 @app.websocket("/ws/voice/{thread_id}")
 async def ws_voice(websocket: WebSocket, thread_id: str,
                    world_id: str = Query(...)):
-    """Voice play loop.
+    """Voice play loop (push-to-talk style).
 
-    NOT IMPLEMENTED YET. The wire protocol is reserved:
-      client -> server  binary audio chunks (Opus or PCM16@16kHz)
-      client -> server  {"type": "end_of_utterance"}
-      server -> client  {"type": "stt", "text": str}
-      server -> client  {"type": "narration", "text": str}
-      server -> client  binary TTS audio chunks (PCM16@24kHz)
+    Wire protocol:
+      client -> server  binary frame   = one recorded utterance (webm/opus blob)
+      client -> server  {"type":"undo"}
+      server -> client  {"type":"narration","text":str}   (text of the reply)
+      server -> client  {"type":"stt","text":str}          (what we heard)
+      server -> client  {"type":"thinking"}
+      server -> client  binary frame   = WAV audio of the narration (16-bit PCM)
+      server -> client  {"type":"audio_done"}
+      server -> client  {"type":"error","message":str}
 
-    Server-side: accumulate chunks until end_of_utterance -> STT -> engine.turn ->
-    TTS -> stream back as binary frames.
+    On connect the server sends the opening (text + audio).
     """
     await websocket.accept()
-    await websocket.send_json({
-        "type": "error",
-        "message": "voice channel not implemented yet (Phase 4 follow-up)",
-    })
-    await websocket.close()
+    cfg = _cfg()
+    try:
+        engine = _make_engine(world_id, thread_id)
+
+        async def _say(text: str) -> None:
+            """Send narration text + synthesized WAV audio."""
+            await websocket.send_json({"type": "narration", "text": text})
+            if text:
+                try:
+                    wav = await asyncio.to_thread(_synthesize_wav, cfg, text)
+                    await websocket.send_bytes(wav)
+                except Exception as exc:
+                    log.warning("TTS failed: %r", exc)
+            await websocket.send_json({"type": "audio_done"})
+
+        snap = engine.state()
+        if snap.get("memory"):
+            await _say(engine.last_narration())
+        else:
+            await websocket.send_json({"type": "thinking"})
+            await _say(await asyncio.to_thread(engine.opening))
+
+        while True:
+            msg = await websocket.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+
+            if "bytes" in msg and msg["bytes"] is not None:
+                audio = msg["bytes"]
+                try:
+                    text_in = await asyncio.to_thread(_transcribe, cfg, audio)
+                except Exception as exc:
+                    log.exception("STT failed")
+                    await websocket.send_json({"type": "error",
+                                               "message": f"STT: {exc!r}"})
+                    continue
+                await websocket.send_json({"type": "stt", "text": text_in})
+                if not text_in.strip():
+                    await websocket.send_json({"type": "audio_done"})
+                    continue
+                await websocket.send_json({"type": "thinking"})
+                try:
+                    reply = await asyncio.to_thread(engine.turn, text_in)
+                except Exception as exc:
+                    log.exception("engine.turn failed")
+                    await websocket.send_json({"type": "error",
+                                               "message": f"{exc!r}"})
+                    continue
+                await _say(reply)
+
+            elif "text" in msg and msg["text"] is not None:
+                try:
+                    data = json.loads(msg["text"])
+                except Exception:
+                    continue
+                if data.get("type") == "undo":
+                    text = await asyncio.to_thread(engine.undo_last)
+                    await _say(text)
+
+    except WebSocketDisconnect:
+        log.info("ws_voice disconnected: thread=%s", thread_id)
+    except Exception as exc:
+        log.exception("ws_voice error")
+        try:
+            await websocket.send_json({"type": "error", "message": f"{exc!r}"})
+        except Exception:
+            pass
 
 
 # --------------------------------------------------------------------------
