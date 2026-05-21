@@ -19,7 +19,7 @@ User=root
 # offline "no Wi-Fi" voice hint; nmcli/reboot work regardless of HOME.
 Environment=HOME=/home/pi
 WorkingDirectory=/home/pi/storyteller
-ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli netcheck
+ExecStart=/home/pi/storyteller/.venv/bin/storyteller-pi netcheck
 TimeoutStartSec=0
 
 [Install]

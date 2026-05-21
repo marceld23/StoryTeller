@@ -15,7 +15,7 @@ Group=pi
 WorkingDirectory=/home/pi/storyteller
 Environment=HOME=/home/pi
 Environment=PATH=/home/pi/.local/bin:/usr/bin:/bin
-ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli admin
+ExecStart=/home/pi/storyteller/.venv/bin/storyteller-web-admin
 Restart=always
 RestartSec=3
 

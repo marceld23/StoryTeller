@@ -7,11 +7,20 @@ cd "$(dirname "$0")/.."
 
 [ "$(id -u)" -eq 0 ] || { echo "Bitte als root (sudo) ausführen." >&2; exit 1; }
 
-cp scripts/storyteller.service scripts/storyteller-admin.service \
+cp scripts/storyteller.service \
+   scripts/storyteller-admin.service \
+   scripts/storyteller-web-ui.service \
    /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now storyteller-admin.service storyteller.service
+systemctl enable --now \
+    storyteller-admin.service \
+    storyteller-web-ui.service \
+    storyteller.service
 
 echo "--- Status ---"
-systemctl --no-pager --lines=0 status storyteller-admin storyteller || true
-echo "Logs: journalctl -u storyteller -f   /   journalctl -u storyteller-admin -f"
+systemctl --no-pager --lines=0 status \
+    storyteller-admin storyteller-web-ui storyteller || true
+echo "Logs:"
+echo "  journalctl -u storyteller -f          # Pi voice loop"
+echo "  journalctl -u storyteller-admin -f    # admin backend (:8080)"
+echo "  journalctl -u storyteller-web-ui -f   # player web backend (:8090)"

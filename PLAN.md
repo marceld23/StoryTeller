@@ -39,14 +39,21 @@ real PC with a microphone.
 Possible follow-up: streaming STT/TTS (lower latency than push-to-talk),
 client-side VAD so the user doesn't have to hold a button, barge-in.
 
-### `apps/pi` voice loop
-Skeleton in place; raises on `main()`. The pre-migration voice loop lives
-at `apps/cli/src/storyteller_cli/_legacy.py` and needs porting against the
-new engine API (`StoryEngine.turn(text)` returns a string; no more
-`snapshot`/`restore`). Wakeword + LEDs + ALSA backend + voice menu all
-stay as-is from `storyteller_hardware`.
+### `apps/pi` voice loop — DONE (ported to the LangGraph engine)
+`storyteller-pi run` is the full voice loop: greeting + optional intro,
+voice world-menu, wake word + follow-up window, `record_until_silence`,
+wait-sound loop under TTS, spoken system menu (quit/undo/audio/intro/
+close; "save" is implicit now), per-world `thread_id` ("pi-<world>") so a
+story auto-resumes across restarts (`--new` forces a fresh branch).
+`storyteller-pi netcheck` wraps the Wi-Fi onboarding. No snapshot/restore
+or SaveManager any more — the checkpointer owns state.
 
-Needs Pi hardware on hand for end-to-end testing (ReSpeaker + ALSA + LEDs).
+systemd units updated to the new console scripts (`storyteller-pi run`,
+`storyteller-web-admin`, `storyteller-web-ui`, `storyteller-pi netcheck`).
+
+Verified on the Pi: imports + WakeWord availability + clean service start
+(reaches greeting/menu). End-to-end spoken play still wants a person at
+the ReSpeaker; mic/TTS round-trip itself is already covered.
 
 ### Admin endpoints — DONE (ported from `legacy_app.py`)
 Now live on the new admin backend, with frontend pages:

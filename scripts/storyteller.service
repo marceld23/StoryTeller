@@ -16,7 +16,7 @@ SupplementaryGroups=audio
 WorkingDirectory=/home/pi/storyteller
 Environment=HOME=/home/pi
 Environment=PATH=/home/pi/.local/bin:/usr/bin:/bin
-ExecStart=/home/pi/storyteller/.venv/bin/python -m storyteller.cli run
+ExecStart=/home/pi/storyteller/.venv/bin/storyteller-pi run
 Restart=always
 RestartSec=3
 
