@@ -51,13 +51,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "audio_bt_on": "Audioausgabe auf Bluetooth umgestellt.",
         "audio_bt_off": "Audioausgabe zurück auf den Standard.",
         "greeting": "Hey, Du. Ich bin dein Geschichtenerzähler.",
-        "intro": "So funktioniert's: Sag Hey Jarvis, warte kurz, dann "
-                 "sprich frei, was du tun willst — ich erzähle die "
-                 "Geschichte und beziehe dich ein. Direkt nach meiner "
-                 "Antwort kannst du ohne Weckwort weiterreden. Für "
-                 "Einstellungen sag Hey Jarvis, dann System: dort kannst "
-                 "du speichern, laden, einen Zug zurücknehmen, die "
-                 "Audioausgabe oder diese Einführung ändern.",
+        "intro": "Hi, ich bin Jarvis, dein Geschichtenerzähler. Du kannst "
+                 "mit mir reden. Wenn du in das Einstellungsmenü willst, "
+                 "sag einfach System oder Menü, und sonst nichts.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
                      "wieder hören? Sage ja oder nein.",
         "intro_hint": "Du kannst das jederzeit im Systemmenü unter "
@@ -92,12 +88,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "audio_bt_on": "Audio output switched to Bluetooth.",
         "audio_bt_off": "Audio output back to the default.",
         "greeting": "Hey there. I'm your storyteller.",
-        "intro": "Here's how it works: say Hey Jarvis, wait a moment, then "
-                 "speak freely what you want to do — I tell the story and "
-                 "weave you in. Right after my reply you can keep talking "
-                 "without the wake word. For settings say Hey Jarvis, then "
-                 "System: there you can save, load, undo a turn, switch the "
-                 "audio output or this intro.",
+        "intro": "Hi, I'm Jarvis, your storyteller. You can just talk to me. "
+                 "If you want the settings menu, simply say System or Menu, "
+                 "and nothing else.",
         "intro_ask": "Would you like to hear this intro again next time? "
                      "Say yes or no.",
         "intro_hint": "You can change this any time in the system menu "

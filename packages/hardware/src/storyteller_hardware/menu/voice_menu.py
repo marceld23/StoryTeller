@@ -98,10 +98,13 @@ class VoiceMenu:
     def run(self) -> dict:
         worlds = self._worlds()
         self.prompts.play("welcome", self.backend)
-        active = True  # first listen is active (like other steps); only
-        for _ in range(6):  # after no answer do we gate on the wake word
+        # At the start we LISTEN twice (ask, listen; if silent, ask + listen
+        # again) before falling back to the wake-word gate + hint. So the
+        # player isn't told "I'm no longer listening" after a single miss.
+        active_listens = 2
+        for _ in range(6):
             self.prompts.play("choose_world", self.backend)
-            if self.ww is not None and not active:
+            if self.ww is not None and active_listens <= 0:
                 if self.speak:
                     self.prompts.play("wake_hint", self.backend)
                 if self.leds:
@@ -111,9 +114,10 @@ class VoiceMenu:
                     time.sleep(2)
                     continue
             said = self._ask()
-            active = False  # next round requires the wake word
+            if active_listens > 0:
+                active_listens -= 1
             if not said.strip():
-                # silence: no "not understood" — wake word next round
+                # silence: no "not understood" — listen again, then wake word
                 continue
 
             choice = self._classify_llm(said, worlds)

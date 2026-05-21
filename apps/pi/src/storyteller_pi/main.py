@@ -164,29 +164,13 @@ def cmd_run(args: argparse.Namespace) -> int:
                   "wake-word packages), then restart storyteller.")
         return 1
 
-    # --- start greeting + optional intro (cached, offline-safe) ---
+    # --- optional spoken intro at start (toggle in the system menu -> Intro,
+    # persisted in data/settings.json). Cached/offline-safe. ---
     if speak and not text_mode:
-        from storyteller_hardware.runtime import load_settings, save_settings
+        from storyteller_hardware.runtime import load_settings
 
-        prompts.play("greeting", backend)
-        st = load_settings(cfg)
-        if st.get("intro_enabled", True):
+        if load_settings(cfg).get("intro_enabled", True):
             prompts.play("intro", backend)
-            prompts.play("intro_ask", backend)
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".wav",
-                                                 delete=False) as t:
-                    aw = t.name
-                backend.record_until_silence(aw)
-                ans = stt.transcribe(aw).strip().lower()
-            except Exception:
-                ans = ""
-            if any(k in ans for k in ("nein", "no", "nicht", "stop",
-                                      "aus", "skip")):
-                st["intro_enabled"] = False
-                save_settings(cfg, st)
-                prompts.play("intro_off", backend)
-            prompts.play("intro_hint", backend)
 
     # --- world selection ---
     wid = args.world
