@@ -42,6 +42,22 @@ Both `apps/web-ui/frontend/` and `apps/web-admin/frontend/` are SvelteKit + Type
 
 Rationale: consistent lockfile across machines; the user has standardized on yarn for all JS work.
 
+### Build & serve model (don't revert to adapter-auto)
+
+Both frontends are **SPAs** built with `@sveltejs/adapter-static`
+(`fallback: 'index.html'`, `+layout.ts` sets `ssr = false; prerender = false`).
+The matching **FastAPI backend serves its own `build/`**: a catch-all GET,
+registered after all `/api` + `/ws` routes, returns the real asset if present
+else `index.html`. So production = one process per app, one port, **no Node
+at runtime** (admin `:8080`, player `:8090`).
+
+- `api.ts` `BACKEND` defaults to `window.location.origin` in the browser —
+  never hard-code a host/IP; the SPA talks to whatever served it.
+- Build both with `bash scripts/build_frontends.sh`; `build/` and
+  `node_modules/` are gitignored (commit `yarn.lock`, not artifacts).
+- Do **not** switch back to `adapter-auto` (cloud-only; produces no
+  self-hostable output for the Pi).
+
 ## Story engine = LangGraph
 
 The narrator is a compiled `langgraph.StateGraph` (see `packages/core/src/storyteller_core/story/graph.py`).

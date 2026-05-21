@@ -1,8 +1,8 @@
 # Storyteller
 
 Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
-ReSpeaker USB Mic Array v2.0, on a normal PC (text or PC audio), or in a
-browser (text now, voice next). Powered by the OpenAI API and a LangGraph
+ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
+(text or hold-to-talk voice). Powered by the OpenAI API and a LangGraph
 story engine. Localized for German and English.
 
 ➡ **Architecture, decisions & roadmap: [PLAN.md](PLAN.md)**
@@ -22,7 +22,7 @@ packages/
   hardware/    storyteller_hardware  audio backends, LEDs, ReSpeaker, voice menu, net
 apps/
   cli/         storyteller_cli            PC text REPL (chat / info / worlds / seed / history)
-  pi/          storyteller_pi             Pi voice loop (skeleton — port in progress)
+  pi/          storyteller_pi             Pi voice loop (ReSpeaker + wake word + LEDs)
   web-ui/      backend/ + frontend/       Player-facing web app (FastAPI + SvelteKit)
   web-admin/   backend/ + frontend/       Admin web app (FastAPI + SvelteKit)
 ```
@@ -46,59 +46,81 @@ is checkpointed in `data/checkpoints.db`. Use `--new` to start a fresh branch,
 
 ---
 
-## Web — play in the browser
+## Web — play & admin
 
-Two processes: the **play backend** (FastAPI + WebSocket) and the
-**SvelteKit play UI**.
-
-```bash
-# 1) backend on :8090
-uv run --package storyteller-web-ui-backend storyteller-web-ui
-
-# 2) frontend on :5173 (separate terminal)
-cd apps/web-ui/frontend
-yarn install        # first run only
-yarn dev
-```
-
-Then open <http://localhost:5173>. Voice in the browser (mic + server-side
-STT/TTS) is the next iteration; the WS channel `/ws/voice/{thread_id}` is
-reserved but currently returns "not implemented".
-
-## Web — admin
+Each web app is a FastAPI backend that **also serves its SvelteKit UI** as a
+static SPA — one process, one port, no Node at runtime. Build the frontends
+once, then run the backend:
 
 ```bash
-# 1) admin backend on :8080
-uv run --package storyteller-web-admin-backend storyteller-web-admin
+bash scripts/build_frontends.sh        # Node 20 + yarn 4; writes apps/*/frontend/build/
 
-# 2) admin frontend on :5174
-cd apps/web-admin/frontend
-yarn install
-yarn dev
+uv run --package storyteller-web-ui-backend    storyteller-web-ui     # player  -> :8090
+uv run --package storyteller-web-admin-backend  storyteller-web-admin  # admin   -> :8080
 ```
 
-Then open <http://localhost:5174>. Worlds list / detail (JSON editor),
-settings (models / audio backend / moderation thresholds). World generation,
-transcripts, and RAG reindex are stubbed (501) — being ported from the
-previous inline-HTML admin (see `legacy_app.py`).
+Open the **player UI** at <http://localhost:8090> and the **admin UI** at
+<http://localhost:8080>. The SPA talks to the backend on its own origin, so
+the same build works via `localhost`, the Pi's IP, or a hostname.
+
+- **Player**: pick a world, play by text, or `/voice` for hold-to-talk
+  (browser `MediaRecorder` → WS `/ws/voice/{thread_id}` → server STT/TTS).
+- **Admin**: structured world editor (core fields, tone sliders, blueprint,
+  content lists with ✨ per-piece LLM suggest, random tables), world
+  generation (async job + polling), RAG reindex, transcripts viewer,
+  settings (models / audio backend / moderation thresholds).
+
+**Frontend development** (hot reload, talks to the running backend via
+`VITE_BACKEND`): `cd apps/web-ui/frontend && yarn dev` (port 5173;
+admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 ---
 
 ## Raspberry Pi voice loop
 
-The Pi app (`apps/pi/storyteller_pi`) is currently a stub. The pre-migration
-voice loop lives at `apps/cli/src/storyteller_cli/_legacy.py` and is being
-ported against the new LangGraph engine. Until then, the Pi runs the same
-text REPL with `storyteller-cli chat`.
-
-Hardware setup (once per Pi):
+`storyteller-pi run` is the full voice appliance: spoken greeting + optional
+intro, a voice world-menu, wake word ("hey jarvis" by default) with a
+follow-up window, speech capture that ends on a pause, a wait-sound loop
+under TTS, and a spoken system menu (quit / undo / audio / intro / close).
+Per-world session state auto-resumes across restarts (LangGraph checkpointer,
+`thread_id = pi-<world>`); `--new` starts a fresh branch.
 
 ```bash
-sudo bash scripts/setup_system.sh      # udev rule (LED ring & DSP tuning)
-bash scripts/install_wakeword.sh       # openWakeWord (py3.13 packages)
+sudo bash scripts/setup_system.sh      # udev rule (LED ring & DSP tuning), once
+bash scripts/install_wakeword.sh       # openWakeWord (re-run after every `uv sync`)
+
+uv run --package storyteller-pi storyteller-pi run            # full voice loop
+uv run --package storyteller-pi storyteller-pi run --text     # keyboard, no mic
+uv run --package storyteller-pi storyteller-pi run --ptt      # push-to-talk (no wake word)
 ```
 
+`storyteller-pi netcheck` opens the Wi-Fi captive portal if offline at boot.
 See [docs/SETUP_PI.md](docs/SETUP_PI.md) for the full Pi setup.
+
+---
+
+## Production deploy (systemd)
+
+Three long-running services (unit files in `scripts/`):
+
+| Service | Command | Purpose |
+|---|---|---|
+| `storyteller.service`         | `storyteller-pi run`      | Pi voice loop |
+| `storyteller-admin.service`   | `storyteller-web-admin`   | admin backend + UI, `:8080` |
+| `storyteller-web-ui.service`  | `storyteller-web-ui`      | player backend + UI, `:8090` |
+| `storyteller-netcheck.service`| `storyteller-pi netcheck` | Wi-Fi onboarding at boot |
+
+```bash
+uv sync                                # workspace venv
+bash scripts/install_wakeword.sh       # re-run: uv sync prunes the wake-word stack
+bash scripts/build_frontends.sh        # build both SPAs
+sudo bash scripts/install_services.sh  # install + enable the long-running units
+sudo bash scripts/install_netcheck.sh  # optional: Wi-Fi onboarding service
+```
+
+After pulling changes: re-run `uv sync` + `install_wakeword.sh` (Python),
+`build_frontends.sh` (web), then `sudo systemctl restart storyteller
+storyteller-admin storyteller-web-ui`.
 
 ---
 
@@ -139,8 +161,8 @@ Every player input is sent to the OpenAI moderation model
 (`omni-moderation-latest`) **before** the narrator answers; on a threshold
 hit the turn is politely refused. Thresholds are editable in the admin UI
 (`/settings`). Played stories are recorded as transcripts (player input,
-moderation result, every LLM tool call + result, narrator replies) — the
-admin transcripts viewer is being ported (501 stub today).
+moderation result, every LLM tool call + result, narrator replies) and
+viewable in the admin UI (`/transcripts`).
 
 ---
 
