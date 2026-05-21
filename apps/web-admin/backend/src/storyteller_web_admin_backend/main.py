@@ -1,7 +1,6 @@
 """storyteller-web-admin backend — FastAPI JSON API.
 
-Replaces the legacy inline-HTML admin (`legacy_app.py`) with a clean JSON
-surface that the SvelteKit admin frontend consumes.
+A clean JSON surface that the SvelteKit admin frontend consumes.
 
 Endpoints (Phase 4b scope):
   GET    /api/health

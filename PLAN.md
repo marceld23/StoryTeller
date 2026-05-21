@@ -17,9 +17,8 @@ monorepo + LangGraph migration.
   parallel. In-turn replan after `complete_substory`. Branching via
   `engine.history()` / `engine.rewind_to(...)`.
 - **Web**: two separate apps — `web-ui` (play) and `web-admin`. Each has a
-  FastAPI backend and a SvelteKit + TypeScript frontend (yarn 4). The
-  legacy inline-HTML admin is preserved as `legacy_app.py` for porting
-  reference.
+  FastAPI backend and a SvelteKit + TypeScript frontend (yarn 4, built as a
+  static SPA and served by the backend).
 - **Save format**: clean cut. Pre-LangGraph `data/saves/*.json` are NOT
   migrated. The LangGraph checkpointer owns session state now.
 
@@ -55,7 +54,7 @@ Verified on the Pi: imports + WakeWord availability + clean service start
 (reaches greeting/menu). End-to-end spoken play still wants a person at
 the ReSpeaker; mic/TTS round-trip itself is already covered.
 
-### Admin endpoints — DONE (ported from `legacy_app.py`)
+### Admin endpoints — DONE
 Now live on the new admin backend, with frontend pages:
 - `POST /api/worlds/generate` — async LLM world generation (JobRegistry) →
   `/generate` page with job polling, redirects to the new world on success
