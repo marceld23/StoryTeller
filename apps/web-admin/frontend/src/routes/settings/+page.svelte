@@ -105,13 +105,13 @@
 </section>
 
 <style>
-  section { margin-bottom: 2rem; padding: 1rem; background: white; border-radius: 4px; }
+  section { margin-bottom: 2rem; padding: 1rem; background: var(--surface); border-radius: 4px; }
   section h2 { margin-top: 0; font-size: 1.1rem; }
   textarea { width: 100%; box-sizing: border-box; }
-  .hint { color: #666; font-size: 0.9rem; margin: 0.3rem 0; }
+  .hint { color: var(--muted); font-size: 0.9rem; margin: 0.3rem 0; }
   .error { color: #c25450; }
   .ok { color: #4a9e4f; }
   .actions { margin-top: 0.6rem; }
   label { display: block; margin: 0.4rem 0; }
-  code { background: #eef; padding: 0 4px; border-radius: 2px; }
+  code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
 </style>

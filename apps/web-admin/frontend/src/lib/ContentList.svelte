@@ -94,16 +94,16 @@
 </section>
 
 <style>
-  section { background: #fff; border-radius: 5px; padding: 1rem; margin-bottom: 1.2rem; }
+  section { background: var(--surface); border-radius: 5px; padding: 1rem; margin-bottom: 1.2rem; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
   h3 { margin: 0; font-size: 1.05rem; }
-  .count { color: #999; font-weight: normal; }
+  .count { color: var(--muted); font-weight: normal; }
   .suggest { display: flex; gap: 0.4rem; align-items: center; }
   .suggest input { width: 220px; }
-  .card { border: 1px solid #eee; border-radius: 4px; padding: 0.7rem; margin-top: 0.7rem; }
+  .card { border: 1px solid var(--border); border-radius: 4px; padding: 0.7rem; margin-top: 0.7rem; }
   .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
   label { display: block; margin: 0.4rem 0; }
-  label span { display: block; font-size: 0.8rem; color: #666; margin-bottom: 0.15rem; }
+  label span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
   label input, label textarea { width: 100%; box-sizing: border-box; }
   .error { color: #c25450; }
 </style>

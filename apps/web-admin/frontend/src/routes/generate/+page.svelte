@@ -61,10 +61,10 @@
 
 <style>
   textarea { width: 100%; box-sizing: border-box; }
-  .hint { color: #666; font-size: 0.9rem; }
+  .hint { color: var(--muted); font-size: 0.9rem; }
   .actions { margin: 0.8rem 0; }
-  .status { background: #fff; padding: 0.7rem 1rem; border-radius: 4px; border-left: 3px solid #4a90e2; }
-  .detail { margin-top: 0.4rem; color: #555; }
+  .status { background: var(--surface); padding: 0.7rem 1rem; border-radius: 4px; border-left: 3px solid #4a90e2; }
+  .detail { margin-top: 0.4rem; color: var(--muted); }
   .error { color: #c25450; }
-  code { background: #eef; padding: 0 4px; border-radius: 2px; }
+  code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
 </style>

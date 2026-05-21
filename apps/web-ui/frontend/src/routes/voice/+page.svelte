@@ -160,29 +160,25 @@
 </main>
 
 <style>
-  :global(html, body) {
-    margin: 0; background: #1a1a1d; color: #f1f1f1;
-    font-family: system-ui, -apple-system, sans-serif; min-height: 100vh;
-  }
   main { max-width: 760px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; min-height: 100vh; }
-  header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+  header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
   h1 { margin: 0; font-size: 1.4rem; color: #6fc3df; }
-  header a { color: #888; }
+  header a { color: var(--muted); }
   .picker { padding: 2rem 0; }
   .picker select { padding: 0.4rem; margin-right: 0.5rem; }
-  .picker button { padding: 0.4rem 1rem; background: #6fc3df; color: #111; border: none; border-radius: 3px; cursor: pointer; }
+  .picker button { padding: 0.4rem 1rem; background: #6fc3df; color: #10131a; border: none; border-radius: 3px; cursor: pointer; }
   .chat { flex: 1; overflow-y: auto; padding: 1rem 0; display: flex; flex-direction: column; gap: 0.75rem; }
   .line { padding: 0.6rem 0.9rem; border-radius: 6px; max-width: 90%; white-space: pre-wrap; }
-  .line.narrator { background: #232527; align-self: flex-start; border-left: 3px solid #6fc3df; }
-  .line.player { background: #2a3038; align-self: flex-end; border-right: 3px solid #b4d273; }
-  .line.system { background: transparent; align-self: center; color: #888; font-style: italic; }
-  footer { padding-top: 0.5rem; border-top: 1px solid #333; }
+  .line.narrator { background: var(--surface); align-self: flex-start; border-left: 3px solid #6fc3df; }
+  .line.player { background: var(--surface-2); align-self: flex-end; border-right: 3px solid #b4d273; }
+  .line.system { background: transparent; align-self: center; color: var(--muted); font-style: italic; }
+  footer { padding-top: 0.5rem; border-top: 1px solid var(--border); }
   .ptt {
     width: 100%; padding: 1rem; font-size: 1.1rem; font-weight: 600;
-    background: #b4d273; color: #111; border: none; border-radius: 6px; cursor: pointer;
+    background: #b4d273; color: #10131a; border: none; border-radius: 6px; cursor: pointer;
     user-select: none;
   }
-  .ptt.rec { background: #e87a7a; color: #fff; }
-  .ptt:disabled { background: #444; color: #888; cursor: not-allowed; }
-  .error { color: #e87a7a; }
+  .ptt.rec { background: #e07a7a; color: #fff; }
+  .ptt:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .error { color: #e07a7a; }
 </style>

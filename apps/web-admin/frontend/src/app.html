@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>StoryTeller Admin</title>
+  <script>
+    // apply saved theme before first paint (default = dark)
+    try { var t = localStorage.getItem('st-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
   %sveltekit.head%
 </head>
 <body data-sveltekit-preload-data="hover">

@@ -57,11 +57,11 @@
 {/if}
 
 <style>
-  table { width: 100%; border-collapse: collapse; background: white; }
-  th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid #eee; }
-  th { background: #fafafa; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); font-weight: 600; }
   .error { color: #c25450; }
-  code { background: #eef; padding: 0 4px; border-radius: 2px; }
-  a { color: #2a6dbd; text-decoration: none; }
+  code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
+  a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>

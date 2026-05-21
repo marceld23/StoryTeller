@@ -39,10 +39,10 @@
 {/if}
 
 <style>
-  table { width: 100%; border-collapse: collapse; background: white; }
-  th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid #eee; }
-  th { background: #fafafa; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); }
   .error { color: #c25450; }
-  a { color: #2a6dbd; text-decoration: none; }
+  a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>

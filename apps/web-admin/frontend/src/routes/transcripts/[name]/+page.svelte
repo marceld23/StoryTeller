@@ -65,15 +65,15 @@ result: {str(e.result)}</pre>
 
 <style>
   .feed { display: flex; flex-direction: column; gap: 0.6rem; }
-  .card { padding: 0.6rem 0.9rem; border-radius: 5px; background: #fff; }
+  .card { padding: 0.6rem 0.9rem; border-radius: 5px; background: var(--surface); }
   .card.user { border-left: 3px solid #b4d273; }
   .card.narrator { border-left: 3px solid #4a90e2; }
   .card.tool { border-left: 3px solid #d0a040; }
   .card.mod { border-left: 3px solid #7aa37a; }
   .card.mod.bad { border-left-color: #c25450; }
-  .note { color: #888; }
+  .note { color: var(--muted); }
   pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.85rem; }
   .error { color: #c25450; }
-  code { background: #eef; padding: 0 4px; border-radius: 2px; }
-  a { color: #2a6dbd; text-decoration: none; }
+  code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
+  a { color: var(--link); text-decoration: none; }
 </style>

@@ -242,21 +242,21 @@
 
 <style>
   .toolbar { display: flex; gap: 0.5rem; margin: 0.8rem 0; }
-  section { background: #fff; border-radius: 5px; padding: 1rem; margin-bottom: 1.2rem; }
+  section { background: var(--surface); border-radius: 5px; padding: 1rem; margin-bottom: 1.2rem; }
   section h3 { margin-top: 0; }
   h4 { margin: 0.8rem 0 0.4rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem; }
   label { display: block; margin: 0.4rem 0; }
-  label span { display: block; font-size: 0.8rem; color: #666; margin-bottom: 0.15rem; }
+  label span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
   label input, label textarea, label select { width: 100%; box-sizing: border-box; }
   .row { display: flex; gap: 0.4rem; align-items: center; margin: 0.3rem 0; }
   .row.indent { margin-left: 1.2rem; }
   .row input { flex: 1; }
-  .card { border: 1px solid #eee; border-radius: 4px; padding: 0.7rem; margin-top: 0.7rem; }
+  .card { border: 1px solid var(--border); border-radius: 4px; padding: 0.7rem; margin-top: 0.7rem; }
   .raw { width: 100%; box-sizing: border-box; }
   .error { color: #c25450; }
   .ok { color: #4a9e4f; }
-  .hint { color: #666; font-size: 0.9rem; }
-  code { background: #eef; padding: 0 4px; border-radius: 2px; }
-  a { color: #2a6dbd; text-decoration: none; }
+  .hint { color: var(--muted); font-size: 0.9rem; }
+  code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
+  a { color: var(--link); text-decoration: none; }
 </style>
