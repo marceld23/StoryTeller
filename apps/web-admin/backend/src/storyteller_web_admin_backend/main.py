@@ -438,6 +438,27 @@ def get_transcript(name: str) -> dict:
 
 
 # --------------------------------------------------------------------------
+# static SPA frontend (built by `yarn build` in apps/web-admin/frontend)
+# Registered LAST so /api/* routes win; serves real files, else index.html.
+# --------------------------------------------------------------------------
+_FRONTEND = ROOT / "apps" / "web-admin" / "frontend" / "build"
+if _FRONTEND.is_dir():
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa(full_path: str):
+        if full_path.startswith(("api/", "ws/")):
+            raise HTTPException(status_code=404)
+        target = _FRONTEND / full_path
+        if full_path and target.is_file():
+            return FileResponse(target)
+        return FileResponse(_FRONTEND / "index.html")
+else:
+    log.warning("frontend build missing at %s — run `yarn build` in "
+                "apps/web-admin/frontend", _FRONTEND)
+
+
+# --------------------------------------------------------------------------
 # entry point
 # --------------------------------------------------------------------------
 

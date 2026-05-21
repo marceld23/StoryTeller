@@ -1,6 +1,11 @@
 // Backend address. Override via VITE_BACKEND env var (e.g. http://pi.local:8090).
+// When unset and running in the browser, default to the page's own origin —
+// so the SPA served by the FastAPI backend (HTTP + WebSocket) talks back to
+// that same host:port without hard-coding an IP.
+const _browser = typeof window !== 'undefined';
 export const BACKEND =
-  (import.meta.env.VITE_BACKEND as string | undefined) ?? 'http://localhost:8090';
+  (import.meta.env.VITE_BACKEND as string | undefined) ??
+  (_browser ? window.location.origin : 'http://localhost:8090');
 
 export type WorldSummary = {
   id: string;

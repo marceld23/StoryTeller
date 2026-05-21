@@ -37,7 +37,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from storyteller_core.config import load_config
+from storyteller_core.config import ROOT, load_config
 from storyteller_core.story.engine import StoryEngine
 from storyteller_core.worlds.registry import all_world_ids, load_world
 
@@ -372,6 +372,27 @@ async def ws_voice(websocket: WebSocket, thread_id: str,
             await websocket.send_json({"type": "error", "message": f"{exc!r}"})
         except Exception:
             pass
+
+
+# --------------------------------------------------------------------------
+# static SPA frontend (built by `yarn build` in apps/web-ui/frontend)
+# Registered LAST so /api/* + /ws/* win; serves real files, else index.html.
+# --------------------------------------------------------------------------
+_FRONTEND = ROOT / "apps" / "web-ui" / "frontend" / "build"
+if _FRONTEND.is_dir():
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa(full_path: str):
+        if full_path.startswith(("api/", "ws/")):
+            raise HTTPException(status_code=404)
+        target = _FRONTEND / full_path
+        if full_path and target.is_file():
+            return FileResponse(target)
+        return FileResponse(_FRONTEND / "index.html")
+else:
+    log.warning("frontend build missing at %s — run `yarn build` in "
+                "apps/web-ui/frontend", _FRONTEND)
 
 
 # --------------------------------------------------------------------------
