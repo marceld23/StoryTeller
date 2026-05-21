@@ -87,6 +87,20 @@ export async function generateWorld(prompt: string): Promise<{ job_id: string }>
   );
 }
 
+export async function suggestPiece(
+  worldId: string,
+  kind: string,
+  prompt = ''
+): Promise<{ kind: string; piece: Record<string, unknown> }> {
+  return _json(
+    await fetch(`${BACKEND}/api/worlds/${encodeURIComponent(worldId)}/suggest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, prompt })
+    })
+  );
+}
+
 export async function reindexWorld(id: string): Promise<{ job_id: string }> {
   return _json(
     await fetch(`${BACKEND}/api/worlds/${encodeURIComponent(id)}/reindex`, {

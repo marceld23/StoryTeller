@@ -54,15 +54,24 @@ Now live on the new admin backend, with frontend pages:
 - `GET /api/transcripts`, `GET /api/transcripts/{name}` — transcript list +
   parsed-event viewer → `/transcripts` and `/transcripts/[name]` pages
 
-Still legacy-only: per-piece "suggest" (LLM suggestions for a single
-place/person/etc) — see `world_suggest` in `legacy_app.py`.
+Per-piece "suggest" is also ported: `POST /api/worlds/{id}/suggest`
+{kind, prompt} returns one schema-shaped content piece from the gen model.
 
-### Admin frontend — structured forms
-The world editor at `/worlds/[id]` is currently a raw JSON textarea (round-trips
-through Pydantic on save). Replace with structured forms for the common
-shapes: places / persons / items / glossary / history / fragments /
-random tables / blueprint beats / story patterns / tone. Settings page is
-also bare; could group + label more clearly.
+### Admin frontend — structured forms — DONE
+The world editor at `/worlds/[id]` is now a structured form:
+- core scalars (name/genre/role/description/situation/style/voice/mood/…)
+- tone (darkness/humor/romance/action/horror sliders, pacing, notes)
+- blueprint (premise, escalation rule, beats with tension)
+- content lists (places/persons/items/glossary/history/fragments) via the
+  reusable `ContentList` component, each with add / remove / ✨ suggest
+- random tables with nested weighted entries
+- story patterns
+- a "Roh-JSON" toggle remains as an escape hatch (fx_preset etc.)
+
+Verified round-trip: GET → edit → PUT validates through Pydantic.
+
+Possible follow-up: settings page grouping/labels; drag-reorder for beats
+and list items.
 
 ### Web auth / multi-session UX
 Today the backend supports per-session `thread_id`, but the play UI just

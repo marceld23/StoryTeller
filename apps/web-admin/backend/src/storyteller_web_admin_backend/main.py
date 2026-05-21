@@ -322,6 +322,80 @@ def reindex_world(world_id: str) -> dict:
     return {"job_id": j.id}
 
 
+# keys the model must return for each content kind (mirrors schema.py)
+_SUGGEST_SHAPES: dict[str, list[str]] = {
+    "place": ["name", "description", "tags"],
+    "person": ["name", "role", "description", "relations", "tags"],
+    "item": ["name", "description", "properties", "tags"],
+    "glossary": ["term", "definition"],
+    "history": ["when", "title", "description"],
+    "fragment": ["title", "text", "tags"],
+}
+
+
+class SuggestPayload(BaseModel):
+    kind: str
+    prompt: str = ""
+
+
+@app.post("/api/worlds/{world_id}/suggest")
+def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
+    """Synchronously ask the gen model for ONE content piece of `kind`,
+    consistent with the world. Returns the parsed piece (schema-shaped).
+
+    Runs in FastAPI's threadpool (sync def), so a slow gen model blocks one
+    worker, not the event loop — fine for a single-user admin tool.
+    """
+    from storyteller_core.oai import get_gen_client
+
+    cfg = _cfg()
+    if world_id not in all_world_ids(cfg):
+        raise HTTPException(404, "unknown world")
+    kind = payload.kind
+    if kind not in _SUGGEST_SHAPES:
+        raise HTTPException(422, f"unknown kind: {kind}")
+
+    w = load_world(cfg, world_id)
+    keys = _SUGGEST_SHAPES[kind]
+    sysmsg = (
+        f"Du baust die Welt '{w.name}' ({w.genre}) aus. {w.description} "
+        f"Stimmung: {w.mood}. Erzeuge GENAU EINEN {kind}-Eintrag, konsistent "
+        f"zur Welt. Antworte als JSON mit genau diesen Schlüsseln: "
+        f"{', '.join(keys)}. 'tags' ist ein Array von Strings (sonst weglassen). "
+        f"Nutze die Sprache der Welt."
+    )
+    try:
+        r = get_gen_client(cfg).chat.completions.create(
+            model=cfg.models.gen,
+            messages=[{"role": "system", "content": sysmsg},
+                      {"role": "user", "content": payload.prompt or
+                       f"Schlage einen passenden {kind}-Eintrag vor."}],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(r.choices[0].message.content or "{}")
+    except Exception as exc:
+        raise HTTPException(502, f"gen model error: {exc!r}")
+
+    # keep only known keys; coerce tags to list[str], other fields to str
+    piece: dict = {}
+    for k in keys:
+        if k not in data:
+            continue
+        v = data[k]
+        if k == "tags":
+            if isinstance(v, str):
+                v = [t.strip() for t in v.split(",") if t.strip()]
+            elif not isinstance(v, list):
+                v = []
+            piece[k] = [str(t) for t in v]
+        elif isinstance(v, str):
+            piece[k] = v
+        else:
+            # model returned a dict/list for a string field — flatten to text
+            piece[k] = json.dumps(v, ensure_ascii=False) if not isinstance(v, (int, float)) else str(v)
+    return {"kind": kind, "piece": piece}
+
+
 @app.get("/api/transcripts")
 def list_transcripts() -> list[dict]:
     import time as _t
