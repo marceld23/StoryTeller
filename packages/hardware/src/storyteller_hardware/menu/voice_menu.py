@@ -103,8 +103,11 @@ class VoiceMenu:
         # player isn't told "I'm no longer listening" after a single miss.
         active_listens = 2
         for _ in range(6):
-            self.prompts.play("choose_world", self.backend)
             if self.ww is not None and active_listens <= 0:
+                # No active listening left: play the wake hint and gate on the
+                # wake word. Do NOT re-prompt "choose_world" here (that caused
+                # an extra "which world?" right before the hint). After the
+                # wake word fires we prompt + listen below.
                 if self.speak:
                     self.prompts.play("wake_hint", self.backend)
                 if self.leds:
@@ -113,6 +116,9 @@ class VoiceMenu:
                     import time
                     time.sleep(2)
                     continue
+            # Prompt + listen: for the active rounds, and again right after
+            # the wake word wakes us.
+            self.prompts.play("choose_world", self.backend)
             said = self._ask()
             if active_listens > 0:
                 active_listens -= 1
