@@ -122,6 +122,14 @@ class WakeWordCfg(BaseModel):
     follow_up: bool = True
 
 
+class HardwareCfg(BaseModel):
+    # Optional GPIO push-button to interrupt the narration (barge-in). 0 =
+    # disabled. BCM pin number; wire the button between this pin and GND.
+    button_pin: int = 0
+    button_pull_up: bool = True   # internal pull-up: button connects pin->GND
+    button_bounce_s: float = 0.08
+
+
 class FXCfg(BaseModel):
     enabled: bool = True
     reverb_room_size: float = 0.55
@@ -242,6 +250,7 @@ class Config(BaseModel):
     tts: TTSCfg = TTSCfg()
     audio: AudioCfg = AudioCfg()
     wakeword: WakeWordCfg = WakeWordCfg()
+    hardware: HardwareCfg = HardwareCfg()
     fx: FXCfg = FXCfg()
     story: StoryCfg = StoryCfg()
     cost: CostCfg = CostCfg()

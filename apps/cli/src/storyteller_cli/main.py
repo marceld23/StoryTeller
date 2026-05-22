@@ -95,7 +95,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
         console.print("[dim]Vorherige Sitzung fortgesetzt. Letzte Erzählung:[/dim]")
         _print_narration(engine.last_narration())
 
-    console.print("[dim]Befehle: /undo, /state, /quit[/dim]")
+    console.print("[dim]Befehle: /undo, /state, /quit  "
+                  "(Strg+C bricht die laufende Erzählung ab)[/dim]")
     while True:
         try:
             line = console.input("[bold green]Du[/bold green] › ").strip()
@@ -122,9 +123,13 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 "synopsis_chars": len(s.get("synopsis") or ""),
             })
             continue
-        console.print("[dim]…denke nach…[/dim]")
+        console.print("[dim]…denke nach… (Strg+C bricht ab)[/dim]")
         try:
             reply = engine.turn(line)
+        except KeyboardInterrupt:
+            # Barge-in (text equivalent): drop this turn, back to the prompt.
+            console.print("\n[yellow]…abgebrochen.[/yellow]")
+            continue
         except Exception as exc:
             console.print(f"[red]Fehler: {exc!r}[/red]")
             continue

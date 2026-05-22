@@ -1,110 +1,118 @@
-# Storyteller — zentrale Konfiguration. Alle Modellnamen sind hier änderbar.
+# Storyteller — central configuration. All model names are changeable here.
 
 [general]
-locale = "de"        # de | en  (Sprache für Prompts/Menü/STT/TTS)
+locale = "de"        # de | en  (language for prompts/menu/STT/TTS)
 
 [runtime]
 profile = "auto"     # auto | pi | pc
-# auto: Linux + ReSpeaker erkannt => pi (ALSA softvol, LED-Ring),
-#       sonst => pc (portables sounddevice-Backend, kein LED nötig).
+# auto: Linux + ReSpeaker detected => pi (ALSA softvol, LED ring),
+#       otherwise => pc (portable sounddevice backend, no LED needed).
 
 [models]
-story_llm        = "gpt-5.4"            # ERZÄHLER — hier lohnt ein starkes Modell
-planner_llm      = "gpt-5.4"                        # Architekt + Zusammenfasser; leer => story_llm (billiger wählen, um story_llm hochstufen zu können)
-gen_llm          = "gpt-5.4"                 # WELT-/INHALTS-GENERIERUNG (einmalig pro Welt/Vorschlag) — Default das große Modell; leer => story_llm
-stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
-tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper kann KEIN TTS)
+story_llm        = "gpt-5.4"                 # NARRATOR — a strong model pays off here
+planner_llm      = "gpt-5.4"                 # architect + summarizer; empty => story_llm (pick a cheaper one to free up story_llm)
+gen_llm          = "gpt-5.4"                 # WORLD/CONTENT GENERATION (once per world/suggestion) — default the big model; empty => story_llm
+stt              = "gpt-4o-mini-transcribe"  # speech recognition (OpenAI)
+tts              = "gpt-4o-mini-tts"         # speech output (OpenAI; Whisper can NOT do TTS)
 tts_voice        = "ballad"
-embedding        = "text-embedding-3-small"  # RAG-Embeddings
-embedding_dim    = 512                       # Matryoshka-Trunkierung (kleiner = sparsamer)
-llm_temperature     = 0.9   # Erzähler-Temperatur
-planner_temperature = 0.6   # Architekt + Zusammenfasser
-gen_temperature     = 0.8   # Welt-/Inhalts-Generierung
-frequency_penalty = 0.0   # Anti-Wiederholung Erzähler; 0=aus, sanft 0.2–0.4 empfohlen
-presence_penalty  = 0.0   # dito (Themen-Vielfalt); 0=aus
+embedding        = "text-embedding-3-small"  # RAG embeddings
+embedding_dim    = 512                       # Matryoshka truncation (smaller = cheaper)
+llm_temperature     = 0.9   # narrator temperature
+planner_temperature = 0.6   # architect + summarizer
+gen_temperature     = 0.8   # world/content generation
+frequency_penalty = 0.0   # anti-repetition for the narrator; 0=off, gentle 0.2–0.4 recommended
+presence_penalty  = 0.0   # same (topic variety); 0=off
 
-# Eigene OpenAI-kompatible Endpoints je Zweck (leer = OpenAI). base_url inkl.
-# host:port und /v1, z.B. http://192.168.1.50:8000/v1 (vLLM/llama.cpp/Ollama/
-# LM Studio). api_key wird als Bearer gesendet (lokale Server akzeptieren oft
-# beliebig). Moderation nutzt immer den OpenAI-Default. Beispiel:
+# Custom OpenAI-compatible endpoints per purpose (empty = OpenAI). base_url
+# incl. host:port and /v1, e.g. http://192.168.1.50:8000/v1 (vLLM/llama.cpp/
+# Ollama/LM Studio). api_key is sent as Bearer (local servers often accept
+# anything). Moderation always uses the OpenAI default. Example:
 #   [models.story_endpoint]
 #   base_url = "http://192.168.1.50:8000/v1"
 #   api_key  = "sk-local"
-# Weitere: planner_endpoint, gen_endpoint, stt_endpoint, tts_endpoint,
-# embedding_endpoint — gleiche Form.
+# Others: planner_endpoint, gen_endpoint, stt_endpoint, tts_endpoint,
+# embedding_endpoint — same shape.
 
 [stt]
-provider = "openai"   # openai | local_whisper  (local => Phase 10, nur Pi 5 + AI HAT)
+provider = "openai"   # openai | local_whisper  (local => Phase 10, Pi 5 + AI HAT only)
 language = "de"
 
 [capture]
-# Sprachaufnahme endet bei einer Sprechpause statt nach fester Zeit —
-# der Spieler darf so lange reden wie er will (bis max_seconds).
-max_seconds     = 30.0   # harte Obergrenze (Kosten-/Endlos-Schutz)
-silence_seconds = 1.2    # Pause, die den Zug beendet
-start_timeout_s = 6.0    # gar nicht gesprochen -> Abbruch, neu fragen
-min_seconds     = 0.5    # nie vor dieser Zeit beenden (1. Atemzug ignor.)
+# Voice recording ends on a speech pause instead of after a fixed time —
+# the player may talk as long as they want (up to max_seconds).
+max_seconds     = 30.0   # hard upper bound (cost / runaway protection)
+silence_seconds = 1.2    # pause that ends the turn
+start_timeout_s = 6.0    # nothing said at all -> abort, ask again
+min_seconds     = 0.5    # never end before this (ignore the first breath)
 
 [tts]
-provider    = "openai"  # openai | local  (local => Phase 10, nur Pi 5 + AI HAT)
-format      = "pcm"     # 24 kHz mono s16le — ideal für Reverb
+provider    = "openai"  # openai | local  (local => Phase 10, Pi 5 + AI HAT only)
+format      = "pcm"     # 24 kHz mono s16le — ideal for reverb
 sample_rate = 24000
 
 [audio]
 backend            = "auto"                  # auto | alsa_softvol | portable | pipewire
-output_alsa_pcm    = "plug:respeaker_softvol" # aplay/speaker-test Ziel (softvol => Lautstärke)
-input_alsa_pcm     = "respeaker_capture"      # arecord Quelle (ReSpeaker, 16 kHz mono)
-sd_output_device   = ""                       # sounddevice-Gerät; leer => ALSA default (~/.asoundrc => softvol)
-mixer_card         = "ArrayUAC10"             # ALSA-Card-Name des ReSpeaker
-mixer_control      = "Master"                 # softvol-Control
-default_volume_pct = 15   # ReSpeaker Line-Out ist sehr "heiß"; bei Bedarf hoch (amixer -c ArrayUAC10 sset Master 25%)
+output_alsa_pcm    = "plug:respeaker_softvol" # aplay/speaker-test target (softvol => volume)
+input_alsa_pcm     = "respeaker_capture"      # arecord source (ReSpeaker, 16 kHz mono)
+sd_output_device   = ""                       # sounddevice device; empty => ALSA default (~/.asoundrc => softvol)
+mixer_card         = "ArrayUAC10"             # ALSA card name of the ReSpeaker
+mixer_control      = "Master"                 # softvol control
+default_volume_pct = 15   # ReSpeaker line-out is very "hot"; raise if needed (amixer -c ArrayUAC10 sset Master 25%)
 input_sample_rate  = 16000
-pw_sink            = ""   # Phase 8: PipeWire-Sink (leer = Default-Sink, z.B. Bluetooth)
+pw_sink            = ""   # Phase 8: PipeWire sink (empty = default sink, e.g. Bluetooth)
 
 [wakeword]
 engine    = "openwakeword"
-model     = ""        # eingebauter Name (z.B. "alexa") ODER Pfad zu eigener .onnx
-model_de  = ""        # optional: eigenes Wake-Word für Locale de (Pfad/.onnx)
-model_en  = ""        # optional: eigenes Wake-Word für Locale en
-threshold = 0.5       # höher = weniger Fehlauslöser
-follow_up = true      # nach dem Sprechen 1x ohne Wake-Word weiter zuhören
+model     = ""        # built-in name (e.g. "alexa") OR path to a custom .onnx
+model_de  = ""        # optional: custom wake word for locale de (path/.onnx)
+model_en  = ""        # optional: custom wake word for locale en
+threshold = 0.5       # higher = fewer false triggers
+follow_up = true      # after speaking, listen once more without the wake word
+
+[hardware]
+# Optional GPIO push-button to interrupt the narration (barge-in). 0 = off.
+# Wiring: button between this BCM pin and GND. See docs/SETUP_PI.md.
+# Enable: uv pip install gpiozero lgpio  (Pi-only, like the wake word).
+button_pin = 0          # BCM pin number, e.g. 17 (= physical pin 11)
+button_pull_up = true   # internal pull-up: button connects pin -> GND
+button_bounce_s = 0.08  # debounce time in seconds
 
 [fx]
 enabled              = true
-# Dezenter Hall (pedalboard Reverb). Pro Welt überschreibbar (world.fx_preset).
+# Subtle reverb (pedalboard Reverb). Overridable per world (world.fx_preset).
 reverb_room_size     = 0.55
 reverb_damping       = 0.55
 reverb_wet_level     = 0.18
 reverb_dry_level     = 0.85
-distortion_drive_db  = 0.0   # 0 = aus; leichte Verzerrung ~4–8
+distortion_drive_db  = 0.0   # 0 = off; light distortion ~4–8
 
 [story]
 short_term_memory_turns   = 12
-rag_top_k                 = 4    # weniger Fakten -> weniger Detailflut
+rag_top_k                 = 4    # fewer facts -> less detail flood
 cost_cap_usd_per_session  = 2.0
-max_substory_beats        = 5    # Länge des Mini-Spannungsbogens pro Substory
-default_complexity        = "standard"  # simple|standard|rich (pro Welt überschreibbar)
-dynamic_event_prob        = 0.15 # Wahrsch. pro Zug für eine abstrakte Story-Dynamik (subtil)
-dynamics_in_planning      = true # Architekt darf (dezent) abstrakte Wendungen einplanen
-long_term_memory          = true # Langzeitged.: aus dem Fenster fallende Züge in rollende Synopse verdichten
-synopsis_max_chars        = 900  # Maximale Länge der Synopse (knapp halten)
-synopsis_batch            = 8    # so viele alte Nachrichten auf einmal verdichten (selten => billig)
-beat_nudge_after          = 3    # nach so vielen Zügen am selben Sub-Beat sanft an advance_beat erinnern (0=aus)
-known_facts_cap           = 30   # Obergrenze Spieler-Fakten (ältester ohne Notiz wird verdrängt)
-# Erzählstil-Leitlinie (frei editierbar): steuert Einfachheit/Länge.
+max_substory_beats        = 5    # length of the mini tension arc per substory
+default_complexity        = "standard"  # simple|standard|rich (overridable per world)
+dynamic_event_prob        = 0.15 # probability per turn for an abstract story dynamic (subtle)
+dynamics_in_planning      = true # architect may (subtly) plan abstract twists
+long_term_memory          = true # long-term memory: condense turns falling out of the window into a rolling synopsis
+synopsis_max_chars        = 900  # max length of the synopsis (keep it tight)
+synopsis_batch            = 8    # this many old messages condensed at once (rare => cheap)
+beat_nudge_after          = 3    # after this many turns on the same sub-beat, gently remind advance_beat (0=off)
+known_facts_cap           = 30   # cap on player facts (oldest without a note is evicted)
+# Narration-style guideline (freely editable): controls simplicity/length.
 narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
 
 [voice_prompts]
-# Statische Menü-/System-Ansagen werden EINMALIG via TTS gerendert und als
-# Audio gecacht -> Abspielen ohne API-Aufruf (spart Tokens + Latenz).
+# Static menu/system announcements are rendered ONCE via TTS and cached as
+# audio -> playback without an API call (saves tokens + latency).
 enabled             = true
-allow_live_fallback = true   # fehlt ein Cache-Eintrag: einmalig live via TTS + nachcachen
-voice               = ""     # leer = config.models.tts_voice; Cache neu bauen bei Änderung
+allow_live_fallback = true   # if a cache entry is missing: render once live via TTS + cache it
+voice               = ""     # empty = config.models.tts_voice; rebuild the cache on change
 
 [cost]
-# Grobe Kostenschätzung (USD pro 1 Mio. Tokens) — bitte an aktuelle Preise
-# anpassen. Bei Überschreiten von story.cost_cap_usd_per_session leitet der
-# Erzähler einen ruhigen Abschluss ein.
+# Rough cost estimate (USD per 1M tokens) — please adjust to current prices.
+# When story.cost_cap_usd_per_session is exceeded, the narrator eases the
+# story to a calm close.
 enforce                 = true
 usd_per_1m_input        = 0.30
 usd_per_1m_output       = 1.20
@@ -115,9 +123,9 @@ level = "INFO"          # DEBUG | INFO | WARNING | ERROR
 file  = "data/storyteller.log"
 
 [transcripts]
-# Auch den exakten Prompt ans Erzähler-LLM (System-Prompt + Folge-Nachrichten
-# inkl. Tool-Runden) ins Transcript schreiben — im Admin ausklappbar sichtbar.
-# Default aus: macht data/transcripts/*.jsonl deutlich größer.
+# Also write the exact prompt to the narrator LLM (system prompt + follow-up
+# messages incl. tool rounds) into the transcript — expandable in the admin.
+# Off by default: makes data/transcripts/*.jsonl considerably larger.
 capture_prompts = false
 
 [web]
@@ -125,20 +133,20 @@ host = "0.0.0.0"
 port = 8080
 
 [moderation]
-# Spieler-Eingabe wird VOR der LLM-Antwort geprüft (OpenAI Moderation API).
-# Pro-Kategorie-Schwellen sind im Admin-Modul editierbar (data/moderation.json).
+# Player input is checked BEFORE the LLM reply (OpenAI Moderation API).
+# Per-category thresholds are editable in the admin module (data/moderation.json).
 enabled           = true
 model             = "omni-moderation-latest"
 default_threshold = 0.5
 
 [netcheck]
-# Kein WLAN beim Boot -> eigener AP + Captive-Portal (storyteller netcheck).
+# No Wi-Fi at boot -> own AP + captive portal (storyteller netcheck).
 enabled     = true
 iface       = "wlan0"
 timeout_s   = 45
 ap_ssid     = "storyteller-wifi"
-ap_password = "storyteller"      # WPA2, >= 8 Zeichen — bitte ändern
-portal_host = "10.42.0.1"        # NM shared-mode Gateway
+ap_password = "storyteller"      # WPA2, >= 8 chars — please change
+portal_host = "10.42.0.1"        # NM shared-mode gateway
 web_port    = 80
 
 [paths]

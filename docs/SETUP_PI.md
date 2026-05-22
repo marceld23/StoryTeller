@@ -67,6 +67,51 @@ bash scripts/install_wakeword.sh
 `install_wakeword.sh` afterwards. Without a wake word the loop falls back to
 push-to-talk / text mode (not usable under systemd, which has no stdin).
 
+## 3b. Optional: interrupt button (barge-in)
+
+A momentary push-button on a GPIO pin lets the player **interrupt the
+narration** while it speaks — the system stops, listens, and figures out what
+you want (system menu or a story turn). Optional: without it the player uses
+the wake word / web button / CLI instead.
+
+**Wiring (Pi 4, very simple — no resistor needed):**
+
+```
+   GPIO17 (pin 11) ──┐
+                     [ push-button ]
+   GND    (pin 9)  ──┘
+```
+
+- Connect one leg of the button to a free GPIO pin (default **BCM 17** =
+  physical pin 11) and the other leg to any **GND** pin (e.g. physical pin 9
+  or 6).
+- No external resistor: the firmware enables the chip's internal pull-up, so
+  the pin idles HIGH and pressing pulls it to GND.
+- Any normally-open momentary button works (breadboard tactile switch,
+  arcade button, …). Polarity doesn't matter.
+
+Pin reference: run `pinout` on the Pi, or see pinout.xyz. Avoid pins with
+special boot functions (GPIO 0/1, 14/15); 17, 22, 23, 24, 27 are safe choices.
+
+**Enable it** — install the GPIO libs (Pi-only, like the wake word) and set
+the pin in `config/config.toml`:
+
+```bash
+uv pip install gpiozero lgpio
+```
+
+```toml
+[hardware]
+button_pin = 17        # BCM number; 0 = disabled (default)
+button_pull_up = true  # internal pull-up: button wires pin -> GND
+button_bounce_s = 0.08
+```
+
+Restart the voice service; the log shows `Interrupt-Taster aktiv an GPIO 17`.
+Works with any audio output (ReSpeaker line-out **and** Bluetooth) since the
+button is independent of the sound path. (`uv pip install` survives until the
+next `uv sync` — re-run it afterwards, same as the wake word.)
+
 ## 4. Build the web UIs (admin + player)
 
 The two web backends serve their SvelteKit SPAs as static files, so build

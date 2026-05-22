@@ -21,6 +21,7 @@ import argparse
 import logging
 import sys
 import tempfile
+import threading
 import time
 
 from rich import print as rp
@@ -86,10 +87,13 @@ def _build_engine(cfg, world, *, use_rag: bool, thread_id: str) -> StoryEngine:
                        thread_id=thread_id)
 
 
-def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True):
+def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
+         interrupt=None):
     """Generate (LLM) under the wait-sound loop, then speak the result.
 
     speak=False (text/silent): only generate, no audio.
+    interrupt: optional threading.Event — playback aborts when it is set
+    (button barge-in). The caller inspects the event afterwards.
     """
     if not speak:
         return gen()
@@ -105,7 +109,7 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True):
     if out is not None:
         if leds:
             leds.speak()
-        play_array(backend, out[0], out[1])
+        play_array(backend, out[0], out[1], stop=interrupt)
     return text
 
 
@@ -141,6 +145,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     prompts = VoicePromptCache(cfg)
     stt = get_stt(cfg)
     tts = get_tts(cfg)
+
+    from storyteller_hardware.button import InterruptButton
+    button = InterruptButton(cfg)   # optional GPIO barge-in (.available)
 
     speak = not args.silent      # --silent: no audio output
     text_mode = args.text        # --text: keyboard instead of mic
@@ -192,6 +199,28 @@ def cmd_run(args: argparse.Namespace) -> int:
                            thread_id=thread)
     fx = VoiceFX(cfg, world.fx_preset)
 
+    def _arm() -> threading.Event:
+        """Fresh interrupt event, wired to the button for the next playback."""
+        ev = threading.Event()
+        if button.available:
+            button.arm(ev)
+        return ev
+
+    def _say_barge(gen) -> tuple[str, bool]:
+        """Narrate with optional button barge-in. Returns (text, interrupted).
+        On interrupt the playback stops; the caller then listens immediately
+        and classifies the player's intent (menu vs. story)."""
+        ev = _arm()
+        try:
+            text = _say(cfg, world, backend, tts, fx, leds, gen,
+                        speak=speak, interrupt=ev)
+        finally:
+            button.disarm()
+        interrupted = ev.is_set()
+        if interrupted:
+            rp("[yellow]… unterbrochen — ich höre …[/yellow]")
+        return text, interrupted
+
     def _first_narration() -> str:
         snap = engine.state()
         if snap.get("memory"):
@@ -203,6 +232,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return engine.opening()
 
     # Bridge the opening generation with the wait sound (audio mode only).
+    opening_interrupted = False
     if speak:
         out = None
         with WaitLoop(cfg, backend, world.wait_sound, leds):
@@ -213,7 +243,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         rp(f"[green][Erzähler][/green] {first}")
         if out is not None:
             leds.speak()
-            play_array(backend, out[0], out[1])
+            ev = _arm()
+            try:
+                play_array(backend, out[0], out[1], stop=ev)
+            finally:
+                button.disarm()
+            opening_interrupted = ev.is_set()
+            if opening_interrupted:
+                rp("[yellow]… unterbrochen — ich höre …[/yellow]")
     else:
         first = _first_narration()
         rp(f"[green][Erzähler][/green] {first}")
@@ -372,7 +409,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # follow-up: after the narrator speaks, listen once WITHOUT the wake word
     follow_enabled = bool(ww) and cfg.wakeword.follow_up
-    pending_follow = follow_enabled    # also lets the player answer the opening
+    # A barge-in always leads straight to listening (even if follow-up is off).
+    pending_follow = follow_enabled or opening_interrupted
     hinted = False                     # wake_hint announced ONCE per idle
     try:
         while True:
@@ -420,10 +458,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                     continue
                 if any(k in low for k in cmd_kw["quit"]):
                     break
-                reply = _say(cfg, world, backend, tts, fx, leds,
-                             lambda s=said: engine.turn(s), speak=speak)
+                reply, interrupted = _say_barge(
+                    lambda s=said: engine.turn(s))
                 rp(f"[green][Erzähler][/green] {reply}")
-                pending_follow = follow_enabled
+                # On barge-in: listen right away (no wake word) so the player
+                # can steer; the classify step below decides menu vs. story.
+                pending_follow = True if interrupted else follow_enabled
             except Exception as exc:
                 log.warning("Zug-Fehler (Loop läuft weiter): %r", exc)
                 try:
@@ -438,6 +478,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print()
         if speak:
             prompts.play("goodbye", backend)
+    button.close()
     leds.off()
     return 0
 

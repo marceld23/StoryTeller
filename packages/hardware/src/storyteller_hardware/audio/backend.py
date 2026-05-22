@@ -22,6 +22,25 @@ from ..runtime import resolve_backend_name
 
 # ---------- ALSA-Helfer (Pi/Linux) ----------
 
+def _play_proc(cmd: list[str], stop: threading.Event) -> None:
+    """Run a blocking playback command (aplay/pw-play) but terminate it as
+    soon as `stop` is set — the primitive behind interruptible playback."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    try:
+        while proc.poll() is None:
+            if stop.wait(0.1):
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                return
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+
+
 def _alsa_loop(pcm_bytes: bytes, sr: int, out_pcm: str,
                stop: threading.Event) -> None:
     """Spielt einen rohen int16-Mono-Puffer gapless in Schleife (aplay-stdin)."""
@@ -90,6 +109,14 @@ class AudioBackend(ABC):
 
     @abstractmethod
     def play_wav(self, wav_path: str) -> None: ...
+
+    def play_wav_interruptible(self, wav_path: str,
+                               stop: "threading.Event") -> None:
+        """Play a WAV but abort early when `stop` is set (barge-in).
+
+        Default = blocking play_wav (no interruption); subprocess/sounddevice
+        backends override it. Used by `play_array(..., stop=event)`."""
+        self.play_wav(wav_path)
 
     @abstractmethod
     def record_wav(self, wav_path: str, seconds: float) -> None: ...
@@ -242,6 +269,10 @@ class AlsaSoftvolBackend(AudioBackend):
         subprocess.run(["aplay", "-q", "-D", self.out_pcm, wav_path],
                         check=True)
 
+    def play_wav_interruptible(self, wav_path, stop):
+        self._have("aplay")
+        _play_proc(["aplay", "-q", "-D", self.out_pcm, wav_path], stop)
+
     def record_wav(self, wav_path: str, seconds: float) -> None:
         self._have("arecord")
         subprocess.run(
@@ -296,6 +327,21 @@ class PortableBackend(AudioBackend):
         data, sr = sf.read(wav_path, dtype="float32", always_2d=False)
         sd.play(np.clip(data * self._gain, -1.0, 1.0), sr)
         sd.wait()
+
+    def play_wav_interruptible(self, wav_path, stop):
+        import numpy as np
+        import soundfile as sf
+
+        sd = self._sd()
+        data, sr = sf.read(wav_path, dtype="float32", always_2d=False)
+        sd.play(np.clip(data * self._gain, -1.0, 1.0), sr)
+        try:
+            while sd.get_stream().active:
+                if stop.wait(0.1):
+                    sd.stop()
+                    return
+        except Exception:
+            sd.wait()
 
     def record_wav(self, wav_path: str, seconds: float) -> None:
         import soundfile as sf
@@ -378,6 +424,12 @@ class PipeWireBackend(AudioBackend):
         tgt = [] if self.sink == "@DEFAULT_AUDIO_SINK@" else \
             ["--target", self.sink]
         subprocess.run(["pw-play", *tgt, wav_path], check=True)
+
+    def play_wav_interruptible(self, wav_path, stop):
+        self._have("pw-play")
+        tgt = [] if self.sink == "@DEFAULT_AUDIO_SINK@" else \
+            ["--target", self.sink]
+        _play_proc(["pw-play", *tgt, wav_path], stop)
 
     def record_wav(self, wav_path: str, seconds: float) -> None:
         self._have("arecord")

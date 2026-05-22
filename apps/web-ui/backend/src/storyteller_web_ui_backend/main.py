@@ -398,6 +398,11 @@ async def ws_voice(websocket: WebSocket, thread_id: str,
                 if data.get("type") == "undo":
                     text = await asyncio.to_thread(engine.undo_last)
                     await _say(text)
+                elif data.get("type") == "interrupt":
+                    # Barge-in is handled client-side (the browser stops the
+                    # <audio>); the WAV was already sent, nothing to cancel
+                    # server-side. Player simply records again next.
+                    pass
 
     except WebSocketDisconnect:
         log.info("ws_voice disconnected: thread=%s", thread_id)

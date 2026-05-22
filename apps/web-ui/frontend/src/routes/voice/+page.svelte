@@ -11,6 +11,7 @@
   let connected = $state(false);
   let thinking = $state(false);
   let recording = $state(false);
+  let playing = $state(false);
   let error = $state('');
 
   let ws: WebSocket | null = null;
@@ -81,8 +82,23 @@
       const url = URL.createObjectURL(blob);
       audio?.pause();
       audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        playing = false;
+      };
+      audio.onpause = () => (playing = false);
+      audio.onplay = () => (playing = true);
       audio.play().catch(() => {});
+    }
+  }
+
+  // Barge-in: stop the narration playback (the player can then record again).
+  function stopPlayback() {
+    audio?.pause();
+    playing = false;
+    // Best-effort: tell the backend (ignored if mid-generation).
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'interrupt' }));
     }
   }
 
@@ -155,6 +171,9 @@
       >
         {recording ? '● Aufnahme – loslassen zum Senden' : '🎤 Halten zum Sprechen'}
       </button>
+      {#if playing}
+        <button class="stop" onclick={stopPlayback}>⏹ Stopp</button>
+      {/if}
     </footer>
   {/if}
 </main>
@@ -180,5 +199,9 @@
   }
   .ptt.rec { background: #e07a7a; color: #fff; }
   .ptt:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .stop {
+    width: 100%; margin-top: 0.5rem; padding: 0.6rem; font-size: 1rem; font-weight: 600;
+    background: #e07a7a; color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  }
   .error { color: #e07a7a; }
 </style>
