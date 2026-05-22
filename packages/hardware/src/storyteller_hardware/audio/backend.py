@@ -20,7 +20,7 @@ from storyteller_core.config import Config
 
 from ..runtime import resolve_backend_name
 
-# ---------- ALSA-Helfer (Pi/Linux) ----------
+# ---------- ALSA helpers (Pi/Linux) ----------
 
 def _play_proc(cmd: list[str], stop: threading.Event) -> None:
     """Run a blocking playback command (aplay/pw-play) but terminate it as
@@ -43,7 +43,7 @@ def _play_proc(cmd: list[str], stop: threading.Event) -> None:
 
 def _alsa_loop(pcm_bytes: bytes, sr: int, out_pcm: str,
                stop: threading.Event) -> None:
-    """Spielt einen rohen int16-Mono-Puffer gapless in Schleife (aplay-stdin)."""
+    """Plays a raw int16 mono buffer gaplessly in a loop (aplay stdin)."""
     if not pcm_bytes:
         return
     proc = subprocess.Popen(
@@ -208,7 +208,7 @@ class AudioBackend(ABC):
 
 
 class AlsaSoftvolBackend(AudioBackend):
-    """Pi: Lautstärke via `amixer` (softvol), I/O via aplay/arecord."""
+    """Pi: volume via `amixer` (softvol), I/O via aplay/arecord."""
 
     name = "alsa_softvol"
 
@@ -226,7 +226,7 @@ class AlsaSoftvolBackend(AudioBackend):
                     f"benötigtes Programm fehlt: {b} (apt install alsa-utils)")
 
     def prime(self) -> None:
-        """Öffnet die softvol-PCM kurz, damit das amixer-Control entsteht."""
+        """Briefly opens the softvol PCM so the amixer control is created."""
         self._have("aplay")
         subprocess.run(
             ["aplay", "-D", self.out_pcm, "-f", "S16_LE", "-r", "48000",
@@ -292,8 +292,8 @@ class AlsaSoftvolBackend(AudioBackend):
 class PortableBackend(AudioBackend):
     """PC: cross-platform via `sounddevice` (PortAudio).
 
-    Keine ALSA-PCM-Namen, kein amixer — Lautstärke ist ein Software-Gain,
-    der auf alle Wiedergaben angewendet wird. Default-Mikro/-Ausgabe des OS.
+    No ALSA PCM names, no amixer — volume is a software gain applied to all
+    playback. Uses the OS default microphone/output.
     """
 
     name = "portable"
@@ -302,9 +302,9 @@ class PortableBackend(AudioBackend):
         self.cfg = cfg
         self._gain = max(0, min(100, cfg.audio.default_volume_pct)) / 100.0
         dev = cfg.audio.sd_output_device.strip()
-        self._device = dev or None  # None => OS-Default
+        self._device = dev or None  # None => OS default
 
-    # --- intern ---
+    # --- internal ---
     def _sd(self):
         import sounddevice as sd
 
@@ -386,7 +386,7 @@ class PortableBackend(AudioBackend):
 
 
 class PipeWireBackend(AudioBackend):
-    """Phase 8: PipeWire-Sink (z.B. Bluetooth). Aufnahme bleibt am ReSpeaker."""
+    """Phase 8: PipeWire sink (e.g. Bluetooth). Recording stays on the ReSpeaker."""
 
     name = "pipewire"
 
@@ -439,7 +439,7 @@ class PipeWireBackend(AudioBackend):
              "-d", str(int(seconds)), wav_path], check=True)
 
     def loop_play(self, pcm_bytes, sr, stop):
-        # Einfacher Loop über pw-play einer temporären WAV (BT, Phase 8).
+        # Simple loop via pw-play of a temporary WAV (BT, Phase 8).
         if not pcm_bytes:
             return
         import tempfile
@@ -492,6 +492,6 @@ def get_backend(cfg: Config) -> AudioBackend:
     be = cls(cfg)
     try:
         be.set_volume(effective_volume(cfg))
-    except Exception:  # pragma: no cover - HW-/install-abhängig
+    except Exception:  # pragma: no cover - HW-/install-dependent
         pass
     return be

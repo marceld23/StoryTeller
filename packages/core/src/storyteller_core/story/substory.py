@@ -37,11 +37,11 @@ class SubstoryPlan(BaseModel):
     involved_persons: list[str] = Field(default_factory=list)
     resolution_hint: str = ""
     status: str = "active"          # active | complete
-    cursor: int = 0                 # aktueller Sub-Beat
+    cursor: int = 0                 # current sub-beat
     adjustments: list[str] = Field(default_factory=list)
     closing_summary: str = ""
 
-    # --- Beat-Navigation ---
+    # --- beat navigation ---
     def current_beat(self) -> Beat | None:
         if not self.beats:
             return None
@@ -87,7 +87,7 @@ _PLANNER_SYS = (
 
 
 class SubstoryPlanner:
-    """Der "Überleg- und Planungsschritt" für eine neue Substory (eigener LLM-Call)."""
+    """The "think-and-plan step" for a new substory (its own LLM call)."""
 
     def __init__(self, cfg: Config, cost=None):
         self.cfg = cfg
@@ -171,7 +171,7 @@ class SubstoryPlanner:
                 resolution_hint=data.get("resolution_hint", ""),
             )
         except Exception:
-            # Robuster Fallback, falls JSON/Modell zickt
+            # Robust fallback in case JSON/model misbehaves
             return SubstoryPlan(
                 title="Eine unerwartete Wendung",
                 premise=f"Eine neue Herausforderung in {world.name}.",

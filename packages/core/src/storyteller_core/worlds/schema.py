@@ -27,31 +27,31 @@ class Person(BaseModel):
 
 
 class Item(BaseModel):
-    """Gegenstand / Artefakt."""
+    """Object / artifact."""
 
     name: str
     description: str = ""
-    properties: str = ""          # Wirkung / besondere Eigenschaften
+    properties: str = ""          # effect / special properties
     tags: list[str] = Field(default_factory=list)
 
 
 class GlossaryEntry(BaseModel):
-    """Begriffserklärung — sorgt für konsistente Welt-Terminologie."""
+    """Term definition — ensures consistent world terminology."""
 
     term: str
     definition: str
 
 
 class HistoryEvent(BaseModel):
-    """Ein historisches Ereignis / Epoche der Welt."""
+    """A historical event / era of the world."""
 
-    when: str = ""                # Zeit/Epoche (frei)
+    when: str = ""                # time/era (free text)
     title: str
     description: str = ""
 
 
 class Fragment(BaseModel):
-    """Lore / Story-Hook / Ereignis-Baustein."""
+    """Lore / story hook / event building block."""
 
     title: str
     text: str
@@ -59,15 +59,15 @@ class Fragment(BaseModel):
 
 
 class Beat(BaseModel):
-    """Ein Punkt im Spannungsbogen."""
+    """A point in the tension arc."""
 
     name: str
     goal: str
-    tension: int = Field(ge=0, le=10)  # 0=ruhig … 10=Höhepunkt
+    tension: int = Field(ge=0, le=10)  # 0=calm … 10=climax
 
 
 class Blueprint(BaseModel):
-    """Bauplan: Beat-Folge + Eskalationslogik (Makro-Spannungsbogen)."""
+    """Blueprint: beat sequence + escalation logic (macro tension arc)."""
 
     premise: str
     beats: list[Beat] = Field(default_factory=list)
@@ -83,7 +83,7 @@ class RandomEntry(BaseModel):
 
 
 class RandomTable(BaseModel):
-    """Welt-spezifische, KONKRETE Zufallsliste (vom Erzähler aktiv gezogen)."""
+    """World-specific, CONCRETE random list (actively rolled by the narrator)."""
 
     name: str
     description: str = ""
@@ -91,7 +91,7 @@ class RandomTable(BaseModel):
 
 
 class FXPreset(BaseModel):
-    """Pro-Welt Stimm-Effekt (überschreibt [fx] aus config.toml)."""
+    """Per-world voice effect (overrides [fx] from config.toml)."""
 
     reverb_room_size: float | None = None
     reverb_damping: float | None = None
@@ -113,26 +113,26 @@ class Tone(BaseModel):
 
 
 class World(BaseModel):
-    # --- Kern / Beschreibung ---
+    # --- Core / description ---
     id: str
     name: str
     genre: str
-    description: str                       # Spiel-/Weltbeschreibung
+    description: str                       # game/world description
     player_role: str
-    starting_situation: str = ""           # Beschreibung der Ausgangssituation
-    narration_style: str = ""              # Erzählton (technisch)
-    voice_sample: str = ""                 # 1-2 Beispielsätze im Stil der Welt (Stil-Anker)
-    mood: str = ""                         # Grundstimmung
-    ambience: str = ""                     # Ambiente / Sinneseindrücke
-    magic_physics: str = ""                # Physik- bzw. Magiesystem (Regeln)
+    starting_situation: str = ""           # description of the starting situation
+    narration_style: str = ""              # narrative tone (technical)
+    voice_sample: str = ""                 # 1-2 example sentences in the world's style (style anchor)
+    mood: str = ""                         # base mood
+    ambience: str = ""                     # ambience / sensory impressions
+    magic_physics: str = ""                # physics or magic system (rules)
 
-    # --- Dramaturgie-Steuerung (pro Welt) ---
+    # --- Dramaturgy control (per world) ---
     complexity: str = "standard"           # simple | standard | rich
-    story_patterns: list[str] = Field(default_factory=list)  # leer = nach complexity
-    audience: str = "erwachsene"           # Zielgruppe / Alter, z.B. "12+"
+    story_patterns: list[str] = Field(default_factory=list)  # empty = by complexity
+    audience: str = "erwachsene"           # target group / age, e.g. "12+"
     tone: Tone = Field(default_factory=Tone)
 
-    # --- Strukturierter Weltinhalt ---
+    # --- Structured world content ---
     places: list[Place] = Field(default_factory=list)
     persons: list[Person] = Field(default_factory=list)
     items: list[Item] = Field(default_factory=list)
@@ -140,10 +140,10 @@ class World(BaseModel):
     history: list[HistoryEvent] = Field(default_factory=list)
     fragments: list[Fragment] = Field(default_factory=list)
 
-    # --- Dramaturgie & Spielmechanik ---
+    # --- Dramaturgy & game mechanics ---
     blueprint: Blueprint
     random_tables: list[RandomTable] = Field(default_factory=list)
 
-    # --- Präsentation ---
+    # --- Presentation ---
     wait_sound: str = ""
     fx_preset: FXPreset = Field(default_factory=FXPreset)

@@ -30,7 +30,7 @@ class OpenAISTT(STT):
         client = get_stt_client(self.cfg)
         log.info("STT: model=%s endpoint=%s", self.cfg.models.stt,
                  self.cfg.models.stt_endpoint.base_url or "OpenAI")
-        # STT-Sprache folgt der Locale (de/en); überschreibt stt.language.
+        # STT language follows the locale (de/en); overrides stt.language.
         lang = norm(self.cfg.general.locale)
         with open(wav_path, "rb") as f:
             r = client.audio.transcriptions.create(
@@ -42,7 +42,7 @@ class OpenAISTT(STT):
 
 
 class LocalWhisperSTT(STT):
-    """Phase 10 (optional): lokales Whisper — NUR Pi 5 + AI HAT."""
+    """Phase 10 (optional): local Whisper — Pi 5 + AI HAT ONLY."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg

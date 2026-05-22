@@ -1,5 +1,5 @@
-"""Voice-Prompt-Cache: feste Ansagen einmalig via TTS rendern, dann ohne API
-abspielen (spart Tokens + Latenz). Pro Locale getrennt:
+"""Voice-prompt cache: render fixed announcements once via TTS, then play
+them back without the API (saves tokens + latency). Kept per locale:
 data/voice_prompts/<locale>/*.wav (+ manifest.json).
 """
 
@@ -40,7 +40,7 @@ class VoicePromptCache:
                 or m.get("texts") != self.prompts)
 
     def build(self, force: bool = False) -> list[str]:
-        """Rendert fehlende (oder bei force/Änderung alle) Ansagen via TTS."""
+        """Renders missing announcements (or all on force/change) via TTS."""
         from .tts import get_tts
 
         rebuild = force or self._stale()

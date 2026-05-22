@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 
-# (Gewicht, Beschreibung). Höheres Gewicht = häufiger.
+# (weight, description). Higher weight = more frequent.
 STORY_DYNAMICS: list[tuple[int, str]] = [
     (5, "Etwas Negatives, Unvorhergesehenes geschieht."),
     (4, "Etwas Positives, Unvorhergesehenes geschieht."),

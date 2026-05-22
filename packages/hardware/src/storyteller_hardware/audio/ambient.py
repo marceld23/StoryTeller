@@ -24,7 +24,7 @@ def _norm(x: np.ndarray, peak: float) -> np.ndarray:
 
 
 def _seamless(buf: np.ndarray, sr: int, xfade: float = 0.4) -> np.ndarray:
-    """Erzeugt eine in sich loopbare Datei: Ende in den Anfang überblenden."""
+    """Produces a self-loopable file: crossfade the end into the beginning."""
     x = int(sr * xfade)
     if len(buf) <= 2 * x:
         return buf
@@ -38,22 +38,22 @@ def _seamless(buf: np.ndarray, sr: int, xfade: float = 0.4) -> np.ndarray:
 def _space(dur: float, sr: int) -> np.ndarray:
     n = int(dur * sr)
     t = np.arange(n) / sr
-    # Drones: ganzzahlige Zyklen über dur => von sich aus periodisch
+    # Drones: integer number of cycles over dur => inherently periodic
     sig = np.zeros(n)
     for f, a in ((55.0, 1.0), (110.0, 0.5), (164.0, 0.22)):
         f = round(f * dur) / dur
         sig += a * np.sin(2 * np.pi * f * t)
-    # Schwebung
+    # Beating
     fb = round(56.0 * dur) / dur
     sig += 0.4 * np.sin(2 * np.pi * fb * t)
-    # langsames Amplituden-LFO
+    # slow amplitude LFO
     lfo = 0.75 + 0.25 * np.sin(2 * np.pi * (1.0 / dur) * t)
-    # leises gefiltertes Rauschen
+    # quiet filtered noise
     rng = np.random.default_rng(42)
     noise = rng.standard_normal(n)
     noise = np.convolve(noise, np.ones(220) / 220, mode="same")
     sig = sig * lfo + 0.15 * noise
-    # zarter Shimmer
+    # delicate shimmer
     sig += 0.04 * np.sin(2 * np.pi * (round(1320 * dur) / dur) * t) * lfo
     return _norm(sig, 0.05)
 
@@ -62,11 +62,11 @@ def _forest(dur: float, sr: int) -> np.ndarray:
     n = int(dur * sr)
     t = np.arange(n) / sr
     rng = np.random.default_rng(7)
-    # Wind: bandbegrenztes, langsam moduliertes Rauschen
+    # Wind: band-limited, slowly modulated noise
     wind = rng.standard_normal(n)
     wind = np.convolve(wind, np.ones(400) / 400, mode="same")
     wind *= 0.6 + 0.4 * np.sin(2 * np.pi * (1.0 / dur) * t)
-    # warmer Pad-Akkord (A / C# / E -> A-Dur, ganzzahlige Zyklen)
+    # warm pad chord (A / C# / E -> A major, integer cycles)
     pad = np.zeros(n)
     for f, a in ((110.0, 1.0), (138.59, 0.5), (164.81, 0.5), (220.0, 0.3)):
         f = round(f * dur) / dur
@@ -78,7 +78,7 @@ def _forest(dur: float, sr: int) -> np.ndarray:
 
 _MOODS = {"space": _space, "forest": _forest}
 
-# Welt-Genre/-Id -> Mood
+# world genre/id -> mood
 GENRE_MOOD = {
     "science-fiction": "space", "sci-fi": "space", "scifi": "space",
     "high-fantasy": "forest", "fantasy": "forest",

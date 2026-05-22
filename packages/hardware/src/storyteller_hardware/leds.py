@@ -22,7 +22,7 @@ class LedRing:
             if self._ring is not None:
                 self._ring.set_brightness(10)
                 self.available = True
-        except Exception as exc:  # pragma: no cover - hardware/permission abhängig
+        except Exception as exc:  # pragma: no cover - hardware/permission dependent
             self._last_error = repr(exc)
 
     def _safe(self, method: str, *args) -> None:
@@ -33,7 +33,7 @@ class LedRing:
         except Exception:
             pass
 
-    # Semantische Zustände -> pixel_ring-Muster
+    # Semantic states -> pixel_ring patterns
     def idle(self) -> None: self._safe("off")
     def wake(self) -> None: self._safe("wakeup")
     def listen(self) -> None: self._safe("listen")

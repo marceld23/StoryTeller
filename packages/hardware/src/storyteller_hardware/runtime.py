@@ -51,7 +51,7 @@ def effective_volume(cfg: Config) -> int:
 
 @lru_cache
 def _respeaker_present() -> bool:
-    """ReSpeaker USB Mic Array v2.0 vorhanden? (ALSA-Card oder USB-ID)."""
+    """ReSpeaker USB Mic Array v2.0 present? (ALSA card or USB ID)."""
     try:
         cards = Path("/proc/asound/cards")
         if cards.exists():
@@ -137,7 +137,7 @@ def apply_model_overrides(cfg: Config) -> None:
 
 
 def resolve_profile(cfg: Config) -> str:
-    """Liefert 'pi' oder 'pc' (auto-erkannt, falls profile=auto)."""
+    """Returns 'pi' or 'pc' (auto-detected if profile=auto)."""
     p = (cfg.runtime.profile or "auto").lower()
     if p in ("pi", "pc"):
         return p

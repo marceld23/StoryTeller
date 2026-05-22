@@ -17,7 +17,7 @@ class RandomEvents:
     def roll(self, table_name: str) -> str:
         t = self._tables.get(table_name)
         if t is None:
-            # Fallback: nimm irgendeine Tabelle, sonst neutrales Ereignis
+            # Fallback: take any table, otherwise a neutral event
             if not self._tables:
                 return "Nichts Besonderes geschieht."
             t = self.rng.choice(list(self._tables.values()))

@@ -14,7 +14,7 @@ import threading
 from storyteller_core.config import Config
 
 DEFAULT_MODEL = "hey_jarvis"
-FRAME_LEN = 1280  # 80 ms @ 16 kHz (openWakeWord-Frame)
+FRAME_LEN = 1280  # 80 ms @ 16 kHz (openWakeWord frame)
 
 
 class WakeWord:
@@ -33,7 +33,7 @@ class WakeWord:
             self.model = Model(inference_framework="onnx",
                                wakeword_models=[name])
             self.available = True
-        except Exception as exc:  # pragma: no cover - install-/HW-abhängig
+        except Exception as exc:  # pragma: no cover - install-/HW-dependent
             self._err = repr(exc)
 
     def listen_blocking(self) -> bool:
