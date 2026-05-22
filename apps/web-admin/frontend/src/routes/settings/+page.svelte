@@ -22,9 +22,12 @@
   const NUMS = ['llm_temperature', 'planner_temperature', 'gen_temperature',
                 'frequency_penalty', 'presence_penalty'];
   const PURPOSES = ['story', 'planner', 'gen', 'stt', 'tts', 'embedding'];
-  let names: Record<string, string> = $state({});
-  let nums: Record<string, string> = $state({});
-  let eps: Record<string, { base_url: string; api_key: string }> = $state({});
+  // Initialised up-front so the template can render before onMount seeds them.
+  let names: Record<string, string> = $state(Object.fromEntries(NAMES.map((k) => [k, ''])));
+  let nums: Record<string, string> = $state(Object.fromEntries(NUMS.map((k) => [k, ''])));
+  let eps: Record<string, { base_url: string; api_key: string }> = $state(
+    Object.fromEntries(PURPOSES.map((p) => [p, { base_url: '', api_key: '' }]))
+  );
   let rawMode = $state(false);
   let modelsRaw = $state('');
 
