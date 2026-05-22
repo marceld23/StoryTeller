@@ -359,6 +359,10 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
     if use_tools:
         kw["tools"] = TOOLS
 
+    if ctx.transcript and getattr(cfg, "transcripts", None) \
+            and cfg.transcripts.capture_prompts:
+        ctx.transcript.prompt(cfg.models.story_llm, messages, tools=use_tools)
+
     try:
         resp = get_client(cfg).chat.completions.create(**kw)
     except Exception as exc:

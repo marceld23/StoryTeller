@@ -50,3 +50,16 @@ class Transcript:
     def assistant(self, text: str, state: str = "", cost: float = 0.0) -> None:
         self._w({"type": "assistant", "text": text, "state": state,
                  "cost": round(float(cost), 4)})
+
+    def prompt(self, model: str, messages: list[dict], tools: bool = False) -> None:
+        """The exact request sent to the narrator LLM: system prompt + the
+        follow-up messages (memory + tool round-trips). Long content fields
+        are trimmed to keep the transcript file manageable."""
+        def _trim(m: dict) -> dict:
+            m = dict(m)
+            c = m.get("content")
+            if isinstance(c, str) and len(c) > 6000:
+                m["content"] = c[:6000] + " …[gekürzt]"
+            return m
+        self._w({"type": "prompt", "model": model, "tools": tools,
+                 "messages": [_trim(m) for m in messages]})

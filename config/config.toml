@@ -102,6 +102,12 @@ usd_per_1m_embedding    = 0.02
 level = "INFO"          # DEBUG | INFO | WARNING | ERROR
 file  = "data/storyteller.log"
 
+[transcripts]
+# Auch den exakten Prompt ans Erzähler-LLM (System-Prompt + Folge-Nachrichten
+# inkl. Tool-Runden) ins Transcript schreiben — im Admin ausklappbar sichtbar.
+# Default aus: macht data/transcripts/*.jsonl deutlich größer.
+capture_prompts = false
+
 [web]
 host = "0.0.0.0"
 port = 8080

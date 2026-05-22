@@ -193,6 +193,14 @@ class VoicePromptsCfg(BaseModel):
     voice: str = ""  # empty => models.tts_voice
 
 
+class TranscriptsCfg(BaseModel):
+    # Also record the exact prompt sent to the narrator LLM each call
+    # (system prompt + follow-up messages incl. tool round-trips) into the
+    # transcript, viewable (collapsed) in the admin. Off by default — it
+    # makes data/transcripts/*.jsonl noticeably larger.
+    capture_prompts: bool = False
+
+
 class PathsCfg(BaseModel):
     worlds_dir: str = "data/worlds"
     saves_dir: str = "data/saves"
@@ -218,6 +226,7 @@ class Config(BaseModel):
     moderation: ModerationCfg = ModerationCfg()
     netcheck: NetcheckCfg = NetcheckCfg()
     voice_prompts: VoicePromptsCfg = VoicePromptsCfg()
+    transcripts: TranscriptsCfg = TranscriptsCfg()
     paths: PathsCfg = PathsCfg()
 
     openai_api_key: str = ""

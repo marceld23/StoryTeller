@@ -24,7 +24,15 @@
   });
 
   function str(v: unknown): string {
-    return typeof v === 'string' ? v : JSON.stringify(v);
+    return typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+  }
+  function asArr(v: unknown): Record<string, unknown>[] {
+    return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
+  }
+  function body(m: Record<string, unknown>): string {
+    if (typeof m.content === 'string' && m.content) return m.content;
+    if (m.tool_calls) return str(m.tool_calls);
+    return '';
   }
 </script>
 
@@ -49,6 +57,17 @@
           <pre>args: {str(e.args)}
 result: {str(e.result)}</pre>
         </details>
+      {:else if e.type === 'prompt'}
+        <details class="card prompt">
+          <summary>📤 Prompt an LLM — {str(e.model)} ·
+            {asArr(e.messages).length} Nachrichten{e.tools ? ' · +tools' : ''}</summary>
+          {#each asArr(e.messages) as m, j (j)}
+            <div class="msg">
+              <b>{str(m.role)}{m.tool_calls ? ' (tool_calls)' : ''}</b>
+              <pre>{body(m)}</pre>
+            </div>
+          {/each}
+        </details>
       {:else if e.type === 'moderation'}
         <div class="card mod" class:bad={!e.ok}>
           🛡 Moderation: {e.ok ? 'OK' : 'BLOCKIERT'}
@@ -71,6 +90,9 @@ result: {str(e.result)}</pre>
   .card.tool { border-left: 3px solid #d0a040; }
   .card.mod { border-left: 3px solid #7aa37a; }
   .card.mod.bad { border-left-color: #c25450; }
+  .card.prompt { border-left: 3px solid #9a7ad0; }
+  .msg { margin: 0.4rem 0; border-top: 1px solid var(--border); padding-top: 0.3rem; }
+  .msg b { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
   .note { color: var(--muted); }
   pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.85rem; }
   .error { color: #c25450; }
