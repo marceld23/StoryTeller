@@ -186,14 +186,22 @@ prompt for it on a 401. Theme: dark default + light, toggle persisted.
 
 ## 9. External services (OpenAI)
 
-Two clients ([oai.py](packages/core/src/storyteller_core/oai.py)): the
-**live-loop** client (`timeout=30`, `max_retries=5`) for narrator/STT/TTS/
-moderation, and the **generator** client (`get_gen_client`, `timeout=180`,
-`max_retries=1`) for the slow world-generation / suggestion calls. Models
-(all configurable, with admin overrides): `story_llm` (narrator),
-`planner_llm` (architect + summariser; default = story_llm), `gen_llm`
-(world/content generation; default the larger model), `stt`, `tts`,
-`embedding`, `moderation`.
+[oai.py](packages/core/src/storyteller_core/oai.py) builds **one client per
+purpose** (`get_chat_client(role)` for story/planner/gen, plus
+`get_stt/tts/embedding_client`; `get_client` for moderation + default). The
+`gen` client uses a long timeout (180 s, 1 retry); the rest are
+latency-tuned (30 s, 5 retries). Models (all configurable, with admin
+overrides in `data/models.json`): `story_llm` (narrator), `planner_llm`
+(architect + summariser; default = story_llm), `gen_llm` (world/content
+generation; default the larger model), `stt`, `tts`, `embedding`,
+`moderation`; **temperature per role** (narrator/planner/gen).
+
+**Custom endpoints:** each purpose has an optional `<purpose>_endpoint`
+(`base_url` + `api_key`, empty = OpenAI), so any call type can point at a
+self-hosted OpenAI-compatible server (vLLM / llama.cpp / Ollama / LM Studio)
+independently. Moderation always uses OpenAI. Client cache keys on
+`(api_key, base_url, timeout, retries)`. See
+[docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md).
 
 ---
 

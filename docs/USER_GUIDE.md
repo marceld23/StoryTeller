@@ -66,18 +66,10 @@ Thresholds are configurable in the admin website (**Settings → Moderation**).
 
 ## Admin website
 
-`http://<host>:8080` (Pi) or `http://localhost:8080` (PC):
-
-- **Worlds:** create & edit worlds with a structured editor — core fields,
-  tone sliders, blueprint/beats, and content lists (places, persons, items,
-  glossary, history, fragments, random tables), each with **✨ per-piece LLM
-  suggest**; "RAG reindex" after changes.
-- **Generate (🧙):** build a whole world from one prompt (runs as a job with
-  a live status page, then opens the new world).
-- **Transcripts:** played stories as chat transcripts, including every LLM
-  tool call + result and the moderation outcome.
-- **Settings:** model names + narration params, audio backend, moderation
-  thresholds.
+`http://<host>:8080` (Pi) or `http://localhost:8080` (PC) — create/edit
+worlds, generate worlds from a prompt, view transcripts, and configure
+models / endpoints / audio / moderation. Full walkthrough:
+[ADMIN_GUIDE.md](ADMIN_GUIDE.md).
 
 ## Per-world dramaturgy (configurable in the admin)
 

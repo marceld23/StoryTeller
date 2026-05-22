@@ -13,6 +13,7 @@
   let audioBackend: string = $state('auto');
   let audioPwSink: string = $state('');
   let moderation: ModerationSettings | null = $state(null);
+  let modEnabled: boolean = $state(true);
   let moderationRaw: string = $state('');
   let error: string = $state('');
   let status: string = $state('');
@@ -66,7 +67,10 @@
       audioBackend = String((audio.overrides as { backend?: string })?.backend ?? audio.default_backend ?? 'auto');
       audioPwSink = String((audio.overrides as { pw_sink?: string })?.pw_sink ?? '');
       moderation = await getSettings<ModerationSettings>('moderation');
-      moderationRaw = JSON.stringify(moderation.overrides ?? {}, null, 2);
+      const mov = (moderation.overrides ?? {}) as Record<string, unknown>;
+      modEnabled = (mov.enabled as boolean | undefined) ?? moderation.enabled_default;
+      const { enabled: _omit, ...rest } = mov;
+      moderationRaw = JSON.stringify(rest, null, 2);
     } catch (e) {
       error = String(e);
     }
@@ -96,8 +100,13 @@
 
   async function saveModeration() {
     error = ''; status = '';
-    try { await putSettings('moderation', JSON.parse(moderationRaw)); status = 'Moderation gespeichert.'; }
-    catch (e) { error = `Moderation: ${e}`; }
+    try {
+      const thresholds = moderationRaw.trim() ? JSON.parse(moderationRaw) : {};
+      delete (thresholds as Record<string, unknown>).enabled;
+      await putSettings('moderation', { enabled: modEnabled, ...thresholds });
+      status = modEnabled ? 'Moderation gespeichert (aktiv).'
+                          : 'Moderation gespeichert — DEAKTIVIERT.';
+    } catch (e) { error = `Moderation: ${e}`; }
   }
 
   function def(k: string): string { return String(defaults[k] ?? ''); }
@@ -166,8 +175,15 @@
 <section>
   <h2>Moderation</h2>
   {#if moderation}
-    <p class="hint">Default: enabled={String(moderation.enabled_default)}, threshold={moderation.default_threshold}</p>
-    <textarea bind:value={moderationRaw} rows="8"></textarea>
+    <label class="onoff">
+      <input type="checkbox" bind:checked={modEnabled} />
+      Moderation aktiviert
+      {#if !modEnabled}<span class="warn"> — Eingaben werden NICHT geprüft</span>{/if}
+    </label>
+    <p class="hint">Default: enabled={String(moderation.enabled_default)},
+      threshold={moderation.default_threshold}. Schwellen pro Kategorie als JSON
+      (z. B. <code>{'{'}"default":0.5,"categories":{'{'}"violence":0.7{'}'}{'}'}</code>):</p>
+    <textarea bind:value={moderationRaw} rows="6"></textarea>
     <div class="actions"><button onclick={saveModeration}>Speichern</button></div>
   {/if}
 </section>
@@ -185,6 +201,9 @@
   .eplabel { font-size: 0.85rem; color: var(--muted); }
   textarea { width: 100%; box-sizing: border-box; }
   .hint { color: var(--muted); font-size: 0.9rem; margin: 0.3rem 0; }
+  .onoff { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: var(--fg); }
+  .onoff input { width: auto; }
+  .warn { color: #c25450; }
   .error { color: #c25450; }
   .ok { color: #4a9e4f; }
   .actions { margin-top: 0.6rem; }

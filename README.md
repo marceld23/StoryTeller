@@ -67,8 +67,11 @@ the same build works via `localhost`, the Pi's IP, or a hostname.
   (browser `MediaRecorder` → WS `/ws/voice/{thread_id}` → server STT/TTS).
 - **Admin**: structured world editor (core fields, tone sliders, blueprint,
   content lists with ✨ per-piece LLM suggest, random tables), world
-  generation (async job + polling), RAG reindex, transcripts viewer,
-  settings (models / audio backend / moderation thresholds).
+  generation (async job + polling), RAG reindex, transcripts viewer, and
+  settings — per-role models + temperatures and per-purpose **custom
+  OpenAI-compatible endpoints** (self-hosted LLM/STT/TTS/embeddings), audio
+  backend, moderation thresholds. Full walkthrough:
+  [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md).
 
 **Frontend development** (hot reload, talks to the running backend via
 `VITE_BACKEND`): `cd apps/web-ui/frontend && yarn dev` (port 5173;
@@ -174,6 +177,7 @@ viewable in the admin UI (`/transcripts`).
 - [docs/SETUP_PI.md](docs/SETUP_PI.md) — Raspberry Pi + ReSpeaker
 - [docs/SETUP_PC.md](docs/SETUP_PC.md) — PC setup (no Pi/no ReSpeaker)
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to play
+- [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) — admin frontend (worlds, generation, transcripts, model/endpoint settings)
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — dependency licenses
 
 ---
