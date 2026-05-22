@@ -48,7 +48,6 @@ log = logging.getLogger("storyteller.web_ui")
 app = FastAPI(title="StoryTeller Play")
 
 _CFG = load_config()
-_TOKEN = _CFG.web.auth_token
 
 # Same-origin in production (SPA served by this backend); allow-list covers
 # `yarn dev`. Tighten via web.allowed_origins.
@@ -63,22 +62,25 @@ app.add_middleware(
 
 @app.middleware("http")
 async def _auth(request, call_next):
-    """Shared-token gate for /api/* (except /api/health). Active only when
-    STORYTELLER_WEB_TOKEN is set. WebSockets authenticate via ?token=."""
+    """Token gate for /api/* (except /api/health). Active only when
+    STORYTELLER_WEB_TOKEN is set; read live so .env changes apply without a
+    restart. WebSockets authenticate via ?token=."""
     from fastapi.responses import JSONResponse
 
+    token = load_config().web.auth_token
     p = request.url.path
-    if _TOKEN and p.startswith("/api/") and p != "/api/health":
-        if request.headers.get("authorization", "") != f"Bearer {_TOKEN}":
+    if token and p.startswith("/api/") and p != "/api/health":
+        if request.headers.get("authorization", "") != f"Bearer {token}":
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
     return await call_next(request)
 
 
 def _ws_authorized(websocket) -> bool:
     """WS auth via ?token= query (browsers can't set WS headers)."""
-    if not _TOKEN:
+    token = load_config().web.auth_token
+    if not token:
         return True
-    return websocket.query_params.get("token", "") == _TOKEN
+    return websocket.query_params.get("token", "") == token
 
 
 def _cfg():

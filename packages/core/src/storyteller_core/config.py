@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import tomllib
-from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -179,9 +178,12 @@ class LoggingCfg(BaseModel):
 class WebCfg(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8080
-    # Optional shared-token auth for the web backends. Empty = disabled
-    # (open LAN). Set via env STORYTELLER_WEB_TOKEN (kept out of the repo).
+    # Optional token auth for the web backends. Empty = disabled (open LAN).
+    # auth_token (env STORYTELLER_WEB_TOKEN) gates the player UI; admin_token
+    # (env STORYTELLER_ADMIN_TOKEN) gates the admin UI, falling back to
+    # auth_token when unset. Kept out of the repo (set in .env).
     auth_token: str = ""
+    admin_token: str = ""
     # Cross-origin allow-list. The built SPA is served same-origin (needs no
     # CORS); these cover `yarn dev`. Tighten/extend as needed.
     allowed_origins: list[str] = [
@@ -262,10 +264,33 @@ class Config(BaseModel):
         return ROOT
 
 
-@lru_cache
-def load_config(config_path: str | None = None) -> Config:
-    """Load configuration (cached). config_path optionally overrides."""
-    load_dotenv(ROOT / ".env")
+# Files whose change should rebuild the config (so admin/.env edits apply
+# without restarting the services). moderation.json / settings.json are read
+# live elsewhere and don't need to be watched here.
+def _watch_files(config_path: str | None) -> list[Path]:
+    return [
+        Path(config_path) if config_path else ROOT / "config" / "config.toml",
+        ROOT / "data" / "models.json",
+        ROOT / "data" / "audio.json",
+        ROOT / ".env",
+    ]
+
+
+def _watch_sig(config_path: str | None) -> tuple:
+    sig = []
+    for p in _watch_files(config_path):
+        try:
+            sig.append((str(p), p.stat().st_mtime_ns))
+        except OSError:
+            sig.append((str(p), 0))
+    return tuple(sig)
+
+
+_CFG_CACHE: dict = {}
+
+
+def _build_config(config_path: str | None) -> Config:
+    load_dotenv(ROOT / ".env", override=True)
     cfg_file = Path(config_path) if config_path else ROOT / "config" / "config.toml"
     data: dict = {}
     if cfg_file.exists():
@@ -273,8 +298,28 @@ def load_config(config_path: str | None = None) -> Config:
     cfg = Config(**data)
     cfg.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
     cfg.web.auth_token = os.environ.get("STORYTELLER_WEB_TOKEN", cfg.web.auth_token)
+    cfg.web.admin_token = (os.environ.get("STORYTELLER_ADMIN_TOKEN", "")
+                           or cfg.web.admin_token or cfg.web.auth_token)
     _apply_model_overrides(cfg)
     return cfg
+
+
+def load_config(config_path: str | None = None) -> Config:
+    """Load configuration. Rebuilt automatically when config.toml, the
+    data/*.json runtime overrides, or .env change — so admin edits and key
+    changes apply WITHOUT restarting the services. Between changes it returns
+    the same cached object (a few stat() calls per lookup)."""
+    key = config_path or "__default__"
+    sig = _watch_sig(config_path)
+    cached = _CFG_CACHE.get(key)
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+    cfg = _build_config(config_path)
+    _CFG_CACHE[key] = (sig, cfg)
+    return cfg
+
+
+load_config.cache_clear = _CFG_CACHE.clear  # test compatibility
 
 
 def _apply_model_overrides(cfg: Config) -> None:

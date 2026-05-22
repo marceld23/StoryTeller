@@ -185,6 +185,11 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
 
 def init_turn(state: dict, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
+    # Pick up admin/.env changes (models, endpoints, temperatures, key)
+    # without restarting: load_config rebuilds only when a watched file
+    # changed, so this is a few stat() calls per turn otherwise.
+    from ..config import load_config
+    ctx.cfg = load_config()
     out: dict = dict(_TURN_DEFAULTS)
     # Persist session defaults if missing
     if "memory" not in state:

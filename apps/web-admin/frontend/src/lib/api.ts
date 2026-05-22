@@ -42,7 +42,7 @@ async function afetch(url: string, init: RequestInit = {}): Promise<Response> {
   const r = await fetch(url, { ...init, headers });
   if (r.status === 401) {
     const entered = typeof window !== 'undefined'
-      ? window.prompt('Zugriffstoken (STORYTELLER_WEB_TOKEN):') : null;
+      ? window.prompt('Admin-Passwort (STORYTELLER_ADMIN_TOKEN):') : null;
     if (entered) {
       try { localStorage.setItem('st-token', entered); } catch { /* ignore */ }
       location.reload();

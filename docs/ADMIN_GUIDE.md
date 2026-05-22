@@ -13,11 +13,14 @@ settings. It is a SvelteKit SPA served by its FastAPI backend
   (or `uv run --package storyteller-web-admin-backend storyteller-web-admin`).
 - **Theme:** ☀️/🌙 toggle (bottom-right); dark is the default.
 
-## Access control (optional)
+## Access control (admin password)
 
-If `STORYTELLER_WEB_TOKEN` is set in `.env`, every `/api/*` call needs that
-token. The SPA prompts for it on the first 401 and stores it in the browser.
-Empty/unset = open on the LAN (the default). See [README](../README.md#production-deploy-systemd).
+Set **`STORYTELLER_ADMIN_TOKEN`** in `.env` to require a password for the
+admin frontend; every `/api/*` call then needs it. The SPA prompts for it on
+the first 401 and remembers it in the browser. Empty/unset = open on the LAN
+(falls back to `STORYTELLER_WEB_TOKEN` if only that is set). The player UI
+(:8090) uses `STORYTELLER_WEB_TOKEN` separately. Changes take effect
+immediately — no restart. See [README](../README.md#production-deploy-systemd).
 
 ## Pages
 

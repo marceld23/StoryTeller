@@ -46,13 +46,10 @@ from .jobs import JobRegistry
 
 log = logging.getLogger("storyteller.web_admin")
 
-_CFG = load_config()
-_TOKEN = _CFG.web.auth_token
-
 app = FastAPI(title="StoryTeller Admin")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_CFG.web.allowed_origins,
+    allow_origins=load_config().web.allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,14 +58,16 @@ app.add_middleware(
 
 @app.middleware("http")
 async def _auth(request, call_next):
-    """Shared-token gate. Active only when STORYTELLER_WEB_TOKEN is set.
-    Protects /api/* (except /api/health); the static SPA loads freely and
-    sends the token on its API calls."""
+    """Admin password gate. Active only when an admin token is set
+    (STORYTELLER_ADMIN_TOKEN, or STORYTELLER_WEB_TOKEN as fallback). Read
+    live, so changing .env applies without restart. Protects /api/* (except
+    /api/health); the static SPA loads freely and sends the token."""
     from fastapi.responses import JSONResponse
 
+    token = load_config().web.admin_token
     p = request.url.path
-    if _TOKEN and p.startswith("/api/") and p != "/api/health":
-        if request.headers.get("authorization", "") != f"Bearer {_TOKEN}":
+    if token and p.startswith("/api/") and p != "/api/health":
+        if request.headers.get("authorization", "") != f"Bearer {token}":
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
     return await call_next(request)
 
@@ -299,9 +298,9 @@ def generate_world(payload: GeneratePayload) -> dict:
     prompt = (payload.prompt or "").strip()
     if not prompt:
         raise HTTPException(422, "prompt is empty")
-    if len(prompt) > _CFG.web.max_prompt_chars:
-        raise HTTPException(413, f"prompt too long "
-                                 f"(max {_CFG.web.max_prompt_chars} chars)")
+    max_prompt = load_config().web.max_prompt_chars
+    if len(prompt) > max_prompt:
+        raise HTTPException(413, f"prompt too long (max {max_prompt} chars)")
 
     cfg = _cfg()
     loc = norm(cfg.general.locale)
