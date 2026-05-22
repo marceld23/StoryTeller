@@ -321,6 +321,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     try:
         while True:
             leds.idle()
+            # Pick up admin/.env changes to STT/TTS (model + endpoint) without
+            # a restart: rebuild from a fresh config each idle cycle. Cheap —
+            # the underlying OpenAI clients are cached per (key, base_url).
+            cfg = load_config()
+            stt = get_stt(cfg)
+            tts = get_tts(cfg)
             try:
                 if text_mode:
                     said = input("Du: ").strip()

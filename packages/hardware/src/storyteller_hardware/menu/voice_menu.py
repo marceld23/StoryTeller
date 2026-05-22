@@ -36,6 +36,7 @@ class VoiceMenu:
         self.speak = speak
         self.locale = norm(cfg.general.locale)
         self.keywords = world_keywords(self.locale)
+        self._menu_wav: str | None = None  # cached dynamic world-list audio
         self._load_kw = (("laden", "spielstand") if self.locale == "de"
                          else ("load", "save game", "saved game"))
 
@@ -52,6 +53,34 @@ class VoiceMenu:
             except Exception:
                 continue
         return out
+
+    def _play_choose(self, worlds: list[dict]) -> None:
+        """Announce the available worlds by name (synthesised once). Falls
+        back to the static cached prompt if TTS is unavailable."""
+        if self._menu_wav is None:
+            names = ", ".join(w["name"] for w in worlds)
+            text = (f"Welche Welt möchtest du spielen? Verfügbar sind: {names}."
+                    if self.locale == "de"
+                    else f"Which world would you like to play? Available: {names}.")
+            try:
+                import tempfile
+
+                import numpy as np
+                import soundfile as sf
+                from storyteller_voice.tts import get_tts
+
+                audio, sr = get_tts(self.cfg).synthesize(text)
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
+                    path = t.name
+                sf.write(path, np.clip(audio, -1, 1).astype(np.float32), sr,
+                         subtype="PCM_16")
+                self._menu_wav = path
+            except Exception:
+                self._menu_wav = ""  # cache failure -> static fallback
+        if self._menu_wav:
+            self.backend.play_wav(self._menu_wav)
+        else:
+            self.prompts.play("choose_world", self.backend)
 
     def _ask(self, seconds: float = 4.0) -> str:
         if self.leds:
@@ -117,8 +146,8 @@ class VoiceMenu:
                     time.sleep(2)
                     continue
             # Prompt + listen: for the active rounds, and again right after
-            # the wake word wakes us.
-            self.prompts.play("choose_world", self.backend)
+            # the wake word wakes us. Announces all available worlds.
+            self._play_choose(worlds)
             said = self._ask()
             if active_listens > 0:
                 active_listens -= 1

@@ -133,17 +133,25 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
 def cmd_info(_args: argparse.Namespace) -> int:
     cfg = load_config()
+    m = cfg.models
+
+    def line(label: str, model: str, ep) -> str:
+        return f"  {label:9s} {model}  →  {ep.base_url or 'OpenAI'}"
+
+    console.print("[bold]Modelle + Endpoints (effektiv):[/bold]")
+    console.print(line("story", m.story_llm, m.story_endpoint))
+    console.print(line("planner", m.planner, m.planner_endpoint))
+    console.print(line("gen", m.gen, m.gen_endpoint))
+    console.print(line("stt", m.stt, m.stt_endpoint))
+    console.print(line("tts", f"{m.tts} ({m.tts_voice})", m.tts_endpoint))
+    console.print(line("embedding", m.embedding, m.embedding_endpoint))
     console.print({
-        "story_llm": cfg.models.story_llm,
-        "planner_llm": cfg.models.planner,
-        "gen_llm": cfg.models.gen,
-        "stt": cfg.models.stt,
-        "tts": cfg.models.tts,
-        "tts_voice": cfg.models.tts_voice,
-        "embedding": cfg.models.embedding,
         "locale": cfg.general.locale,
         "audio.backend": cfg.audio.backend,
+        "temps (story/planner/gen)":
+            f"{m.llm_temperature}/{m.planner_temperature}/{m.gen_temperature}",
         "cost_cap_usd_per_session": cfg.story.cost_cap_usd_per_session,
+        "web.admin_token set": bool(cfg.web.admin_token),
     })
     return 0
 

@@ -6,10 +6,13 @@ Selected via config.stt.provider. Language follows the locale.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 from storyteller_core.config import Config
 from storyteller_core.oai import get_stt_client
+
+log = logging.getLogger("storyteller.stt")
 
 
 class STT(ABC):
@@ -25,6 +28,8 @@ class OpenAISTT(STT):
         from storyteller_core.i18n import norm
 
         client = get_stt_client(self.cfg)
+        log.info("STT: model=%s endpoint=%s", self.cfg.models.stt,
+                 self.cfg.models.stt_endpoint.base_url or "OpenAI")
         # STT-Sprache folgt der Locale (de/en); überschreibt stt.language.
         lang = norm(self.cfg.general.locale)
         with open(wav_path, "rb") as f:

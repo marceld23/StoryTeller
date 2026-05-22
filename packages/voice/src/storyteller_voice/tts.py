@@ -7,11 +7,14 @@ Selected via config.tts.provider.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 import numpy as np
 from storyteller_core.config import Config
 from storyteller_core.oai import get_tts_client
+
+log = logging.getLogger("storyteller.tts")
 
 OPENAI_TTS_SR = 24000  # response_format="pcm" => 24 kHz, s16le, mono
 
@@ -29,6 +32,9 @@ class OpenAITTS(TTS):
 
     def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
         client = get_tts_client(self.cfg)
+        log.info("TTS: model=%s voice=%s endpoint=%s", self.cfg.models.tts,
+                 self.cfg.models.tts_voice,
+                 self.cfg.models.tts_endpoint.base_url or "OpenAI")
         voice = self.cfg.models.tts_voice
         buf = bytearray()
         kw = dict(
