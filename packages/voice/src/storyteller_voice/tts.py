@@ -37,19 +37,30 @@ class OpenAITTS(TTS):
                  self.cfg.models.tts_endpoint.base_url or "OpenAI")
         voice = self.cfg.models.tts_voice
         buf = bytearray()
+        # WAV is self-describing (carries the real sample rate + channels), so
+        # it works across servers — OpenAI returns 24 kHz mono, but others
+        # (e.g. kokoro) may use a different rate or stereo PCM. Decoding raw
+        # "pcm" with a fixed 24 kHz mono assumption garbles those.
         kw = dict(
             model=self.cfg.models.tts,
             voice=voice,
             input=text,
-            response_format="pcm",
+            response_format="wav",
         )
         if instructions:
             kw["instructions"] = instructions
         with client.audio.speech.with_streaming_response.create(**kw) as resp:
             for chunk in resp.iter_bytes():
                 buf.extend(chunk)
-        pcm = np.frombuffer(bytes(buf), dtype="<i2").astype(np.float32) / 32768.0
-        return pcm, OPENAI_TTS_SR
+        import io
+
+        import soundfile as sf
+
+        data, sr = sf.read(io.BytesIO(bytes(buf)), dtype="float32",
+                           always_2d=False)
+        if getattr(data, "ndim", 1) > 1:        # downmix to mono
+            data = data.mean(axis=1)
+        return np.ascontiguousarray(data, dtype=np.float32), int(sr)
 
 
 class LocalTTS(TTS):
