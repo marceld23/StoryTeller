@@ -9,8 +9,8 @@ profile = "auto"     # auto | pi | pc
 #       sonst => pc (portables sounddevice-Backend, kein LED nötig).
 
 [models]
-story_llm        = "gpt-5.4-mini"            # ERZÄHLER — hier lohnt ein starkes Modell
-planner_llm      = ""                        # Architekt + Zusammenfasser; leer => story_llm (billiger wählen, um story_llm hochstufen zu können)
+story_llm        = "gpt-5.4"            # ERZÄHLER — hier lohnt ein starkes Modell
+planner_llm      = "gpt-5.4"                        # Architekt + Zusammenfasser; leer => story_llm (billiger wählen, um story_llm hochstufen zu können)
 gen_llm          = "gpt-5.4"                 # WELT-/INHALTS-GENERIERUNG (einmalig pro Welt/Vorschlag) — Default das große Modell; leer => story_llm
 stt              = "gpt-4o-mini-transcribe"  # Spracherkennung (OpenAI)
 tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper kann KEIN TTS)
