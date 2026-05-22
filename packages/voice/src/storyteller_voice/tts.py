@@ -47,7 +47,10 @@ class OpenAITTS(TTS):
             input=text,
             response_format="wav",
         )
-        if instructions:
+        # `instructions` (style steering) is an OpenAI gpt-4o-mini-tts feature.
+        # Self-hosted servers (Piper, kokoro, …) don't know it and may reject
+        # unknown fields, so only send it on the default OpenAI endpoint.
+        if instructions and not self.cfg.models.tts_endpoint.base_url:
             kw["instructions"] = instructions
         with client.audio.speech.with_streaming_response.create(**kw) as resp:
             for chunk in resp.iter_bytes():
