@@ -195,9 +195,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     def _first_narration() -> str:
         snap = engine.state()
         if snap.get("memory"):
-            # resume: replay the last narration (cheap, no LLM call)
-            last = engine.last_narration()
-            return last or engine.turn(RESTORE_DIRECTIVE[loc])
+            # resume a SAVED game: short spoken recap (was bisher geschah +
+            # aktuelle Lage). recap() is read-only and falls back to the last
+            # narration if the LLM call fails.
+            return engine.recap() or engine.last_narration() \
+                or engine.turn(RESTORE_DIRECTIVE[loc])
         return engine.opening()
 
     # Bridge the opening generation with the wait sound (audio mode only).
@@ -235,13 +237,19 @@ def cmd_run(args: argparse.Namespace) -> int:
         opts = [("save", "speichern / save the game"),
                 ("quit", "beenden / quit the game"),
                 ("undo", "Spielzug zurück / undo the last turn"),
+                ("reset", "Welt zurücksetzen, Spielstand löschen, von vorn "
+                          "beginnen / reset this world (delete progress)"),
                 ("audio", "Audio/Bluetooth umschalten / switch audio output"),
                 ("intro", "Einführung an oder aus / toggle the intro"),
                 ("close", "Menü schließen / close menu and continue")]
         ch = _classify(cfg, pick, opts)
         if ch == "unknown":
             lw = pick.lower()
-            if any(k in lw for k in ("beend", "quit", "exit", "schluss",
+            if any(k in lw for k in ("zurücksetz", "zurucksetz", "reset",
+                                     "von vorn", "von vorne", "neu beginn",
+                                     "lösch", "loesch")):
+                ch = "reset"
+            elif any(k in lw for k in ("beend", "quit", "exit", "schluss",
                                      "aufhör")):
                 ch = "quit"
             elif any(k in lw for k in ("zurück", "zuruck", "undo",
@@ -256,6 +264,26 @@ def cmd_run(args: argparse.Namespace) -> int:
                 ch = "save"
             else:
                 ch = "close"
+
+        def _confirm(prompt_id: str) -> bool:
+            """Spoken yes/no safety check. Unclear answer counts as NO."""
+            if speak:
+                prompts.play(prompt_id, backend)
+            else:
+                rp(f"[dim]{prompt_id}: ja/nein?[/dim]")
+            if text_mode:
+                ans = input("ja/nein: ").strip().lower()
+            else:
+                leds.listen()
+                with tempfile.NamedTemporaryFile(suffix=".wav",
+                                                 delete=False) as t:
+                    w = t.name
+                backend.record_until_silence(w)
+                ans = stt.transcribe(w).strip().lower()
+            rp(f"[cyan][Du][/cyan] {ans}")
+            return any(k in ans for k in (
+                "ja", "jo", "jap", "klar", "mach", "bestätig", "bestatig",
+                "yes", "yeah", "yep", "sure", "okay", "ok"))
 
         if ch == "quit":
             return "quit"
@@ -297,11 +325,39 @@ def cmd_run(args: argparse.Namespace) -> int:
             prompts.play("saved", backend) if speak \
                 else rp("[dim](gespeichert)[/dim]")
         elif ch == "undo":
+            if not _confirm("confirm_undo"):
+                prompts.play("cancelled", backend) if speak \
+                    else rp("[dim](abgebrochen)[/dim]")
+                last = engine.last_narration()
+                if last:
+                    _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                         speak=speak)
+                return None
             last = engine.undo_last()
             prompts.play("undone", backend) if speak \
                 else rp("[dim](Spielzug zurück)[/dim]")
             if last:
                 _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                     speak=speak)
+            return None
+        elif ch == "reset":
+            if not _confirm("confirm_reset"):
+                prompts.play("cancelled", backend) if speak \
+                    else rp("[dim](abgebrochen)[/dim]")
+                last = engine.last_narration()
+                if last:
+                    _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                         speak=speak)
+                return None
+            # Wipe this world's saved progress, then start a fresh opening.
+            res = engine.reset()
+            log.info("world reset: %s", res)
+            prompts.play("world_reset", backend) if speak \
+                else rp("[dim](Welt zurückgesetzt)[/dim]")
+            with WaitLoop(cfg, backend, world.wait_sound, leds):
+                opening = engine.opening()
+            if opening:
+                _say(cfg, world, backend, tts, fx, leds, (lambda: opening),
                      speak=speak)
             return None
         else:  # close

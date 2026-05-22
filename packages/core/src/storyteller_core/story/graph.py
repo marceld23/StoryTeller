@@ -123,6 +123,89 @@ def reset_compiled() -> None:
 # retention / maintenance
 # --------------------------------------------------------------------------
 
+def delete_thread(thread_id: str, db_path: Path | None = None) -> dict:
+    """Delete ALL checkpoints + writes for one thread (reset a saved game).
+
+    The next `state()` for this thread is empty, so the engine starts a fresh
+    opening. Uses a short busy_timeout so it doesn't fail if the live service
+    holds the other connection. No VACUUM (would need exclusive access).
+    Returns {"checkpoints_deleted", "writes_deleted", "thread_id"}.
+    """
+    import logging
+
+    log = logging.getLogger("storyteller.maintenance")
+    out = {"checkpoints_deleted": 0, "writes_deleted": 0,
+           "thread_id": thread_id}
+    from ..config import ROOT
+
+    path = db_path or (ROOT / "data" / "checkpoints.db")
+    if not Path(path).exists():
+        return out
+    try:
+        conn = sqlite3.connect(str(path), timeout=5)
+        conn.execute("PRAGMA busy_timeout=5000")
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "checkpoints" in tables:
+            cur = conn.execute(
+                "DELETE FROM checkpoints WHERE thread_id=?", (thread_id,))
+            out["checkpoints_deleted"] = cur.rowcount
+        if "writes" in tables:
+            cur = conn.execute(
+                "DELETE FROM writes WHERE thread_id=?", (thread_id,))
+            out["writes_deleted"] = cur.rowcount
+        conn.commit()
+        conn.close()
+        log.info("deleted thread: %s", out)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("thread delete failed: %r", exc)
+    return out
+
+
+def list_threads(db_path: Path | None = None) -> list[dict]:
+    """Inventory of saved sessions: [{thread_id, checkpoints, last_narration}].
+
+    Read-only; used by the admin UI to show/reset saves. The per-thread count
+    comes from raw SQL; the last narration is read via the compiled graph's
+    checkpointer (correct serde), best-effort."""
+    from ..config import ROOT
+
+    path = db_path or (ROOT / "data" / "checkpoints.db")
+    out: list[dict] = []
+    if not Path(path).exists():
+        return out
+    try:
+        conn = sqlite3.connect(str(path), timeout=5)
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "checkpoints" not in tables:
+            conn.close()
+            return out
+        rows = conn.execute(
+            "SELECT thread_id, COUNT(*) FROM checkpoints GROUP BY thread_id "
+            "ORDER BY thread_id").fetchall()
+        conn.close()
+    except Exception:  # pragma: no cover - defensive
+        return out
+
+    graph = get_compiled(db_path)
+    for tid, n in rows:
+        last = ""
+        try:
+            snap = graph.get_state({"configurable": {"thread_id": tid}})
+            mem = (snap.values.get("memory") if snap and snap.values else None)
+            for m in reversed(mem or []):
+                if (m.get("role") == "assistant"
+                        and isinstance(m.get("content"), str)):
+                    last = m["content"][:160].replace("\n", " ")
+                    break
+        except Exception:
+            pass
+        out.append({"thread_id": tid, "checkpoints": n,
+                    "last_narration": last})
+    return out
+
+
 def prune_checkpoints(db_path: Path | None = None,
                       keep_per_thread: int = 100) -> dict:
     """Bound checkpoint DB growth: keep the newest `keep_per_thread`

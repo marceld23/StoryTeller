@@ -38,9 +38,15 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "goodbye": "Bis zum nächsten Mal.",
         "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
         "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
-                    "Spielstand laden, Audio umschalten, Einführung, oder "
+                    "Welt zurücksetzen, Audio umschalten, Einführung, oder "
                     "Menü schließen.",
         "undone": "Der letzte Spielzug wurde zurückgenommen.",
+        "confirm_reset": "Willst du diese Welt wirklich zurücksetzen? Der "
+                         "ganze Spielstand geht verloren. Sage ja oder nein.",
+        "confirm_undo": "Willst du den letzten Spielzug wirklich "
+                        "zurücknehmen? Sage ja oder nein.",
+        "cancelled": "Abgebrochen. Weiter geht's.",
+        "world_reset": "Diese Welt wurde zurückgesetzt. Wir beginnen von vorn.",
         "closed": "Menü geschlossen. Weiter geht's.",
         "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
                      "um mich wieder zu wecken.",
@@ -75,9 +81,15 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "no_saves": "There are no saved games.",
         "goodbye": "Until next time.",
         "error_retry": "There was a glitch. Please say it again.",
-        "sys_menu": "System menu. Say: save, quit, undo turn, load game, "
+        "sys_menu": "System menu. Say: save, quit, undo turn, reset world, "
                     "switch audio, intro, or close menu.",
         "undone": "The last turn was undone.",
+        "confirm_reset": "Do you really want to reset this world? The whole "
+                         "saved game will be lost. Say yes or no.",
+        "confirm_undo": "Do you really want to undo the last turn? Say yes "
+                        "or no.",
+        "cancelled": "Cancelled. Let's continue.",
+        "world_reset": "This world has been reset. We start over.",
         "closed": "Menu closed. Let's continue.",
         "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
                      "wake me again.",
@@ -165,6 +177,28 @@ RESTORE_DIRECTIVE = {
 RESUME_DIRECTIVE = {
     "de": "[Kurz zusammenfassen wo wir stehen, dann weiter.]",
     "en": "[Briefly summarize where we are, then continue.]",
+}
+
+# --- Resume recap (spoken when continuing a SAVED game) ---
+# A read-only "Was bisher geschah" — does NOT advance the story.
+RECAP_SYS = {
+    "de": ("Du bist der Erzähler. Der Spieler setzt einen gespeicherten "
+           "Spielstand fort. Gib eine KURZE Erinnerung in 2 bis 4 einfachen "
+           "Sätzen: zuerst was bisher geschah, dann die aktuelle Situation. "
+           "Ende mit der offenen Lage oder Frage, auf die der Spieler direkt "
+           "reagieren kann. Erzähle NICHT weiter und erfinde nichts Neues — "
+           "fasse nur den bisherigen Stand zusammen. Sprich den Spieler "
+           "direkt an (zweite Person)."),
+    "en": ("You are the narrator. The player is resuming a saved game. Give "
+           "a SHORT recap in 2 to 4 simple sentences: first what happened so "
+           "far, then the current situation. End with the open situation or "
+           "question the player can react to directly. Do NOT continue the "
+           "story or invent anything new — only summarize the state so far. "
+           "Address the player directly (second person)."),
+}
+RECAP_INTRO = {  # spoken lead-in prefixed to the recap
+    "de": "Willkommen zurück. ",
+    "en": "Welcome back. ",
 }
 
 # --- Question heuristic prefixes (Rückfragen-Kurzmodus) ---

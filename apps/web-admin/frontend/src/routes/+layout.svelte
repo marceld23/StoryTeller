@@ -21,6 +21,7 @@
   <a href="/" class:active={page.url.pathname === '/'}>Welten</a>
   <a href="/generate" class:active={page.url.pathname.startsWith('/generate')}>Generieren</a>
   <a href="/transcripts" class:active={page.url.pathname.startsWith('/transcript')}>Verläufe</a>
+  <a href="/saves" class:active={page.url.pathname.startsWith('/saves')}>Spielstände</a>
   <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Einstellungen</a>
   <span class="grow"></span>
   <button class="nav-theme" onclick={toggle} title="Hell/Dunkel umschalten" aria-label="Theme">

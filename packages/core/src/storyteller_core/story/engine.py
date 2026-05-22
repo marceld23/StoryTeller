@@ -48,6 +48,53 @@ class StoryEngine:
         locale = norm(self.ctx.cfg.general.locale)
         return self.turn(OPENING_DIRECTIVE[locale])
 
+    def recap(self) -> str:
+        """Short spoken "previously on…" for a RESUMED game. Read-only: makes
+        one LLM call from the synopsis + last scene and does NOT advance the
+        story or mutate the checkpoint. Empty for a fresh (no-memory) thread.
+        """
+        from ..i18n import RECAP_INTRO, RECAP_SYS, norm
+        from ..oai import get_chat_client
+
+        st = self.state()
+        mem = st.get("memory") or []
+        if not mem:
+            return ""
+        locale = norm(self.ctx.cfg.general.locale)
+        synopsis = (st.get("synopsis") or "").strip()
+        last = self.last_narration().strip()
+        if not synopsis and not last:
+            return ""
+        ctx_txt = ""
+        if synopsis:
+            ctx_txt += f"Bisheriger Verlauf:\n{synopsis}\n\n"
+        if last:
+            ctx_txt += f"Letzte Szene:\n{last}"
+        try:
+            client = get_chat_client(self.ctx.cfg, "story")
+            r = client.chat.completions.create(
+                model=self.ctx.cfg.models.story_llm,
+                temperature=self.ctx.cfg.models.llm_temperature,
+                messages=[{"role": "system", "content": RECAP_SYS[locale]},
+                          {"role": "user", "content": ctx_txt}],
+            )
+            text = (r.choices[0].message.content or "").strip()
+            if text:
+                return RECAP_INTRO[locale] + text
+        except Exception:
+            pass
+        return last  # fall back to replaying the last narration
+
+    def reset(self) -> dict:
+        """Delete this thread's saved progress (start fresh next time).
+
+        Uses the same default DB as the compiled graph (ROOT/data/
+        checkpoints.db), so it stays in sync with the live checkpointer.
+        """
+        from .graph import delete_thread
+
+        return delete_thread(self.thread_id)
+
     # ---------------------------------------------------------- read-only
     def state(self) -> dict:
         graph = get_compiled()

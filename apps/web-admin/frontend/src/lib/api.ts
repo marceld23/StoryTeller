@@ -163,6 +163,27 @@ export async function getTranscript(
   return _json(await afetch(`${BACKEND}/api/transcripts/${encodeURIComponent(name)}`));
 }
 
+export type SaveGame = {
+  thread_id: string;
+  checkpoints: number;
+  last_narration: string;
+  world_id: string | null;
+  world_name: string;
+  source: string;
+};
+
+export async function listSaves(): Promise<SaveGame[]> {
+  return _json(await afetch(`${BACKEND}/api/saves`));
+}
+
+export async function resetSave(threadId: string): Promise<unknown> {
+  return _json(
+    await afetch(`${BACKEND}/api/saves/${encodeURIComponent(threadId)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
 export async function getSettings<T>(kind: 'models' | 'audio' | 'moderation'): Promise<T> {
   return _json(await afetch(`${BACKEND}/api/settings/${kind}`));
 }

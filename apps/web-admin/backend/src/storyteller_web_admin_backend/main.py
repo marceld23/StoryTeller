@@ -10,6 +10,9 @@ Endpoints (Phase 4b scope):
   POST   /api/worlds                              create new blank world
   DELETE /api/worlds/{world_id}                   delete world file
 
+  GET    /api/saves                               list saved games (threads)
+  DELETE /api/saves/{thread_id}                    reset one saved game
+
   GET    /api/settings/models                     model overrides
   PUT    /api/settings/models                     update model overrides
   GET    /api/settings/audio                      audio backend override
@@ -197,6 +200,51 @@ def delete_world(world_id: str) -> dict:
             p.unlink()
             deleted.append(fn)
     return {"ok": True, "deleted": deleted}
+
+
+# --------------------------------------------------------------------------
+# REST: saved games (checkpoint threads)
+# --------------------------------------------------------------------------
+
+@app.get("/api/saves")
+def list_saves() -> list[dict]:
+    """Saved sessions (checkpoint threads) with world name + progress, so the
+    admin can see and reset them. thread_id encodes the source: pi-<world>,
+    cli-<world>, web-<id>."""
+    from storyteller_core.story.graph import list_threads
+
+    cfg = _cfg()
+    names: dict[str, str] = {}
+    for wid in all_world_ids(cfg):
+        try:
+            names[wid] = load_world(cfg, wid).name
+        except Exception:
+            names[wid] = wid
+    out: list[dict] = []
+    for t in list_threads():
+        tid = t["thread_id"]
+        world_id, source = None, "other"
+        if tid.startswith("pi-"):
+            world_id, source = tid[3:], "pi"
+        elif tid.startswith("cli-"):
+            world_id, source = tid[4:], "cli"
+        elif tid.startswith("web-"):
+            source = "web"
+        out.append({**t, "world_id": world_id, "source": source,
+                    "world_name": names.get(world_id or "", world_id or tid)})
+    return out
+
+
+@app.delete("/api/saves/{thread_id}")
+def reset_save(thread_id: str) -> dict:
+    """Delete one thread's checkpoints — resets that saved game so it starts
+    fresh next time."""
+    from storyteller_core.story.graph import delete_thread
+
+    res = delete_thread(thread_id)
+    if res["checkpoints_deleted"] == 0 and res["writes_deleted"] == 0:
+        raise HTTPException(404, "no such saved game")
+    return {"ok": True, **res}
 
 
 # --------------------------------------------------------------------------
