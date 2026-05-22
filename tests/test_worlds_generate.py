@@ -38,7 +38,8 @@ def _fake_client(calls):
 
 def test_minimal_world_is_hardened(monkeypatch):
     calls: list = []
-    monkeypatch.setattr(gen_mod, "get_gen_client", lambda cfg: _fake_client(calls))
+    monkeypatch.setattr(gen_mod, "get_chat_client",
+                        lambda cfg, role="gen": _fake_client(calls))
 
     w = gen_mod.generate_world(load_config(), "Eine kleine Insel")
 

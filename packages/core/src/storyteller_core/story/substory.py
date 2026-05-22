@@ -17,7 +17,7 @@ import json
 from pydantic import BaseModel, Field
 
 from ..config import Config
-from ..oai import get_client
+from ..oai import get_chat_client
 from ..worlds.schema import Beat
 from .dynamics import INTEGRATION_RULE
 
@@ -138,10 +138,11 @@ class SubstoryPlanner:
         )
         _cap_n = pat["n_beats"]
         _cap_t = pat["tension_cap"]
-        client = get_client(self.cfg)
+        client = get_chat_client(self.cfg, "planner")
         try:
             resp = client.chat.completions.create(
                 model=self.cfg.models.planner,
+                temperature=self.cfg.models.planner_temperature,
                 messages=[{"role": "system", "content": _PLANNER_SYS},
                           {"role": "user", "content": user}],
                 response_format={"type": "json_object"},

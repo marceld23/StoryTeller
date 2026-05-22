@@ -41,7 +41,7 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
     try:
         import json
 
-        from storyteller_core.oai import get_client
+        from storyteller_core.oai import get_chat_client
 
         ids = [o[0] for o in options]
         cat = "\n".join(f"- {i}: {d}" for i, d in options)
@@ -50,7 +50,7 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
             "'unknown' if unclear. Consider meaning, not exact words. Answer "
             f"JSON only: {{\"choice\": \"<one of: "
             f"{', '.join(ids + ['unknown'])}>\"}}\n\nOPTIONS:\n" + cat)
-        r = get_client(cfg).chat.completions.create(
+        r = get_chat_client(cfg, "story").chat.completions.create(
             model=cfg.models.story_llm,
             messages=[{"role": "system", "content": sysmsg},
                       {"role": "user", "content": said}],

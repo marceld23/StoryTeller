@@ -9,7 +9,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from storyteller_core.config import Config
-from storyteller_core.oai import get_client
+from storyteller_core.oai import get_stt_client
 
 
 class STT(ABC):
@@ -24,7 +24,7 @@ class OpenAISTT(STT):
     def transcribe(self, wav_path: str) -> str:
         from storyteller_core.i18n import norm
 
-        client = get_client(self.cfg)
+        client = get_stt_client(self.cfg)
         # STT-Sprache folgt der Locale (de/en); überschreibt stt.language.
         lang = norm(self.cfg.general.locale)
         with open(wav_path, "rb") as f:

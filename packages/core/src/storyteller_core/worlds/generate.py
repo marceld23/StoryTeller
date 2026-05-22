@@ -22,7 +22,7 @@ import re
 from collections.abc import Callable
 
 from ..config import Config
-from ..oai import get_gen_client
+from ..oai import get_chat_client
 from .schema import Beat, Blueprint, World
 
 _log = logging.getLogger("storyteller.gen")
@@ -125,8 +125,9 @@ def _fill_missing_lists(cfg: Config, prompt: str, data: dict,
         f"Add the missing parts ONLY: {', '.join(missing)}."
     )
     try:
-        r = get_gen_client(cfg).chat.completions.create(
+        r = get_chat_client(cfg, "gen").chat.completions.create(
             model=cfg.models.gen,
+            temperature=cfg.models.gen_temperature,
             messages=[{"role": "system", "content": sys},
                       {"role": "user", "content": user}],
             response_format={"type": "json_object"},
@@ -145,8 +146,9 @@ def generate_world(cfg: Config, prompt: str,
                    progress: ProgressFn | None = None) -> World:
     """One prompt -> a validated, fully-populated World."""
     _p(progress, f"Welt-Skelett wird vom Modell ({cfg.models.gen}) entworfen…")
-    r = get_gen_client(cfg).chat.completions.create(
+    r = get_chat_client(cfg, "gen").chat.completions.create(
         model=cfg.models.gen,
+        temperature=cfg.models.gen_temperature,
         messages=[{"role": "system", "content": _SYS},
                   {"role": "user", "content": prompt}],
         response_format={"type": "json_object"},

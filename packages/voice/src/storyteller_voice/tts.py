@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from storyteller_core.config import Config
-from storyteller_core.oai import get_client
+from storyteller_core.oai import get_tts_client
 
 OPENAI_TTS_SR = 24000  # response_format="pcm" => 24 kHz, s16le, mono
 
@@ -28,7 +28,7 @@ class OpenAITTS(TTS):
         self.cfg = cfg
 
     def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
-        client = get_client(self.cfg)
+        client = get_tts_client(self.cfg)
         voice = self.cfg.models.tts_voice
         buf = bytearray()
         kw = dict(

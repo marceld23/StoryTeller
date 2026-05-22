@@ -17,9 +17,21 @@ tts              = "gpt-4o-mini-tts"         # Sprachausgabe (OpenAI; Whisper ka
 tts_voice        = "ballad"
 embedding        = "text-embedding-3-small"  # RAG-Embeddings
 embedding_dim    = 512                       # Matryoshka-Trunkierung (kleiner = sparsamer)
-llm_temperature  = 0.9
+llm_temperature     = 0.9   # Erzähler-Temperatur
+planner_temperature = 0.6   # Architekt + Zusammenfasser
+gen_temperature     = 0.8   # Welt-/Inhalts-Generierung
 frequency_penalty = 0.0   # Anti-Wiederholung Erzähler; 0=aus, sanft 0.2–0.4 empfohlen
 presence_penalty  = 0.0   # dito (Themen-Vielfalt); 0=aus
+
+# Eigene OpenAI-kompatible Endpoints je Zweck (leer = OpenAI). base_url inkl.
+# host:port und /v1, z.B. http://192.168.1.50:8000/v1 (vLLM/llama.cpp/Ollama/
+# LM Studio). api_key wird als Bearer gesendet (lokale Server akzeptieren oft
+# beliebig). Moderation nutzt immer den OpenAI-Default. Beispiel:
+#   [models.story_endpoint]
+#   base_url = "http://192.168.1.50:8000/v1"
+#   api_key  = "sk-local"
+# Weitere: planner_endpoint, gen_endpoint, stt_endpoint, tts_endpoint,
+# embedding_endpoint — gleiche Form.
 
 [stt]
 provider = "openai"   # openai | local_whisper  (local => Phase 10, nur Pi 5 + AI HAT)

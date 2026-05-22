@@ -25,7 +25,7 @@ from ..i18n import (
     VOICE_SAMPLE_LABEL,
     norm,
 )
-from ..oai import get_client
+from ..oai import get_chat_client
 from .blueprint import BlueprintTracker
 from .cost import CostTracker
 from .dynamics import INTEGRATION_RULE, StoryDynamics
@@ -364,7 +364,7 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         ctx.transcript.prompt(cfg.models.story_llm, messages, tools=use_tools)
 
     try:
-        resp = get_client(cfg).chat.completions.create(**kw)
+        resp = get_chat_client(cfg, "story").chat.completions.create(**kw)
     except Exception as exc:
         log.warning("LLM/Verbindung gestört: %r", exc)
         # Roll back the user message we appended, so the conversation has no hole.
@@ -614,8 +614,9 @@ def _fold_into_synopsis(
         f"knapp, faktentreu, nur Fließtext."
     )
     try:
-        resp = get_client(cfg).chat.completions.create(
+        resp = get_chat_client(cfg, "planner").chat.completions.create(
             model=cfg.models.planner,
+            temperature=cfg.models.planner_temperature,
             messages=[
                 {"role": "system", "content": SUMMARIZER_SYS[locale]},
                 {"role": "user", "content": user_msg},

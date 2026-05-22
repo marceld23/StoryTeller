@@ -11,7 +11,7 @@ import sqlite3
 from pathlib import Path
 
 from ..config import Config
-from ..oai import get_client
+from ..oai import get_embedding_client
 
 
 class WorldRAG:
@@ -45,7 +45,7 @@ class WorldRAG:
         return db
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        client = get_client(self.cfg)
+        client = get_embedding_client(self.cfg)
         r = client.embeddings.create(
             model=self.cfg.models.embedding,
             input=texts,

@@ -22,6 +22,16 @@ def _find_repo_root() -> Path:
 ROOT = _find_repo_root()
 
 
+class Endpoint(BaseModel):
+    """An OpenAI-compatible API endpoint. Empty = OpenAI defaults
+    (api.openai.com + OPENAI_API_KEY). Set base_url (incl. host:port and
+    /v1, e.g. http://192.168.1.50:8000/v1) to use a self-hosted server
+    (vLLM / llama.cpp / Ollama / LM Studio). api_key is sent as the bearer
+    token (many local servers accept any value)."""
+    base_url: str = ""
+    api_key: str = ""
+
+
 class ModelsCfg(BaseModel):
     story_llm: str = "gpt-5.4-mini"            # narrator (quality matters)
     planner_llm: str = ""                      # architect+summarizer; ""=story_llm
@@ -35,11 +45,23 @@ class ModelsCfg(BaseModel):
     tts_voice: str = "ballad"
     embedding: str = "text-embedding-3-small"
     embedding_dim: int = 512
-    llm_temperature: float = 0.9
+    # Sampling temperature per role.
+    llm_temperature: float = 0.9               # narrator (story)
+    planner_temperature: float = 0.6           # architect + summariser
+    gen_temperature: float = 0.8               # world / content generation
     # Anti-repetition for the narrator. 0 = off (safe default, no behaviour
     # change); a mild 0.2-0.4 noticeably reduces repeated openers/phrases.
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    # Per-purpose OpenAI-compatible endpoints (empty = OpenAI). Lets each
+    # call type point at a self-hosted server independently. Moderation
+    # always uses the default OpenAI endpoint.
+    story_endpoint: Endpoint = Endpoint()
+    planner_endpoint: Endpoint = Endpoint()
+    gen_endpoint: Endpoint = Endpoint()
+    stt_endpoint: Endpoint = Endpoint()
+    tts_endpoint: Endpoint = Endpoint()
+    embedding_endpoint: Endpoint = Endpoint()
 
     @property
     def planner(self) -> str:
@@ -274,11 +296,13 @@ def _apply_model_overrides(cfg: Config) -> None:
     except Exception as exc:
         log.warning("data/models.json unreadable, ignored: %r", exc)
         return
-    for key, val in (ov or {}).items():
-        if not hasattr(cfg.models, key):
-            log.warning("unknown model override key %r ignored", key)
-            continue
-        try:
-            setattr(cfg.models, key, val)
-        except Exception as exc:
-            log.warning("model override %s=%r ignored: %r", key, val, exc)
+    if not isinstance(ov, dict) or not ov:
+        return
+    # Merge onto the current models config and re-validate as a whole, so
+    # nested endpoints (and types) are parsed properly. Unknown keys are
+    # ignored by pydantic.
+    try:
+        merged = {**cfg.models.model_dump(), **ov}
+        cfg.models = ModelsCfg.model_validate(merged)
+    except Exception as exc:
+        log.warning("model overrides invalid, ignored: %r", exc)
