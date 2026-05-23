@@ -109,7 +109,7 @@ synopsis_batch            = 8    # this many old messages condensed at once (rar
 beat_nudge_after          = 3    # after this many turns on the same sub-beat, gently remind advance_beat (0=off)
 known_facts_cap           = 30   # cap on player facts (oldest without a note is evicted)
 # Narration-style guideline (freely editable): controls simplicity/length.
-narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
+narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. KEINE NUMMERIERTEN LISTEN (1., 2., 3.), keine Aufzählungspunkte (-, *, •), keine Optionen-Liste — alles als fließende Prosa. Keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
 
 [voice_prompts]
 # Static menu/system announcements are rendered ONCE via TTS and cached as

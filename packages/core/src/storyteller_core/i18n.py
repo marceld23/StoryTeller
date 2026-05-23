@@ -130,13 +130,17 @@ WORLD_KEYWORDS: dict[str, dict[str, list[str]]] = {
 NARRATION_GUIDANCE = {
     "de": ("Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. "
            "Pro Antwort nur EINE Situation und höchstens ein bis zwei neue "
-           "Namen/Dinge. Keine Aufzählungen, keine Detailflut, kein Vorgriff "
-           "auf mehrere Handlungsstränge. Schließe mit EINER konkreten, "
-           "offenen Lage oder Frage, auf die der Spieler direkt reagieren "
-           "kann. Ruhig und bildhaft, aber sparsam."),
+           "Namen/Dinge. KEINE NUMMERIERTEN LISTEN (1., 2., 3.), keine "
+           "Aufzählungspunkte (-, *, •), keine Optionen-Liste — alles als "
+           "fließende Prosa. Keine Detailflut, kein Vorgriff auf mehrere "
+           "Handlungsstränge. Schließe mit EINER konkreten, offenen Lage "
+           "oder Frage, auf die der Spieler direkt reagieren kann. Ruhig "
+           "und bildhaft, aber sparsam."),
     "en": ("Narrate SIMPLY and CLEARLY for listening: at most 4–6 short "
            "sentences. Only ONE situation per reply and at most one or two "
-           "new names/things. No enumerations, no detail flood, no jumping "
+           "new names/things. NO NUMBERED LISTS (1., 2., 3.), no bullet "
+           "points (-, *, •), no enumerated options — everything as "
+           "flowing prose. No detail flood, no jumping "
            "ahead across multiple plot threads. End with ONE concrete, open "
            "situation or question the player can react to directly. Calm and "
            "vivid, but sparing."),
