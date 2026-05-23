@@ -45,17 +45,40 @@ class VoicePromptCache:
                 or m.get("texts") != self.prompts)
 
     def build(self, force: bool = False) -> list[str]:
-        """Renders missing announcements (or all on force/change) via TTS."""
+        """Renders missing announcements (or all on force/change) via TTS.
+
+        Two playback-robustness tweaks on the synthesized audio:
+        1) Pre-resample to 16 kHz (ReSpeaker native rate). Otherwise ALSA's
+           samplerate_best sinc resampler kicks in for every fresh aplay
+           invocation after the mic was just closed and silently eats the
+           first few seconds of the cached prompt on the ReSpeaker USB
+           Mic Array v2.0. Doing the resample once at build time and
+           writing 16 kHz files bypasses the resampler entirely.
+        2) Prepend 300 ms of silence so any remaining USB-endpoint
+           warmup latency cannot truncate the actual speech.
+        """
+        from scipy.signal import resample_poly
+        from math import gcd
         from .tts import get_tts
 
         rebuild = force or self._stale()
         tts = get_tts(self.cfg)
+        target_sr = 16000
+        lead_silence_s = 0.3
         built: list[str] = []
         for pid, text in self.prompts.items():
             wav = self._wav(pid)
             if wav.exists() and not rebuild:
                 continue
             audio, sr = tts.synthesize(text)
+            audio = np.asarray(audio, dtype=np.float32)
+            if sr != target_sr:
+                g = gcd(int(sr), target_sr)
+                audio = resample_poly(audio, target_sr // g,
+                                      int(sr) // g).astype(np.float32)
+                sr = target_sr
+            pad = np.zeros(int(sr * lead_silence_s), dtype=np.float32)
+            audio = np.concatenate([pad, audio])
             sf.write(str(wav), np.clip(audio, -1, 1).astype(np.float32), sr,
                      subtype="PCM_16")
             built.append(pid)
