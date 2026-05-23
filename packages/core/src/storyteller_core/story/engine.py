@@ -52,6 +52,8 @@ class StoryEngine:
         """Short spoken "previously on…" for a RESUMED game. Read-only: makes
         one LLM call from the synopsis + last scene and does NOT advance the
         story or mutate the checkpoint. Empty for a fresh (no-memory) thread.
+        Also notes the resulting text in the transcript so duplicate-narration
+        bug reports are debuggable from the recorded session.
         """
         from ..i18n import RECAP_INTRO, RECAP_SYS, norm
         from ..oai import get_chat_client
@@ -80,7 +82,10 @@ class StoryEngine:
             )
             text = (r.choices[0].message.content or "").strip()
             if text:
-                return RECAP_INTRO[locale] + text
+                spoken = RECAP_INTRO[locale] + text
+                if self.ctx.transcript:
+                    self.ctx.transcript.assistant(spoken, "recap")
+                return spoken
         except Exception:
             pass
         return last  # fall back to replaying the last narration

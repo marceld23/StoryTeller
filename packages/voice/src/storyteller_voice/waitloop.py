@@ -32,6 +32,15 @@ class WaitLoop:
                                        always_2d=False)
                     if getattr(data, "ndim", 1) > 1:
                         data = data[:, 0]
+                    # Audible-ity boost: the shipped ambient WAVs are mastered
+                    # at ~5% peak; the typical Pi softvol (~15%) makes them
+                    # nearly silent. Apply cfg.audio.wait_sound_gain with
+                    # saturating clip to keep the int16 range.
+                    gain = float(getattr(cfg.audio, "wait_sound_gain", 1.0) or 1.0)
+                    if gain != 1.0:
+                        boosted = np.clip(data.astype(np.int32) * gain,
+                                          -32768, 32767).astype(np.int16)
+                        data = boosted
                     self._raw = np.ascontiguousarray(data).tobytes()
                     self._sr = int(sr)
                 except Exception:

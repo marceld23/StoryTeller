@@ -397,13 +397,26 @@ def cmd_run(args: argparse.Namespace) -> int:
                          speak=speak)
                 return None
             # Wipe this world's saved progress, then start a fresh opening.
+            # Mirror the menu's fresh-start cadence:
+            #   1) world_reset prompt        ("Diese Welt wurde zurückgesetzt.")
+            #   2) world_<wid> prompt        ("Sternenfahrt. Du bist ...")
+            #   3) starting prompt           ("Die Geschichte beginnt.")
+            #   4) generate + speak opening  (LLM call under the wait sound)
+            # Without 2+3 the user just heard "reset" followed by a long
+            # silence (LLM rendering) and then the in-medias-res story —
+            # they couldn't tell the world had been re-introduced.
             res = engine.reset()
             log.info("world reset: %s", res)
-            prompts.play("world_reset", backend) if speak \
-                else rp("[dim](Welt zurückgesetzt)[/dim]")
+            if speak:
+                prompts.play("world_reset", backend)
+                prompts.play(f"world_{world.id}", backend)
+                prompts.play("starting", backend)
+            else:
+                rp("[dim](Welt zurückgesetzt)[/dim]")
             with WaitLoop(cfg, backend, world.wait_sound, leds):
                 opening = engine.opening()
             if opening:
+                rp(f"[green][Erzähler][/green] {opening}")
                 _say(cfg, world, backend, tts, fx, leds, (lambda: opening),
                      speak=speak)
             return None

@@ -121,6 +121,14 @@ class AudioCfg(BaseModel):
     default_volume_pct: int = 15
     input_sample_rate: int = 16000
     pw_sink: str = ""
+    # WaitLoop volume boost. The ambient WAVs that ship with the repo are
+    # mastered around 5% peak so they don't drown out the narrator on a hot
+    # ReSpeaker line-out — but at default `default_volume_pct = 15` they're
+    # nearly inaudible. The WaitLoop multiplies sample values by this gain
+    # before sending to the backend (saturating clip at int16 range).
+    # 1.0 = original level; 5.0 (default) is loud-but-not-overpowering on
+    # the Pi's typical setup. Tune in `data/audio.json` if needed.
+    wait_sound_gain: float = 5.0
 
 
 class WakeWordCfg(BaseModel):
