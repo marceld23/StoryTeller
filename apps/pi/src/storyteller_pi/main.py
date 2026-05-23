@@ -147,7 +147,6 @@ def cmd_run(args: argparse.Namespace) -> int:
     from storyteller_voice.prompts import VoicePromptCache
     from storyteller_voice.stt import get_stt
     from storyteller_voice.tts import get_tts
-    from storyteller_voice.waitloop import WaitLoop
 
     cfg = load_config()
     if args.profile:
