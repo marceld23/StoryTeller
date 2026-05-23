@@ -67,50 +67,72 @@ bash scripts/install_wakeword.sh
 `install_wakeword.sh` afterwards. Without a wake word the loop falls back to
 push-to-talk / text mode (not usable under systemd, which has no stdin).
 
-## 3b. Optional: interrupt button (barge-in)
+## 3b. Optional: GPIO push-buttons
 
-A momentary push-button on a GPIO pin lets the player **interrupt the
-narration** while it speaks — the system stops, listens, and figures out what
-you want (system menu or a story turn). Optional: without it the player uses
-the wake word / web button / CLI instead.
+Two roles ship out of the box, both off by default. Each lives in its
+own `[hardware] <role>_button_*` group in `config/config.toml` — enable
+only the ones you actually wire up.
 
-**Wiring (Pi 4, very simple — no resistor needed):**
+| Role | Short press | Long press (≥ `long_press_s`, default 2.0 s) |
+|---|---|---|
+| **interrupt** | Pause / resume the current narration (SIGSTOP / SIGCONT on `aplay`). No-op if nothing is playing. | Abort the current narration and open the spoken system menu. |
+| **shutdown** | Announce *„Spielstand gespeichert"* (the game is auto-checkpointed every turn — this is just audible feedback). | Say goodbye, then `sudo -n systemctl poweroff`. |
+
+**Wiring (Pi 4, no resistor needed):**
 
 ```
-   GPIO17 (pin 11) ──┐
-                     [ push-button ]
-   GND    (pin 9)  ──┘
+   GPIO 17 (pin 11) ──┐           ┌── interrupt button → GND (pin 9)
+                      │           │
+   GPIO 27 (pin 13) ──┴── [btn] ──┴── shutdown button  → GND (pin 14)
 ```
 
-- Connect one leg of the button to a free GPIO pin (default **BCM 17** =
-  physical pin 11) and the other leg to any **GND** pin (e.g. physical pin 9
-  or 6).
-- No external resistor: the firmware enables the chip's internal pull-up, so
-  the pin idles HIGH and pressing pulls it to GND.
-- Any normally-open momentary button works (breadboard tactile switch,
-  arcade button, …). Polarity doesn't matter.
+- Each button has one leg on its configured BCM pin and one leg on any
+  GND. The internal pull-up (default `pull_up = true`) replaces an
+  external resistor — the pin idles HIGH, pressing pulls to GND.
+- Any normally-open momentary button works. Polarity doesn't matter.
+- Default BCM pins: **17** (interrupt, physical pin 11), **27** (shutdown,
+  physical pin 13). Both are safe — no boot-time conflicts. Pin reference:
+  `pinout` on the Pi or pinout.xyz.
 
-Pin reference: run `pinout` on the Pi, or see pinout.xyz. Avoid pins with
-special boot functions (GPIO 0/1, 14/15); 17, 22, 23, 24, 27 are safe choices.
-
-**Enable it** — install the GPIO libs (Pi-only, like the wake word) and flip
-the toggle in `config/config.toml`:
+**Install the GPIO libs** (Pi-only, like the wake word):
 
 ```bash
 sudo apt-get install -y swig python3-dev liblgpio-dev   # build deps
 uv pip install gpiozero lgpio
 ```
 
+**Enable in `config/config.toml`:**
+
 ```toml
 [hardware]
-interrupt_button_enabled  = true   # default false — no GPIO claim unless this is true
-interrupt_button_pin      = 17     # BCM pin (default 17 = physical pin 11)
-interrupt_button_pull_up  = true   # internal pull-up: button wires pin -> GND
-interrupt_button_bounce_s = 0.08
+interrupt_button_enabled       = true
+interrupt_button_pin           = 17
+interrupt_button_long_press_s  = 2.0     # hold this long for the menu
+
+shutdown_button_enabled        = true
+shutdown_button_pin            = 27
+shutdown_button_long_press_s   = 2.0
 ```
 
-Each button role uses its own `<role>_button_*` group (so additional buttons
-— menu, save, … — can be added later without breaking existing config).
+Restart the voice service; the log shows
+`storyteller.button: interrupt aktiv an GPIO 17 (long_press=2.0s)`
+(and the same for `shutdown`) when each is up.
+
+**Sudoers for the shutdown button** — the long-press handler runs
+`sudo -n systemctl poweroff` (`-n` = non-interactive: no password
+prompt). Allow that for the user the service runs as (`pi` by default):
+
+```
+# /etc/sudoers.d/storyteller-poweroff  (visudo -f to edit)
+pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff
+```
+
+Without that line the button will say goodbye but the Pi stays on.
+
+Pause/resume note: pause/resume only acts on the **narration**, not the
+ambient wait-loop sound. Pressing the interrupt button while the
+narrator hasn't started yet (LLM still thinking) is a no-op; a long
+press in that window still works (abort + menu).
 
 Restart the voice service; the log shows `Interrupt-Taster aktiv an GPIO 17`.
 Works with any audio output (ReSpeaker line-out **and** Bluetooth) since the

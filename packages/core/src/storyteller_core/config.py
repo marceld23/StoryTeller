@@ -146,16 +146,29 @@ class WakeWordCfg(BaseModel):
 
 
 class HardwareCfg(BaseModel):
-    # GPIO push-buttons. Each button has its own `*_enabled`, `*_pin`,
-    # `*_pull_up`, `*_bounce_s` group so more roles can be added later
-    # (menu, save, etc.) without overloading a single set of fields.
+    # GPIO push-buttons. Each button has its own `<role>_button_*` group
+    # so more roles can be added later without overloading a single set
+    # of fields. Both ship out of the box, both default disabled.
 
-    # Interrupt / barge-in button: a press stops the narration immediately
-    # and drops the player into "listen now" mode.
-    interrupt_button_enabled: bool = False  # master switch — no GPIO claim if false
-    interrupt_button_pin: int = 17          # BCM pin (default 17 = physical pin 11)
-    interrupt_button_pull_up: bool = True   # internal pull-up: button wires pin -> GND
-    interrupt_button_bounce_s: float = 0.08 # debounce time in seconds
+    # Interrupt button — short press: pause/resume the current narration
+    # (SIGSTOP / SIGCONT on the live aplay); long press: open the spoken
+    # system menu.
+    interrupt_button_enabled: bool = False    # master switch — no GPIO claim if false
+    interrupt_button_pin: int = 17            # BCM pin (default 17 = physical pin 11)
+    interrupt_button_pull_up: bool = True     # internal pull-up: button wires pin -> GND
+    interrupt_button_bounce_s: float = 0.08   # debounce time in seconds
+    interrupt_button_long_press_s: float = 2.0  # hold this long for "long press" semantics
+
+    # Shutdown button — short press: announce "Spielstand gespeichert"
+    # (the game is auto-checkpointed every turn, so this is just feedback);
+    # long press: say goodbye and shut the Pi down via
+    # `sudo -n systemctl poweroff`. Requires the running user to have
+    # passwordless sudo for that command (see docs/SETUP_PI.md).
+    shutdown_button_enabled: bool = False
+    shutdown_button_pin: int = 27             # BCM pin (default 27 = physical pin 13)
+    shutdown_button_pull_up: bool = True
+    shutdown_button_bounce_s: float = 0.08
+    shutdown_button_long_press_s: float = 2.0
 
 
 class FXCfg(BaseModel):

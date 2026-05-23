@@ -24,9 +24,16 @@ from ..runtime import resolve_backend_name
 
 def _play_proc(cmd: list[str], stop: threading.Event) -> None:
     """Run a blocking playback command (aplay/pw-play) but terminate it as
-    soon as `stop` is set — the primitive behind interruptible playback."""
+    soon as `stop` is set — the primitive behind interruptible playback.
+
+    Also registers the live subprocess in the playback registry so the
+    interrupt button can SIGSTOP / SIGCONT it for pause/resume without
+    going through `stop` (which is reserved for *abort*)."""
+    from .playback_control import PLAYBACK
+
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
+    PLAYBACK.set_proc(proc)
     try:
         while proc.poll() is None:
             if stop.wait(0.1):
@@ -39,6 +46,7 @@ def _play_proc(cmd: list[str], stop: threading.Event) -> None:
     finally:
         if proc.poll() is None:
             proc.terminate()
+        PLAYBACK.clear_proc()
 
 
 def _alsa_loop(pcm_bytes: bytes, sr: int, out_pcm: str,

@@ -170,8 +170,61 @@ def cmd_run(args: argparse.Namespace) -> int:
     stt = get_stt(cfg)
     tts = get_tts(cfg)
 
-    from storyteller_hardware.button import InterruptButton
-    button = InterruptButton(cfg)   # optional GPIO barge-in (.available)
+    from storyteller_hardware.audio.playback_control import PLAYBACK
+    from storyteller_hardware.button import GpioButton
+
+    # Two optional GPIO push-buttons, both off by default. See
+    # docs/SETUP_PI.md for wiring. Even if both are disabled (the repo
+    # default) the rest of the loop runs unchanged.
+    interrupt_btn = GpioButton(cfg, "interrupt")
+    shutdown_btn = GpioButton(cfg, "shutdown")
+    # Long-press on the interrupt button: abort the current narration and
+    # ask the main loop to open the spoken system menu. The narration's
+    # abort event is registered here so the button thread can set it.
+    menu_requested = threading.Event()
+    _current_interrupt: list[threading.Event | None] = [None]
+
+    def _interrupt_short_press() -> None:
+        # Short press = pause/resume of the currently playing aplay
+        # subprocess (SIGSTOP / SIGCONT). No-op when nothing is playing.
+        state = PLAYBACK.toggle()
+        rp(f"[dim](Taster: {state})[/dim]")
+
+    def _interrupt_long_press() -> None:
+        # Long press = abort + open system menu.
+        ev = _current_interrupt[0]
+        if ev is not None:
+            ev.set()
+        menu_requested.set()
+        rp("[dim](Taster lang: → Systemmenü)[/dim]")
+
+    def _shutdown_short_press() -> None:
+        # Short press = confirm "saved" (every turn is auto-checkpointed).
+        if speak:
+            try:
+                prompts.play("saved", backend)
+            except Exception:
+                pass
+        rp("[dim](Taster: Spielstand gespeichert)[/dim]")
+
+    def _shutdown_long_press() -> None:
+        # Long press = say goodbye and power off. Requires NOPASSWD sudo
+        # for `systemctl poweroff` — see docs/SETUP_PI.md.
+        log.info("shutdown button: powering off")
+        if speak:
+            try:
+                prompts.play("goodbye", backend)
+            except Exception:
+                pass
+        import subprocess
+        try:
+            subprocess.run(["sudo", "-n", "systemctl", "poweroff"],
+                           check=False, timeout=5)
+        except Exception as exc:
+            log.warning("shutdown failed: %r", exc)
+
+    interrupt_btn.set_callbacks(_interrupt_short_press, _interrupt_long_press)
+    shutdown_btn.set_callbacks(_shutdown_short_press, _shutdown_long_press)
 
     speak = not args.silent      # --silent: no audio output
     text_mode = args.text        # --text: keyboard instead of mic
@@ -224,22 +277,27 @@ def cmd_run(args: argparse.Namespace) -> int:
     fx = VoiceFX(cfg, world.fx_preset)
 
     def _arm() -> threading.Event:
-        """Fresh interrupt event, wired to the button for the next playback."""
+        """Fresh interrupt event registered with the interrupt-button long-
+        press handler so it can abort the upcoming narration."""
         ev = threading.Event()
-        if button.available:
-            button.arm(ev)
+        _current_interrupt[0] = ev
         return ev
 
+    def _disarm() -> None:
+        _current_interrupt[0] = None
+
     def _say_barge(gen) -> tuple[str, bool]:
-        """Narrate with optional button barge-in. Returns (text, interrupted).
-        On interrupt the playback stops; the caller then listens immediately
-        and classifies the player's intent (menu vs. story)."""
+        """Narrate with optional button long-press barge-in. Returns
+        (text, interrupted). On long-press the playback aborts AND
+        `menu_requested` is set so the caller opens the system menu;
+        short-press toggles pause/resume of the active aplay and does
+        NOT set `interrupted`."""
         ev = _arm()
         try:
             text = _say(cfg, world, backend, tts, fx, leds, gen,
                         speak=speak, interrupt=ev)
         finally:
-            button.disarm()
+            _disarm()
         interrupted = ev.is_set()
         if interrupted:
             rp("[yellow]… unterbrochen — ich höre …[/yellow]")
@@ -266,7 +324,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             first = _say(cfg, world, backend, tts, fx, leds,
                          _first_narration, speak=True, interrupt=ev)
         finally:
-            button.disarm()
+            _disarm()
         rp(f"[green][Erzähler][/green] {first}")
         opening_interrupted = ev.is_set()
         if opening_interrupted:
@@ -454,6 +512,16 @@ def cmd_run(args: argparse.Namespace) -> int:
             cfg = load_config()
             stt = get_stt(cfg)
             tts = get_tts(cfg)
+            # If a long-press fired since the last iteration (typically:
+            # during the previous narration; the button handler also armed
+            # `menu_requested` so we get here even if the press happened at
+            # idle) open the spoken system menu directly.
+            if menu_requested.is_set():
+                menu_requested.clear()
+                if _sysmenu() == "quit":
+                    break
+                pending_follow = follow_enabled
+                continue
             try:
                 if text_mode:
                     said = input("Du: ").strip()
@@ -511,7 +579,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print()
         if speak:
             prompts.play("goodbye", backend)
-    button.close()
+    interrupt_btn.close()
+    shutdown_btn.close()
     leds.off()
     return 0
 

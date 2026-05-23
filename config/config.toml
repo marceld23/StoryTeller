@@ -80,16 +80,28 @@ threshold = 0.5       # higher = fewer false triggers
 follow_up = true      # after speaking, listen once more without the wake word
 
 [hardware]
-# GPIO push-buttons (each role has its own enabled/pin/pull_up/bounce group
-# so more buttons can be added later without breaking existing config).
+# GPIO push-buttons (each role has its own group, both off by default).
 # Wiring: button between the BCM pin and any GND. See docs/SETUP_PI.md.
 # Enable on the Pi: uv pip install gpiozero lgpio  (apt: swig python3-dev liblgpio-dev)
 
-# Interrupt / barge-in: a press stops the narration and the system listens.
-interrupt_button_enabled  = false  # master switch — leave false if no button is wired
-interrupt_button_pin      = 17     # BCM pin (default 17 = physical pin 11)
-interrupt_button_pull_up  = true   # internal pull-up: button connects pin -> GND
-interrupt_button_bounce_s = 0.08   # debounce time in seconds
+# Interrupt button:
+#   short press -> pause/resume the current narration (SIGSTOP/SIGCONT on aplay)
+#   long press  -> abort narration and open the spoken system menu
+interrupt_button_enabled       = false  # master switch — leave false if no button is wired
+interrupt_button_pin           = 17     # BCM pin (default 17 = physical pin 11)
+interrupt_button_pull_up       = true   # internal pull-up: button connects pin -> GND
+interrupt_button_bounce_s      = 0.08   # debounce time in seconds
+interrupt_button_long_press_s  = 2.0    # hold this long to count as "long press"
+
+# Shutdown button:
+#   short press -> announce "Spielstand gespeichert" (state is auto-checkpointed)
+#   long press  -> say goodbye, then `sudo -n systemctl poweroff`
+#                  (requires NOPASSWD sudo for that command — see SETUP_PI.md)
+shutdown_button_enabled        = false
+shutdown_button_pin            = 27     # BCM pin (default 27 = physical pin 13)
+shutdown_button_pull_up        = true
+shutdown_button_bounce_s       = 0.08
+shutdown_button_long_press_s   = 2.0
 
 [fx]
 enabled              = true
