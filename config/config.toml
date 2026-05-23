@@ -158,9 +158,10 @@ file  = "data/storyteller.log"
 
 [transcripts]
 # Also write the exact prompt to the narrator LLM (system prompt + follow-up
-# messages incl. tool rounds) into the transcript — expandable in the admin.
-# Off by default: makes data/transcripts/*.jsonl considerably larger.
-capture_prompts = false
+# messages incl. tool rounds) into the transcript — expandable in the admin
+# (📤 Prompt an LLM card). Makes transcripts considerably larger; turn off
+# again if disk space matters.
+capture_prompts = true
 
 [web]
 host = "0.0.0.0"

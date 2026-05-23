@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 def _find_repo_root() -> Path:
@@ -256,8 +256,30 @@ class WebCfg(BaseModel):
 class ModerationCfg(BaseModel):
     enabled: bool = True
     model: str = "omni-moderation-latest"
-    default_threshold: float = 0.5  # block a category at/above this score
-    # Per-category overrides live in data/moderation.json (admin-editable).
+    default_threshold: float = 0.5  # block any category at/above this score
+    # Per-category baseline. Storyteller is an *adventure-style* narrator;
+    # raw "violence" at 0.5 catches mundane action language ("die Schilde
+    # hoch", "Mox' Jäger angreifen") and blocks too aggressively. We
+    # loosen mundane categories and tighten the genuinely dangerous ones.
+    # The admin can override anything via `data/moderation.json`.
+    category_thresholds: dict[str, float] = Field(default_factory=lambda: {
+        # Adventure-narrative — loose, otherwise the game can't function.
+        "violence":              0.90,
+        "violence/graphic":      0.85,
+        "harassment":            0.85,
+        "harassment/threatening": 0.80,
+        "hate":                  0.75,
+        "hate/threatening":      0.60,
+        "illicit":               0.80,
+        "illicit/violent":       0.70,
+        # Sexual content — neutral default, restricted-minors strict.
+        "sexual":                0.60,
+        "sexual/minors":         0.05,
+        # Self-harm — keep strict, no narrative value gained by relaxing.
+        "self-harm":             0.40,
+        "self-harm/intent":      0.35,
+        "self-harm/instructions": 0.25,
+    })
 
 
 class NetcheckCfg(BaseModel):

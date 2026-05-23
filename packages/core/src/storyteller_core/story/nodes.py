@@ -255,11 +255,16 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
         f"{_guidance(cfg, locale)}\n{LANG_INSTRUCTION[locale]}\n"
         f"{SESSION_CONTINUITY_RULE[locale]}\n"
-        "Tools bei Bedarf still nutzen (get_world_overview, "
-        "retrieve_world_fact, lookup_glossary, roll_random_event, "
-        "roll_story_dynamic, track_character) — das Ergebnis IMMER in "
-        "einfache, kurze Erzählung verwandeln, niemals Fakten oder "
-        "Listen vorlesen."
+        "Tools still nutzen, das Ergebnis IMMER in einfache, kurze "
+        "Erzählung verwandeln, niemals Fakten oder Listen vorlesen:\n"
+        "- BEI EXPLIZITER SPIELER-FRAGE nach Welt-Fakten (Wer ist…? Wo "
+        "ist…? Was ist…? Was bedeutet…?) RUFE ZUERST das passende Tool "
+        "auf (`retrieve_world_fact` für Orte/Personen/Geschichte, "
+        "`lookup_glossary` für Begriffe). Antworte NICHT aus dem "
+        "Stegreif — Konsistenz hängt davon ab.\n"
+        "- Andere Tools nach Bedarf: `get_world_overview` für "
+        "Atmosphäre-Reset, `roll_random_event`/`roll_story_dynamic` für "
+        "Wendungen, `track_character` für NPC-Zustände."
         + nudge
         + (BRIEF_RULE if brief else "")
     )
@@ -453,6 +458,17 @@ def curate(state: dict, config: RunnableConfig) -> dict:
     except Exception as exc:
         log.warning("curator gate failed: %r", exc)
         return {}
+    # Log the gate decision as a transcript note so admins can see in
+    # /transcripts which authored reveals were unlocked / which topics
+    # were held back THIS turn.
+    if ctx.transcript:
+        permit = "; ".join(gate.permitted_reveals) or "(none)"
+        forbid = "; ".join(gate.forbidden_topics) or "(none)"
+        intent = gate.scene_intent or "—"
+        tone = gate.tone_nudge or "—"
+        ctx.transcript.note(
+            f"[gate] intent={intent} | permit={permit} | "
+            f"forbid={forbid} | tone={tone}")
     return {"gate": gate.model_dump(), "cost": cost.snapshot()}
 
 

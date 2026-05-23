@@ -45,8 +45,14 @@ class Moderator:
         self.enabled = bool(ov.get("enabled", cfg.moderation.enabled))
         self.default = float(ov.get("default",
                                     cfg.moderation.default_threshold))
-        self.cats = {str(k): float(v)
+        # Layered thresholds: code-level baseline per category (from
+        # cfg.moderation.category_thresholds, tuned for adventure
+        # narration) → admin overrides from data/moderation.json on top.
+        baseline = {str(k): float(v)
+                    for k, v in (cfg.moderation.category_thresholds or {}).items()}
+        overrides = {str(k): float(v)
                      for k, v in (ov.get("categories") or {}).items()}
+        self.cats = {**baseline, **overrides}
 
     def threshold(self, category: str) -> float:
         return self.cats.get(category, self.default)

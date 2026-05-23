@@ -200,10 +200,10 @@ REPAIR_LANGUAGE_SYS = {
 }
 
 MODERATION_BLOCKED = {
-    "de": "Diese Eingabe kann ich nicht verarbeiten. Bitte formuliere es "
-          "anders und freundlicher.",
-    "en": "I can't process that input. Please rephrase it differently and "
-          "more kindly.",
+    "de": "Das war etwas zu grob — formulier es bitte zurückhaltender oder "
+          "andersrum, dann geht's weiter.",
+    "en": "That was a bit too rough — please phrase it more gently or "
+          "differently, and we'll continue.",
 }
 
 # --- Narration "gate" (curator) — decides PER TURN which authored
