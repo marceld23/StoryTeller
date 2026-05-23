@@ -14,9 +14,9 @@ ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
 (text or hold-to-talk voice). Built on a LangGraph story engine that talks
 to **any OpenAI-compatible endpoint** — the OpenAI API by default, or
 self-hosted backends like Ollama / vLLM / llama.cpp (LLM + embeddings),
-faster-whisper (STT), and Piper via Wyoming/TCP (TTS). Endpoints are
-configurable per role (story / planner / gen / STT / TTS / embeddings), so
-you can run fully local, fully cloud, or mix and match. Localized for
+faster-whisper (STT), and Piper (Wyoming/TCP) or XTTS v2 for TTS. Endpoints
+are configurable per role (story / planner / gen / STT / TTS / embeddings),
+so you can run fully local, fully cloud, or mix and match. Localized for
 German and English.
 
 ➡ **Architecture, decisions & roadmap: [PLAN.md](PLAN.md)**

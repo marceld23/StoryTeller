@@ -46,7 +46,12 @@ start_timeout_s = 6.0    # nothing said at all -> abort, ask again
 min_seconds     = 0.5    # never end before this (ignore the first breath)
 
 [tts]
-provider    = "openai"  # openai | local  (local => Phase 10, Pi 5 + AI HAT only)
+# Provider is also auto-detected from the tts endpoint URL scheme — leave
+# this on the default and just point models.tts_endpoint at the right URL:
+#   http(s)://…/v1      → openai-compatible (OpenAI, kokoro, …)
+#   tcp:// / wyoming:// → Wyoming/Piper
+#   xtts://             → daswer123/xtts-api-server
+provider    = "openai"  # openai | xtts | wyoming | local  (local => Phase 10)
 format      = "pcm"     # 24 kHz mono s16le — ideal for reverb
 sample_rate = 24000
 

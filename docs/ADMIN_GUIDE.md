@@ -82,6 +82,15 @@ default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`.
   LM Studio): `base_url` includes host:port and `/v1`, e.g.
   `http://192.168.1.50:8000/v1`. The server must support tool-calls + JSON
   mode for the story/planner/gen roles. Moderation always uses OpenAI.
+- *Non-OpenAI TTS servers (auto-detected by URL scheme):*
+  - **Wyoming / Piper** — `tcp://host:port` (or `wyoming://host:port`).
+    `tts_voice` is the Piper voice (e.g. `de_DE-thorsten-high`).
+  - **XTTS** (`daswer123/xtts-api-server`) — `xtts://host:port`.
+    `tts_voice` is the registered speaker name (e.g. `marcel`); the
+    language follows the effective `general.locale`.
+  - Everything else (empty or plain `http(s)://…/v1`) → the OpenAI-compatible
+    client (used for OpenAI itself and for self-hosted servers that mimic
+    `/v1/audio/speech`, e.g. kokoro).
 - *Roh-JSON* toggle for the whole models override object.
 
   Example `data/models.json` (only the keys you want to override):
