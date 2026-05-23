@@ -140,6 +140,16 @@ class XttsTTS(TTS):
 
     # XTTS sentence limit hovers around 250 chars in practice; keep a margin.
     MAX_CHUNK_CHARS = 220
+    # Trim heuristic: XTTS v2 frequently appends a verbatim repetition of
+    # short inputs after a long pause ("stacking reverb" effect). Only
+    # attempt the cut when the audio is much longer than the text would
+    # justify — otherwise we'd chop natural multi-sentence narration at the
+    # first inter-sentence pause.
+    TRIM_BLOAT_RATIO = 1.6       # cut only if actual > expected * this
+    TRIM_CHARS_PER_S = 12.0      # rough speaking rate for the expected length
+    TRIM_SILENCE_S = 0.5         # min pause length to count as a cut point
+    TRIM_WINDOW_S = 0.05         # energy analysis window
+    TRIM_SILENCE_REL = 0.05      # silence = energy below 5% of peak
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -154,6 +164,55 @@ class XttsTTS(TTS):
         self.host = u.hostname or "127.0.0.1"
         self.port = u.port or 8002
         self.base = f"http://{self.host}:{self.port}"
+
+    @classmethod
+    def _trim_repetition(cls, audio: np.ndarray, sr: int,
+                         text: str) -> np.ndarray:
+        """Cut XTTS's "appended repetition" artefact.
+
+        Two-stage filter:
+          1) Bloat gate — only attempt the trim when the actual audio is
+             much longer than the text could justify (`TRIM_BLOAT_RATIO`
+             over `len(text) / TRIM_CHARS_PER_S`). Multi-sentence prose
+             that simply has natural pauses passes straight through.
+          2) Cut at the first silence of >= TRIM_SILENCE_S that is followed
+             by MORE audio (i.e. not the natural trailing silence at the
+             end of the recording).
+        """
+        if audio.size == 0:
+            return audio
+        expected_s = max(1.0, len(text or "") / cls.TRIM_CHARS_PER_S)
+        actual_s = audio.size / max(1, sr)
+        if actual_s < expected_s * cls.TRIM_BLOAT_RATIO:
+            return audio                       # likely no repetition
+        peak = float(np.abs(audio).max())
+        if peak < 0.05:                        # too quiet to analyse
+            return audio
+        win = max(1, int(sr * cls.TRIM_WINDOW_S))
+        n_win = audio.size // win
+        if n_win < 4:
+            return audio
+        # Window-max envelope; cheap and robust.
+        env = np.abs(audio[: n_win * win]).reshape(n_win, win).max(axis=1)
+        speaking = env > peak * cls.TRIM_SILENCE_REL
+        if not speaking.any():
+            return audio
+        start = int(np.argmax(speaking))       # first speaking window
+        gap_windows = max(1, int(cls.TRIM_SILENCE_S / cls.TRIM_WINDOW_S))
+        silence_start: int | None = None
+        for i in range(start + 1, n_win):
+            if not speaking[i]:
+                if silence_start is None:
+                    silence_start = i
+                elif (i - silence_start) >= gap_windows:
+                    # Long enough silence found. Cut only if AUDIO RESUMES
+                    # later (otherwise it's natural trailing silence).
+                    if (speaking[i:].any()):
+                        return audio[: silence_start * win + win // 2]
+                    return audio
+            else:
+                silence_start = None
+        return audio
 
     @classmethod
     def _chunks(cls, text: str) -> list[str]:
@@ -211,10 +270,19 @@ class XttsTTS(TTS):
                                    always_2d=False)
                 if getattr(data, "ndim", 1) > 1:
                     data = data.mean(axis=1)
-                pieces.append(np.asarray(data, dtype=np.float32))
+                raw_samples = len(data)
+                data = self._trim_repetition(
+                    np.asarray(data, dtype=np.float32), int(sr), chunk)
+                pieces.append(data)
                 sr_out = int(sr)
-                log.debug("  chunk %d/%d: %d chars -> %d samples @ %d Hz",
-                          i, len(chunks), len(chunk), len(data), sr_out)
+                if len(data) < raw_samples:
+                    log.info("  chunk %d/%d: %d chars -> %d samples @ %d Hz "
+                             "(trimmed %d ms XTTS repetition)",
+                             i, len(chunks), len(chunk), len(data), sr_out,
+                             int(1000 * (raw_samples - len(data)) / sr_out))
+                else:
+                    log.debug("  chunk %d/%d: %d chars -> %d samples @ %d Hz",
+                              i, len(chunks), len(chunk), len(data), sr_out)
         out = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
         return np.ascontiguousarray(out, dtype=np.float32), sr_out
 
