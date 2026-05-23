@@ -203,7 +203,7 @@
       ]
     }
   ],
-  "wait_sound": "fantasy_ambient.wav",
+  "wait_sound": "fantasy_waiting.wav",
   "fx_preset": {
     "reverb_room_size": 0.7,
     "reverb_damping": null,

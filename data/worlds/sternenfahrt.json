@@ -203,7 +203,7 @@
       ]
     }
   ],
-  "wait_sound": "scifi_ambient.wav",
+  "wait_sound": "scifi_waiting.wav",
   "fx_preset": {
     "reverb_room_size": 0.45,
     "reverb_damping": null,
