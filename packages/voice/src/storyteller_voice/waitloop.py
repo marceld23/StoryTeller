@@ -7,10 +7,13 @@ reply arrives. Sets the LED ring to 'think'. File missing -> LED only.
 
 from __future__ import annotations
 
+import logging
 import threading
 
 import numpy as np
 from storyteller_core.config import Config
+
+log = logging.getLogger("storyteller.waitloop")
 
 
 class WaitLoop:
@@ -32,15 +35,23 @@ class WaitLoop:
                                        always_2d=False)
                     if getattr(data, "ndim", 1) > 1:
                         data = data[:, 0]
-                    # Audible-ity boost: the shipped ambient WAVs are mastered
-                    # at ~5% peak; the typical Pi softvol (~15%) makes them
-                    # nearly silent. Apply cfg.audio.wait_sound_gain with
-                    # saturating clip to keep the int16 range.
-                    gain = float(getattr(cfg.audio, "wait_sound_gain", 1.0) or 1.0)
+                    # Audibility boost: the shipped ambient WAVs are
+                    # mastered at ~5% peak; the typical Pi softvol (~15%)
+                    # makes them nearly silent. Apply cfg.audio.wait_sound_gain
+                    # with saturating clip to keep the int16 range. Log the
+                    # before/after peak so it's obvious when something is
+                    # off (gain unset, clipping, etc.).
+                    gain = float(getattr(cfg.audio, "wait_sound_gain", 1.0)
+                                 or 1.0)
+                    src_peak = int(np.abs(data).max())
                     if gain != 1.0:
                         boosted = np.clip(data.astype(np.int32) * gain,
                                           -32768, 32767).astype(np.int16)
                         data = boosted
+                    dst_peak = int(np.abs(data).max())
+                    log.info("wait sound %s: gain=%.1f peak %d -> %d "
+                             "(%d%% of full)", sound_file, gain, src_peak,
+                             dst_peak, int(round(100 * dst_peak / 32767)))
                     self._raw = np.ascontiguousarray(data).tobytes()
                     self._sr = int(sr)
                 except Exception:
