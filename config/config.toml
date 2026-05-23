@@ -70,12 +70,16 @@ threshold = 0.5       # higher = fewer false triggers
 follow_up = true      # after speaking, listen once more without the wake word
 
 [hardware]
-# Optional GPIO push-button to interrupt the narration (barge-in). 0 = off.
-# Wiring: button between this BCM pin and GND. See docs/SETUP_PI.md.
-# Enable: uv pip install gpiozero lgpio  (Pi-only, like the wake word).
-button_pin = 0          # BCM pin number, e.g. 17 (= physical pin 11)
-button_pull_up = true   # internal pull-up: button connects pin -> GND
-button_bounce_s = 0.08  # debounce time in seconds
+# GPIO push-buttons (each role has its own enabled/pin/pull_up/bounce group
+# so more buttons can be added later without breaking existing config).
+# Wiring: button between the BCM pin and any GND. See docs/SETUP_PI.md.
+# Enable on the Pi: uv pip install gpiozero lgpio  (apt: swig python3-dev liblgpio-dev)
+
+# Interrupt / barge-in: a press stops the narration and the system listens.
+interrupt_button_enabled  = false  # master switch — leave false if no button is wired
+interrupt_button_pin      = 17     # BCM pin (default 17 = physical pin 11)
+interrupt_button_pull_up  = true   # internal pull-up: button connects pin -> GND
+interrupt_button_bounce_s = 0.08   # debounce time in seconds
 
 [fx]
 enabled              = true

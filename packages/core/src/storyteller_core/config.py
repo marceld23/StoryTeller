@@ -123,11 +123,16 @@ class WakeWordCfg(BaseModel):
 
 
 class HardwareCfg(BaseModel):
-    # Optional GPIO push-button to interrupt the narration (barge-in). 0 =
-    # disabled. BCM pin number; wire the button between this pin and GND.
-    button_pin: int = 0
-    button_pull_up: bool = True   # internal pull-up: button connects pin->GND
-    button_bounce_s: float = 0.08
+    # GPIO push-buttons. Each button has its own `*_enabled`, `*_pin`,
+    # `*_pull_up`, `*_bounce_s` group so more roles can be added later
+    # (menu, save, etc.) without overloading a single set of fields.
+
+    # Interrupt / barge-in button: a press stops the narration immediately
+    # and drops the player into "listen now" mode.
+    interrupt_button_enabled: bool = False  # master switch — no GPIO claim if false
+    interrupt_button_pin: int = 17          # BCM pin (default 17 = physical pin 11)
+    interrupt_button_pull_up: bool = True   # internal pull-up: button wires pin -> GND
+    interrupt_button_bounce_s: float = 0.08 # debounce time in seconds
 
 
 class FXCfg(BaseModel):

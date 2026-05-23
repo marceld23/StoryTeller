@@ -32,16 +32,19 @@ class InterruptButton:
         self._event: threading.Event | None = None
         self._btn = None
         self._err = ""
-        pin = int(getattr(cfg.hardware, "button_pin", 0) or 0)
+        if not bool(getattr(cfg.hardware, "interrupt_button_enabled", False)):
+            return  # toggle off — no GPIO claim
+        pin = int(getattr(cfg.hardware, "interrupt_button_pin", 0) or 0)
         if pin <= 0:
-            return  # disabled
+            log.warning("interrupt_button_enabled=true but pin<=0 — ignored")
+            return
         try:
             from gpiozero import Button
 
             self._btn = Button(
                 pin,
-                pull_up=bool(cfg.hardware.button_pull_up),
-                bounce_time=float(cfg.hardware.button_bounce_s),
+                pull_up=bool(cfg.hardware.interrupt_button_pull_up),
+                bounce_time=float(cfg.hardware.interrupt_button_bounce_s),
             )
             self._btn.when_pressed = self._on_press
             self.available = True

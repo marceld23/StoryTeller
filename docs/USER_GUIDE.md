@@ -37,20 +37,37 @@ planned sub-stories, with occasional surprises that never derail the arc.
 
 1. Be in listening mode (wake word, or the follow-up window).
 2. Say just **"System"** (or "Menu") — short.
-3. You hear: *quit, undo turn, audio (Bluetooth) on/off, intro on/off,
-   close menu.*
-4. Answer freely. Then the last narrator message is replayed and play
+3. You hear: *save, quit, undo turn, **reset world**, audio (Bluetooth)
+   on/off, intro on/off, close menu.*
+4. Answer freely (destructive actions like undo / reset ask a yes/no safety
+   question first). Then the last narrator message is replayed and play
    continues.
 
 In **chat** mode there is no spoken menu — type `/undo` to roll back a turn,
 `/state` to inspect, `/quit` (or Ctrl-D) to exit.
 
+## Interrupting the narrator (barge-in)
+
+Stop the narration whenever you want — the system then listens and figures
+out what you said (system menu vs. a new story turn):
+
+- **Pi** — press the optional GPIO push-button (off by default; see
+  [SETUP_PI.md](SETUP_PI.md) for wiring + enabling in `config.toml`).
+- **Web (`/voice`)** — the **Stopp** button under the microphone pauses
+  the spoken playback.
+- **CLI / chat** — press **Ctrl+C** while the narrator is generating to
+  drop the in-progress turn and return to the prompt.
+
 ## Sessions & resuming
 
 There is no manual save/load — every turn is **checkpointed automatically**
 (LangGraph `SqliteSaver` in `data/checkpoints.db`). Each world has a stable
-session, so simply starting that world again continues where you stopped.
-"Undo" rolls back one turn. To begin a world fresh, start with `--new`.
+session, so simply starting that world again continues where you stopped —
+with a short spoken recap of where the story left off. The system menu's
+*reset world* (with a yes/no safety prompt) wipes that progress so the
+world starts from the opening; the admin's **Spielstände** page does the
+same with a button. "Undo" rolls back one turn. `--new` starts a fresh
+branch without touching the saved one.
 
 ## Localization (German / English)
 

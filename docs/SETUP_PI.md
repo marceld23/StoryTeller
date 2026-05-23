@@ -93,19 +93,24 @@ the wake word / web button / CLI instead.
 Pin reference: run `pinout` on the Pi, or see pinout.xyz. Avoid pins with
 special boot functions (GPIO 0/1, 14/15); 17, 22, 23, 24, 27 are safe choices.
 
-**Enable it** — install the GPIO libs (Pi-only, like the wake word) and set
-the pin in `config/config.toml`:
+**Enable it** — install the GPIO libs (Pi-only, like the wake word) and flip
+the toggle in `config/config.toml`:
 
 ```bash
+sudo apt-get install -y swig python3-dev liblgpio-dev   # build deps
 uv pip install gpiozero lgpio
 ```
 
 ```toml
 [hardware]
-button_pin = 17        # BCM number; 0 = disabled (default)
-button_pull_up = true  # internal pull-up: button wires pin -> GND
-button_bounce_s = 0.08
+interrupt_button_enabled  = true   # default false — no GPIO claim unless this is true
+interrupt_button_pin      = 17     # BCM pin (default 17 = physical pin 11)
+interrupt_button_pull_up  = true   # internal pull-up: button wires pin -> GND
+interrupt_button_bounce_s = 0.08
 ```
+
+Each button role uses its own `<role>_button_*` group (so additional buttons
+— menu, save, … — can be added later without breaking existing config).
 
 Restart the voice service; the log shows `Interrupt-Taster aktiv an GPIO 17`.
 Works with any audio output (ReSpeaker line-out **and** Bluetooth) since the

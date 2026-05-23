@@ -84,9 +84,19 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 `storyteller-pi run` is the full voice appliance: spoken greeting + optional
 intro, a voice world-menu, wake word ("hey jarvis" by default) with a
 follow-up window, speech capture that ends on a pause, a wait-sound loop
-under TTS, and a spoken system menu (quit / undo / audio / intro / close).
-Per-world session state auto-resumes across restarts (LangGraph checkpointer,
-`thread_id = pi-<world>`); `--new` starts a fresh branch.
+under TTS, and a spoken system menu (save / quit / undo / reset world /
+audio / intro / close). Per-world session state auto-resumes across restarts
+(LangGraph checkpointer, `thread_id = pi-<world>`); `--new` starts a fresh
+branch. Resuming a saved world plays a short spoken recap of where you are.
+
+**Barge-in** — the narrator can be interrupted any time:
+- **Pi** — an optional GPIO push-button (see [docs/SETUP_PI.md](docs/SETUP_PI.md));
+  off by default, configurable per-button via `[hardware]` in `config.toml`.
+- **Web** — a *Stopp* button on the voice page pauses playback.
+- **CLI** — `Ctrl+C` during a turn aborts that turn.
+
+When interrupted, the system stops, listens, and decides what you want
+(system menu vs. a new story input).
 
 ```bash
 sudo bash scripts/setup_system.sh      # udev rule (LED ring & DSP tuning), once
