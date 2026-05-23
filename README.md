@@ -4,6 +4,11 @@
   <img src="docs/assets/storyteller_logo.png" alt="Storyteller — your voice, infinite stories." width="320">
 </p>
 
+**Storyteller tells you a story — and pulls you into it.** It narrates, asks
+what you do, listens to you, and weaves your answers back into the tale.
+You're not reading a story; you're living one together with the narrator —
+your choices, your questions, your hints all bend where it goes next.
+
 Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
 ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
 (text or hold-to-talk voice). Built on a LangGraph story engine that talks
