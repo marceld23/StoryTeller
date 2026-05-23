@@ -111,7 +111,7 @@ class AudioBackend(ABC):
     def play_wav(self, wav_path: str) -> None: ...
 
     def play_wav_interruptible(self, wav_path: str,
-                               stop: "threading.Event") -> None:
+                               stop: threading.Event) -> None:
         """Play a WAV but abort early when `stop` is set (barge-in).
 
         Default = blocking play_wav (no interruption); subprocess/sounddevice
