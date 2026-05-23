@@ -87,6 +87,9 @@ default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`,
   LM Studio): `base_url` includes host:port and `/v1`, e.g.
   `http://192.168.1.50:8000/v1`. The server must support tool-calls + JSON
   mode for the story/planner/gen/gate roles. Moderation always uses OpenAI.
+  For a **turn-key fully-local stack** (Ollama + Faster-Whisper + XTTS v2
+  on Windows, requires NVIDIA GPU), see
+  [SETUP_LOCAL_AI_SERVER.md](SETUP_LOCAL_AI_SERVER.md).
 - *Non-OpenAI TTS servers (auto-detected by URL scheme):*
   - **Wyoming / Piper** — `tcp://host:port` (or `wyoming://host:port`).
     `tts_voice` is the Piper voice (e.g. `de_DE-thorsten-high`).

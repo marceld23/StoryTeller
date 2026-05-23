@@ -19,6 +19,13 @@ are configurable per role (story / planner / gen / STT / TTS / embeddings),
 so you can run fully local, fully cloud, or mix and match. Localized for
 German and English.
 
+Want to go **fully local** with no API key at all? The repo ships a
+turn-key Windows + NVIDIA-GPU server stack in
+[`local_llm_servers_win/`](local_llm_servers_win/) (Ollama + Faster-Whisper
++ XTTS v2). Point your Storyteller client (Pi or PC) at it over the LAN —
+guide in [docs/SETUP_LOCAL_AI_SERVER.md](docs/SETUP_LOCAL_AI_SERVER.md).
+**Requires a capable NVIDIA GPU with enough VRAM** (≥ 24 GB recommended).
+
 ➡ **Architecture, decisions & roadmap: [PLAN.md](PLAN.md)**
 ➡ **Conventions for working on the codebase: [AGENTS.md](AGENTS.md)**
 
@@ -208,6 +215,7 @@ viewable in the admin UI (`/transcripts`).
 - [PLAN.md](PLAN.md) — what's still open
 - [docs/SETUP_PI.md](docs/SETUP_PI.md) — Raspberry Pi + ReSpeaker
 - [docs/SETUP_PC.md](docs/SETUP_PC.md) — PC setup (no Pi/no ReSpeaker)
+- [docs/SETUP_LOCAL_AI_SERVER.md](docs/SETUP_LOCAL_AI_SERVER.md) — optional fully-local AI backends (Ollama + Whisper + XTTS) on a Windows + NVIDIA GPU host
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to play
 - [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) — admin frontend (worlds, generation, transcripts, model/endpoint settings)
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — dependency licenses
