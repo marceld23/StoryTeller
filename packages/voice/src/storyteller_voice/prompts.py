@@ -21,6 +21,11 @@ class VoicePromptCache:
         self.dir = cfg.path(cfg.paths.voice_prompts_dir) / self.locale
         self.dir.mkdir(parents=True, exist_ok=True)
         self._manifest = self.dir / "manifest.json"
+        # Optional LED ring — when set, `play()` switches the ring to the
+        # "speak" colour while a cached prompt plays so the player can tell
+        # the system is talking and not still listening. Set via
+        # `cache.leds = ring` from the caller after constructing both.
+        self.leds = None
 
     def _voice(self) -> str:
         return self.cfg.voice_prompts.voice or self.cfg.models.tts_voice
@@ -70,4 +75,13 @@ class VoicePromptCache:
             audio, sr = get_tts(self.cfg).synthesize(self.prompts.get(pid, ""))
             sf.write(str(wav), np.clip(audio, -1, 1).astype(np.float32), sr,
                      subtype="PCM_16")
+        # Indicate "system is talking" on the LED ring (e.g. dodger blue)
+        # so the player can tell the green "I'm listening" pulse has ended
+        # — was confusing in the menus where the ring stayed solid green
+        # the whole time. Best-effort: any LED error is swallowed.
+        if self.leds is not None:
+            try:
+                self.leds.speak()
+            except Exception:
+                pass
         backend.play_wav(str(wav))

@@ -151,6 +151,11 @@ def cmd_run(args: argparse.Namespace) -> int:
        f"Locale: {loc}[/dim]")
     leds = LedRing()
     prompts = VoicePromptCache(cfg)
+    # Give the cache the LED ring so cached prompt playback (menus, system
+    # announcements) switches the ring to the "speak" colour — otherwise it
+    # stays on the previous state (e.g. green / listening) and the player
+    # can't tell the system is talking.
+    prompts.leds = leds
     stt = get_stt(cfg)
     tts = get_tts(cfg)
 

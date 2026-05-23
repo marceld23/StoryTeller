@@ -335,10 +335,20 @@ class XttsTTS(TTS):
         return chunks, speaker, language
 
     # --- public API ----------------------------------------------------
+    # IMPORTANT: the daswer123/xtts-api-server is NOT thread-safe under
+    # concurrent /tts_to_audio/ POSTs against the same speaker — parallel
+    # requests can race on the single GPU model instance and the server
+    # returns the SAME audio for every request, which manifests as
+    # "the narrator says the same short fragment three times in a row".
+    # We therefore submit chunks SERIALLY (max_workers=1). The latency
+    # masking is preserved by the producer/consumer pattern: while
+    # play_stream blocks on `play_array(chunk_n)`, the executor is free
+    # to render chunk_n+1 — by the time playback of n ends, n+1 is
+    # usually already in the queue.
+    _XTTS_MAX_WORKERS = 1
+
     def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
-        """Fetch ALL chunks in parallel, then concatenate. Wall-clock latency
-        is roughly max(chunk_render), not sum, so a long narration with N
-        chunks takes about as long as one chunk."""
+        """Fetch chunks serially (XTTS server is not thread-safe), concatenate."""
         import concurrent.futures as _cf
 
         import httpx
@@ -347,7 +357,7 @@ class XttsTTS(TTS):
         if not chunks:
             return np.zeros(0, dtype=np.float32), 24000
         with httpx.Client(timeout=60.0) as client:
-            with _cf.ThreadPoolExecutor(max_workers=min(len(chunks), 4)) as ex:
+            with _cf.ThreadPoolExecutor(max_workers=self._XTTS_MAX_WORKERS) as ex:
                 futs = [ex.submit(self._synth_one, client, c, i + 1,
                                   len(chunks), speaker, language)
                         for i, c in enumerate(chunks)]
@@ -360,9 +370,10 @@ class XttsTTS(TTS):
     def synthesize_streaming(
         self, text: str, instructions: str = "",
     ) -> Iterator[tuple[np.ndarray, int]]:
-        """Yield chunks in order as soon as each is ready. All chunks render
-        in parallel; the iterator blocks only on the *next* one in sequence,
-        so the audio player can start the first chunk while the rest finish."""
+        """Yield chunks in order as soon as each is ready. Chunks render one
+        at a time (XTTS server is not thread-safe), but the consumer plays
+        chunk N while chunk N+1 renders — so the perceived first-audio
+        latency is roughly one chunk render, not the sum."""
         import concurrent.futures as _cf
 
         import httpx
@@ -373,7 +384,7 @@ class XttsTTS(TTS):
         # Keep the http client + executor alive for the whole stream so the
         # caller can consume at its own pace.
         client = httpx.Client(timeout=60.0)
-        ex = _cf.ThreadPoolExecutor(max_workers=min(len(chunks), 4))
+        ex = _cf.ThreadPoolExecutor(max_workers=self._XTTS_MAX_WORKERS)
         try:
             futs = [ex.submit(self._synth_one, client, c, i + 1,
                               len(chunks), speaker, language)
