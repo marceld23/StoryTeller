@@ -23,6 +23,7 @@ _LISTEN_PERIOD_S = 1.8        # full breath cycle (glow up + fade down)
 _LISTEN_FPS = 12              # USB-friendly tick rate
 _LISTEN_GREEN_MIN = 24        # never fully off — keeps the ring "alive"
 _LISTEN_GREEN_MAX = 255       # peak brightness on the green channel
+_SPEAK_COLOR = 0x1E90FF       # dodger blue — narrator is talking
 _DEFAULT_BRIGHTNESS = 10
 
 
@@ -103,8 +104,11 @@ class LedRing:
         self._safe("think")
 
     def speak(self) -> None:
+        """Solid colour while the narrator talks — leaves no residual green
+        from the listen-state breathing (the firmware `speak` pattern did
+        not reliably override the mono mode the breathing left behind)."""
         self._stop_anim()
-        self._safe("speak")
+        self._safe("set_color", _SPEAK_COLOR)
 
     def error(self) -> None:
         self._stop_anim()
