@@ -167,6 +167,14 @@ done X?") works natively via `engine.history()` / `engine.rewind_to(cp_id)`.
 Pre-narrator phase (moderation, RAG retrieval, substory ensure, dynamics
 roll) fans out **in parallel** — wall-clock latency = max() instead of sum.
 
+**Anti-spoiler narration gate** — a small per-turn LLM call (`gate_llm`,
+defaults to the same endpoint as the planner) curates which *authored*
+reveals (fragments, history, substory resolution, future beats) the
+narrator may weave in this turn. Player-driven improvisation and
+spontaneous new facts stay free — only the pre-written plot points are
+gated. Toggle: `[story] narration_gate_enabled` in `config.toml`. See
+[docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md#narration-gate-anti-spoiler-curator).
+
 Per-session cost cap (graceful wrap-up). Follow-up questions get short
 answers and don't advance beats.
 

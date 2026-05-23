@@ -25,13 +25,17 @@ class BlueprintTracker:
     def guidance(self) -> str:
         b = self.current()
         n = len(self.blueprint.beats)
-        nxt = ("(letzter Beat — steuere auf einen befriedigenden Abschluss zu)"
-               if self.at_end
-               else f"als Nächstes: {self.blueprint.beats[self.index + 1].name}")
+        # We deliberately do NOT name the next beat — the narrator must not
+        # know what's coming next or it will foreshadow specifics. We only
+        # reveal position (X of N) and the *current* beat's goal.
+        progress = ("(letzter Beat — steuere auf einen befriedigenden "
+                    "Abschluss zu)" if self.at_end
+                    else "(weitere Beats folgen — nicht vorgreifen, der "
+                    "Erzähler kennt sie nicht im Voraus)")
         return (
             f"PRÄMISSE: {self.blueprint.premise}\n"
             f"AKTUELLER BEAT {self.index + 1}/{n}: {b.name} — Ziel: {b.goal} "
-            f"(Spannung {b.tension}/10); {nxt}.\n"
+            f"(Spannung {b.tension}/10) {progress}.\n"
             f"ESKALATION: {self.blueprint.escalation_rule}\n"
             "Bleibe im Spannungsbogen, aber greife die Ideen des Spielers aktiv "
             "auf und webe sie ein. Wenn das Beat-Ziel erreicht scheint, rufe das "

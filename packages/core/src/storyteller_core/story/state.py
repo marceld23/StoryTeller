@@ -51,10 +51,13 @@ class StoryState(TypedDict, total=False):
     pending_tool_calls: list[dict]
     narrate_iter: int
     just_completed_substory: bool
+    # Curator gate for this turn: {scene_intent, permitted_reveals,
+    # forbidden_topics, tone_nudge}. Empty/missing => no gate active.
+    gate: dict
 
 
 TURN_SCOPED_KEYS: tuple[str, ...] = (
     "moderation_ok", "retrieved", "dyn_hint", "brief", "wrap_up",
     "transition", "response", "system_prompt", "pending_tool_calls",
-    "narrate_iter", "just_completed_substory",
+    "narrate_iter", "just_completed_substory", "gate",
 )

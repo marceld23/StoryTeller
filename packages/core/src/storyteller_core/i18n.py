@@ -183,6 +183,69 @@ MODERATION_BLOCKED = {
           "more kindly.",
 }
 
+# --- Narration "gate" (curator) — decides PER TURN which authored
+# reveals the narrator MAY use. Player improvisation stays free; only
+# pre-authored plot points (fragments / history / glossary specifics /
+# substory resolution) are curated.
+GATE_SYS = {
+    "de": ("Du bist Story-Kurator. Du entscheidest, was der Erzähler in "
+           "DIESEM EINEN Spielzug verraten DARF und was er noch zurückhalten "
+           "muss. Ziel: keine vorzeitigen Reveals von vor-geschriebenen "
+           "Plot-Punkten (Fragmente, Vergangenheit, Substory-Auflösung). "
+           "WICHTIG: Du schränkst nur AUTHORED-Material ein. Spontane "
+           "Spieler-Ideen, improvisierte neue Fakten und freie Erzähl-"
+           "Wendungen bleiben weiter erlaubt — du listest sie nicht. "
+           "Alle Strings deiner Antwort AUSSCHLIESSLICH AUF DEUTSCH. "
+           "Antworte AUSSCHLIESSLICH als JSON mit Schlüsseln: "
+           "scene_intent (1 Satz: was DIESER Zug erreichen soll), "
+           "permitted_reveals (Liste — max. die genannte Anzahl — kurzer "
+           "Verweise auf konkrete authored Welt-Fakten, die der Erzähler "
+           "JETZT einbauen darf), "
+           "forbidden_topics (Liste authored Themen/Personen/Geheimnisse, "
+           "die heute NICHT angedeutet werden dürfen — typischerweise die "
+           "Substory-Auflösung, künftige Beats, ungeöffnete Fragmente), "
+           "tone_nudge (kurzer Stil-Hinweis oder leerer String). "
+           "Halte die Listen knapp und konkret."),
+    "en": ("You are the story curator. You decide what the narrator MAY "
+           "reveal in THIS ONE turn and what must still be held back. Goal: "
+           "no premature reveals of pre-authored plot points (fragments, "
+           "history, substory resolution). IMPORTANT: you only constrain "
+           "AUTHORED material — spontaneous player ideas, improvised new "
+           "facts and free narrative twists stay free; you don't list "
+           "those. All string values in your response MUST be in English. "
+           "Answer ONLY as JSON with keys: "
+           "scene_intent (one sentence: what this turn aims at), "
+           "permitted_reveals (list — at most the stated count — of short "
+           "references to concrete authored world facts the narrator may "
+           "weave in NOW), "
+           "forbidden_topics (list of authored topics/persons/secrets that "
+           "must NOT be hinted at today — typically the substory resolution, "
+           "future beats, unopened fragments), "
+           "tone_nudge (short style hint or empty string). "
+           "Keep the lists tight and concrete."),
+}
+
+# Text added to the narrator's system prompt when a gate decision exists.
+GATE_NARRATOR_RULE = {
+    "de": ("KURATOR-LEITLINIE FÜR DIESEN ZUG: Erzähle frei und reagiere auf "
+           "den Spieler — Spieler-Initiativen und improvisierte Wendungen "
+           "sind ausdrücklich erlaubt. ABER: aus dem vor-geschriebenen "
+           "Welt-Material darfst du heute NUR die unten genannten Reveals "
+           "konkret nutzen. Die forbidden_topics darfst du heute weder "
+           "andeuten noch erklären — auch wenn der Erzähl-Strom darauf "
+           "zusteuert, lass es offen und führe in eine andere Richtung. "
+           "Erfundene neue, harmlose Details (z.B. Geräusche, kleine "
+           "Gegenstände, Nebenfiguren-Momente) bleiben jederzeit ok."),
+    "en": ("CURATOR GUIDELINE FOR THIS TURN: Narrate freely and react to "
+           "the player — player initiatives and improvised twists are "
+           "explicitly welcome. BUT: from the pre-authored world material "
+           "you may ONLY use the named reveals below today. The forbidden_"
+           "topics must not be hinted at or explained today — even if the "
+           "narrative drifts toward them, leave them open and pivot. "
+           "Newly invented, harmless details (sounds, small props, NPC "
+           "moments) are fine any time."),
+}
+
 # --- Engine/CLI directives ---
 OPENING_DIRECTIVE = {
     "de": ("[Dies ist eine NEUE Geschichte — der Spieler hat diese Welt "

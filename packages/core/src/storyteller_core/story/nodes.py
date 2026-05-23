@@ -16,6 +16,7 @@ from ..config import Config
 from ..i18n import (
     BEAT_NUDGE,
     CHARSTATE_LABEL,
+    GATE_NARRATOR_RULE,
     LANG_INSTRUCTION,
     MODERATION_BLOCKED,
     NARRATION_GUIDANCE,
@@ -109,6 +110,7 @@ _TURN_DEFAULTS: dict = {
     "pending_tool_calls": [],
     "narrate_iter": 0,
     "just_completed_substory": False,
+    "gate": {},
 }
 
 
@@ -152,7 +154,28 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
     w = ctx.world
     locale = _locale(state, ctx)
 
-    retrieved = state.get("retrieved") or []
+    # Filter RAG hits before showing them to the narrator:
+    # - fragment/history are AUTHORED reveal slots and stay hidden unless
+    #   (a) the player already knows the topic OR (b) the curator's
+    #   `permitted_reveals` mentions it. The curator sees the full list.
+    # - place/person/item/glossary/system pass through.
+    retrieved_all = state.get("retrieved") or []
+    known_names = {(f.get("name") or "").lower()
+                   for f in (state.get("known_facts") or [])
+                   if isinstance(f.get("name"), str)}
+    gate_state = state.get("gate") or {}
+    permits = [s.lower() for s in (gate_state.get("permitted_reveals") or [])]
+
+    def _visible(r: dict) -> bool:
+        ft = (r.get("fact_type") or "").lower()
+        if ft not in ("fragment", "history"):
+            return True
+        text = (r.get("content") or "").lower()
+        if any(n and n in text for n in known_names):
+            return True
+        return any(p and p in text for p in permits)
+
+    retrieved = [r for r in retrieved_all if _visible(r)]
     facts = "\n".join(f"- [{r['fact_type']}] {r['content']}" for r in retrieved)
     wrap_up = state.get("wrap_up", False)
     cap = ("\nWICHTIG: Das Sitzungsbudget ist erschöpft — führe die "
@@ -189,6 +212,24 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
 
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
 
+    # --- gate block (only when the curator has produced one this turn) ---
+    gate_block = ""
+    if gate_state:
+        intent = (gate_state.get("scene_intent") or "").strip()
+        permitted = ", ".join(
+            p for p in (gate_state.get("permitted_reveals") or []) if p)
+        forbidden = ", ".join(
+            t for t in (gate_state.get("forbidden_topics") or []) if t)
+        nudge_tone = (gate_state.get("tone_nudge") or "").strip()
+        gate_block = (
+            f"{GATE_NARRATOR_RULE[locale]}\n"
+            f"Szenen-Ziel: {intent or '–'}\n"
+            f"Permitted reveals: {permitted or '(keine zusätzlichen)'}\n"
+            f"Forbidden topics: {forbidden or '(keine)'}\n"
+            + (f"Ton-Hinweis: {nudge_tone}\n" if nudge_tone else "")
+            + "\n"
+        )
+
     return (
         f"Du bist der ERZÄHLER der Welt {w.name} ({w.genre}).\n"
         f"{w.description}\nSpielerrolle: {w.player_role}\n"
@@ -208,6 +249,7 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"{syn}"
         f"Dem Spieler bereits bekannt: {known_summary}\n\n"
         f"{chars}"
+        f"{gate_block}"
         f"Hintergrundwissen (nur einbauen, wenn es JETZT zur Szene passt; "
         f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
         f"{_guidance(cfg, locale)}\n{LANG_INSTRUCTION[locale]}\n"
@@ -361,7 +403,41 @@ def retrieve_rag(state: dict, config: RunnableConfig) -> dict:
     except Exception as exc:
         log.warning("RAG retrieval failed: %r", exc)
         rows = []
+    # Hits stay un-filtered here — the curator sees them all, and the
+    # narrator-visible slice is filtered in build_system_prompt where the
+    # gate's permitted_reveals + known_facts can be cross-referenced.
     return {"retrieved": rows}
+
+
+def curate(state: dict, config: RunnableConfig) -> dict:
+    """Run the narration "gate" — a small LLM call that decides per turn
+    which AUTHORED reveals the narrator may use, and which authored topics
+    must stay hidden today. Skipped when disabled or during wrap_up."""
+    ctx = _ctx(config)
+    cfg = ctx.cfg
+    if not getattr(cfg.story, "narration_gate_enabled", True):
+        return {}
+    if state.get("wrap_up"):
+        return {}                # the end-of-session pass holds nothing back
+    from .curator import Curator
+
+    cost = CostTracker.restore(cfg, state.get("cost") or {})
+    locale = _locale(state, ctx)
+    sub_dict = state.get("substory")
+    macro_idx = state.get("macro_index", 0) or 0
+    future_beats = list(ctx.world.blueprint.beats[macro_idx + 1:])
+    known_summary = KnownFacts(state.get("known_facts") or []).summary()
+    recent = _recent(state.get("memory") or [])
+    try:
+        gate = Curator(cfg, cost).gate(
+            ctx.world, sub_dict, future_beats,
+            state.get("retrieved") or [],
+            known_summary, recent, state.get("user_text", ""),
+            int(state.get("beat_turns", 0)), locale=locale)
+    except Exception as exc:
+        log.warning("curator gate failed: %r", exc)
+        return {}
+    return {"gate": gate.model_dump(), "cost": cost.snapshot()}
 
 
 def roll_dynamic(state: dict, config: RunnableConfig) -> dict:
@@ -487,6 +563,7 @@ def dispatch_tools(state: dict, config: RunnableConfig) -> dict:
 
         result = dispatch_tool(
             name, args, ctx, substory, known, char_state, cost, dynamics,
+            gate=state.get("gate") or {},
         )
 
         if name == "complete_substory" and substory is not None:

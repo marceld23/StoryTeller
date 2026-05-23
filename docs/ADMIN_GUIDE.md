@@ -70,18 +70,23 @@ Three groups; each "Speichern" writes a runtime override file under `data/`
 that layers on top of `config.toml`.
 
 **Modelle** → `data/models.json`. Empty fields mean "use the config.toml
-default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`.
+default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`,
+`gate_llm` empty ⇒ same as `planner_llm`.
 - *Modellnamen:* `story_llm` (narrator), `planner_llm` (architect +
-  summariser), `gen_llm` (world/content generation), `stt`, `tts`,
-  `tts_voice`, `embedding`.
+  summariser), `gen_llm` (world/content generation),
+  **`gate_llm`** (per-turn narration gate — see *Narration gate* below),
+  `stt`, `tts`, `tts_voice`, `embedding`.
 - *Parameter:* `llm_temperature` (narrator), `planner_temperature`,
-  `gen_temperature`, `frequency_penalty`, `presence_penalty`.
+  `gen_temperature`, **`gate_temperature`** (default `0.3`),
+  `frequency_penalty`, `presence_penalty`.
 - *Eigene OpenAI-kompatible Endpoints:* a `base_url` + `api_key` row per
-  purpose (story / planner / gen / stt / tts / embedding). Empty = OpenAI.
+  purpose (story / planner / gen / **gate** / stt / tts / embedding).
+  Empty = OpenAI. An empty `gate_endpoint` falls back to `planner_endpoint`
+  → `story_endpoint`, so local-LLM setups don't have to set it explicitly.
   Point any of them at a self-hosted server (vLLM / llama.cpp / Ollama /
   LM Studio): `base_url` includes host:port and `/v1`, e.g.
   `http://192.168.1.50:8000/v1`. The server must support tool-calls + JSON
-  mode for the story/planner/gen roles. Moderation always uses OpenAI.
+  mode for the story/planner/gen/gate roles. Moderation always uses OpenAI.
 - *Non-OpenAI TTS servers (auto-detected by URL scheme):*
   - **Wyoming / Piper** — `tcp://host:port` (or `wyoming://host:port`).
     `tts_voice` is the Piper voice (e.g. `de_DE-thorsten-high`).
@@ -112,6 +117,39 @@ checkbox** (uncheck to fully disable the OpenAI moderation gate — inputs
 then go straight to the narrator) plus per-category thresholds as JSON
 (e.g. `{"default": 0.5, "categories": {"violence": 0.7}}`). The engine
 re-reads this file each turn, so it takes effect immediately (no restart).
+
+## Narration gate (anti-spoiler curator)
+
+A small per-turn LLM call decides which **pre-authored** reveals the narrator
+may weave in this turn, and which **authored** topics must still stay hidden.
+Player-driven improvisation, spontaneous new facts, and freely invented
+details are **not gated** — only the curated parts (world *fragments*,
+*history* entries, substory *resolution_hint*, future macro-beats).
+
+State knobs (in `config.toml [story]`):
+- `narration_gate_enabled` — toggle the per-turn LLM call. With it off,
+  algorithmic spoiler guards (next-beat / `resolution_hint` hidden in the
+  narrator's prompt, sanitized `get_substory_plan` tool) still apply.
+- `narration_gate_max_reveals` — cap on permitted reveals per turn (default 3).
+
+Model & endpoint (in `data/models.json`, same shape as the other roles):
+- `gate_llm` — keep this **small and fast**; default empty falls back to
+  `planner_llm`. Per turn cost = one short JSON call.
+- `gate_endpoint` — falls back to `planner_endpoint` → `story_endpoint`.
+- `gate_temperature` — kept low (default `0.3`) for stable JSON.
+
+What the narrator sees as a result, when the gate is active:
+```
+KURATOR-LEITLINIE FÜR DIESEN ZUG: …
+Szenen-Ziel:        <one-sentence intent>
+Permitted reveals:  <up to N authored reveals OK today>
+Forbidden topics:   <authored topics the narrator must not hint at today>
+Ton-Hinweis:        <optional style nudge>
+```
+
+Tools (`retrieve_world_fact`, `lookup_glossary`) honour the gate too — they
+won't return authored-fragment / history results that aren't permitted or
+already known to the player.
 
 ## When changes take effect
 

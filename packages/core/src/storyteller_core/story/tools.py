@@ -112,6 +112,41 @@ MEMORY_TOOLS: frozenset[str] = frozenset({
 })
 
 
+def _gate_filter(
+    rows: list[dict],
+    gate: dict | None,
+    known: KnownFacts,
+) -> list[dict]:
+    """Hide authored-spoiler categories (fragment / history) from tool
+    results unless the curator has explicitly permitted them this turn
+    or the player already knows the topic. Other categories pass through."""
+    if not rows:
+        return rows
+    gate = gate or {}
+    permits = [p.lower() for p in (gate.get("permitted_reveals") or [])]
+    forbidden = [t.lower() for t in (gate.get("forbidden_topics") or [])]
+    known_names = {(f.get("name") or "").lower() for f in known.to_list()
+                   if isinstance(f.get("name"), str)}
+    out: list[dict] = []
+    for r in rows:
+        text = (r.get("content") or "").lower()
+        ft = (r.get("fact_type") or "").lower()
+        # always drop hits that touch a forbidden topic
+        if any(t and t in text for t in forbidden):
+            continue
+        if ft in ("fragment", "history"):
+            if any(n and n in text for n in known_names):
+                out.append(r)
+                continue
+            if any(p and p in text for p in permits):
+                out.append(r)
+                continue
+            # otherwise: hidden (authored reveal not yet permitted)
+            continue
+        out.append(r)
+    return out
+
+
 def dispatch_tool(
     name: str,
     args: dict,
@@ -121,6 +156,7 @@ def dispatch_tool(
     char_state: dict[str, str],
     cost,                      # CostTracker
     dynamics: StoryDynamics,
+    gate: dict | None = None,  # narration gate from the curator (may be None)
 ) -> str:
     """Execute one tool call. Mutates substory/known/char_state/cost in place.
 
@@ -136,10 +172,21 @@ def dispatch_tool(
     if name == "retrieve_world_fact" and rag is not None:
         rows = rag.retrieve(world.id, args.get("query", ""),
                             fact_type=args.get("fact_type"), locale=locale)
+        rows = _gate_filter(rows, gate, known)
+        if not rows:
+            return ("(nichts Passendes für DIESE Szene zugänglich — bleib "
+                    "bei dem, was schon bekannt ist)")
         return json.dumps([r["content"] for r in rows], ensure_ascii=False)
 
     if name == "lookup_glossary":
         term = (args.get("term") or "").strip().lower()
+        # Glossary lookups stay broadly available — terms are usually
+        # established as soon as they're spoken. But honour an explicit
+        # forbidden_topics entry that names the term.
+        forbidden = [t.lower() for t in (gate or {}).get(
+            "forbidden_topics") or []]
+        if term and any(f and f in term for f in forbidden):
+            return "(noch nicht verfügbar)"
         for g in getattr(world, "glossary", []):
             if term and term in g.term.lower():
                 return f"{g.term}: {g.definition}"
@@ -193,8 +240,10 @@ def dispatch_tool(
         return "Substory abgeschlossen — der Architekt plant die nächste."
 
     if name == "get_substory_plan" and substory:
+        # The narrator must not see `resolution_hint` — that is reserved
+        # for the planner/curator. We return only navigational fields.
         return json.dumps(substory.model_dump(include={
-            "title", "premise", "beats", "cursor", "resolution_hint",
+            "title", "premise", "beats", "cursor",
             "adjustments"}), ensure_ascii=False)
 
     if name == "adjust_substory_plan" and substory:

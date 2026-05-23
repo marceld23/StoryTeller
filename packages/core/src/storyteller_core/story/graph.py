@@ -10,6 +10,8 @@ Topology:
             ├→ roll_dynamic ────┤
             └→ compute_flags ───┘
                                 ↓
+                            curate (gate; sees RAG hits + substory plan)
+                                ↓
                           build_prompt → narrate
                           narrate ─(tool_calls?)─→ dispatch_tools
                                   └(text)──────→ finalize → END
@@ -40,6 +42,7 @@ def build_graph() -> StateGraph:
     g.add_node("retrieve_rag", nodes.retrieve_rag)
     g.add_node("roll_dynamic", nodes.roll_dynamic)
     g.add_node("compute_flags", nodes.compute_flags)
+    g.add_node("curate", nodes.curate)
     g.add_node("build_prompt", nodes.build_prompt)
     g.add_node("narrate", nodes.narrate)
     g.add_node("dispatch_tools", nodes.dispatch_tools)
@@ -61,12 +64,16 @@ def build_graph() -> StateGraph:
     g.add_edge("fanout", "roll_dynamic")
     g.add_edge("fanout", "compute_flags")
 
-    # Fan-in: build_prompt waits for all four.
-    g.add_edge("ensure_substory", "build_prompt")
-    g.add_edge("retrieve_rag", "build_prompt")
-    g.add_edge("roll_dynamic", "build_prompt")
-    g.add_edge("compute_flags", "build_prompt")
+    # Fan-in: the curator (gate) waits for all four pre-narrator nodes,
+    # because it needs the RAG hits AND the substory plan to decide which
+    # authored reveals are permitted this turn. build_prompt then consumes
+    # both the fan-in state and the gate decision.
+    g.add_edge("ensure_substory", "curate")
+    g.add_edge("retrieve_rag", "curate")
+    g.add_edge("roll_dynamic", "curate")
+    g.add_edge("compute_flags", "curate")
 
+    g.add_edge("curate", "build_prompt")
     g.add_edge("build_prompt", "narrate")
     g.add_conditional_edges("narrate", nodes.route_after_narrate, {
         "dispatch_tools": "dispatch_tools",

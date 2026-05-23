@@ -12,6 +12,7 @@ profile = "auto"     # auto | pi | pc
 story_llm        = "gpt-5.4"                 # NARRATOR — a strong model pays off here
 planner_llm      = "gpt-5.4"                 # architect + summarizer; empty => story_llm (pick a cheaper one to free up story_llm)
 gen_llm          = "gpt-5.4"                 # WORLD/CONTENT GENERATION (once per world/suggestion) — default the big model; empty => story_llm
+gate_llm         = ""                        # NARRATION GATE (curator; runs every turn) — empty => same as planner_llm. Keep this small/fast.
 stt              = "gpt-4o-mini-transcribe"  # speech recognition (OpenAI)
 tts              = "gpt-4o-mini-tts"         # speech output (OpenAI; Whisper can NOT do TTS)
 tts_voice        = "ballad"
@@ -20,6 +21,7 @@ embedding_dim    = 512                       # Matryoshka truncation (smaller = 
 llm_temperature     = 0.9   # narrator temperature
 planner_temperature = 0.6   # architect + summarizer
 gen_temperature     = 0.8   # world/content generation
+gate_temperature    = 0.3   # narration-gate / curator (kept low for determinism)
 frequency_penalty = 0.0   # anti-repetition for the narrator; 0=off, gentle 0.2–0.4 recommended
 presence_penalty  = 0.0   # same (topic variety); 0=off
 
@@ -30,8 +32,11 @@ presence_penalty  = 0.0   # same (topic variety); 0=off
 #   [models.story_endpoint]
 #   base_url = "http://192.168.1.50:8000/v1"
 #   api_key  = "sk-local"
-# Others: planner_endpoint, gen_endpoint, stt_endpoint, tts_endpoint,
-# embedding_endpoint — same shape.
+# Others: planner_endpoint, gen_endpoint, gate_endpoint, stt_endpoint,
+# tts_endpoint, embedding_endpoint — same shape. Empty `gate_endpoint`
+# (default) reuses the planner endpoint, which in turn falls back to the
+# story endpoint — so a local LLM setup only needs to set the endpoints
+# you actually use.
 
 [stt]
 provider = "openai"   # openai | local_whisper  (local => Phase 10, Pi 5 + AI HAT only)
@@ -108,6 +113,14 @@ synopsis_max_chars        = 900  # max length of the synopsis (keep it tight)
 synopsis_batch            = 8    # this many old messages condensed at once (rare => cheap)
 beat_nudge_after          = 3    # after this many turns on the same sub-beat, gently remind advance_beat (0=off)
 known_facts_cap           = 30   # cap on player facts (oldest without a note is evicted)
+# Narration "gate" (curator): runs gate_llm each turn to decide which
+# authored reveals (fragments / history / substory resolution) the narrator
+# MAY weave in this turn and which authored topics must stay hidden today.
+# Player improvisation and spontaneous new facts are NOT gated. Disable to
+# fall back to the algorithmic-only spoiler guards (next-beat and
+# resolution_hint are hidden unconditionally regardless of this toggle).
+narration_gate_enabled      = true
+narration_gate_max_reveals  = 3    # cap on authored reveals per turn
 # Narration-style guideline (freely editable): controls simplicity/length.
 narration_guidance = "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. Pro Antwort nur EINE Situation und höchstens ein bis zwei neue Namen/Dinge. KEINE NUMMERIERTEN LISTEN (1., 2., 3.), keine Aufzählungspunkte (-, *, •), keine Optionen-Liste — alles als fließende Prosa. Keine Detailflut, kein Vorgriff auf mehrere Handlungsstränge. Schließe mit EINER konkreten, offenen Lage oder Frage, auf die der Spieler direkt reagieren kann. Ruhig und bildhaft, aber sparsam."
 

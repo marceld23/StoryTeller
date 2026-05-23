@@ -50,9 +50,25 @@ def get_client(cfg: Config) -> OpenAI:
 # -- chat / generation (story | planner | gen) ----------------------------
 
 def get_chat_client(cfg: Config, role: str = "story") -> OpenAI:
-    key, base = _resolve(cfg, _ep(cfg, f"{role}_endpoint"))
-    # gen does slow big-model JSON work; the others are latency-sensitive.
-    timeout, retries = (180.0, 1) if role == "gen" else (30.0, 5)
+    ep = _ep(cfg, f"{role}_endpoint")
+    # Per-role endpoint fallback: if the role has no explicit endpoint
+    # (default empty), fall back the way the model name does — planner ⇒
+    # story; gate ⇒ planner ⇒ story. This mirrors the .planner / .gate
+    # @property fallback on ModelsCfg and keeps custom-LLM setups working
+    # without forcing the admin to re-paste the same URL three times.
+    if role in ("planner", "gate") and ep is not None and not (ep.base_url or "").strip():
+        ep = _ep(cfg, "planner_endpoint") if role == "gate" else None
+        if ep is None or not (ep.base_url or "").strip():
+            ep = _ep(cfg, "story_endpoint")
+    key, base = _resolve(cfg, ep)
+    # gen does slow big-model JSON work; gate is on the hot per-turn path
+    # so it should fail fast; the others are latency-sensitive defaults.
+    if role == "gen":
+        timeout, retries = 180.0, 1
+    elif role == "gate":
+        timeout, retries = 15.0, 1
+    else:
+        timeout, retries = 30.0, 5
     return _make(key, base, timeout, retries)
 
 

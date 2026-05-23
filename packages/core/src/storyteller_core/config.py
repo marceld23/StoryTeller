@@ -39,6 +39,12 @@ class ModelsCfg(BaseModel):
     # the big "gpt-5.4" — these calls are rare; structural quality pays
     # off for every subsequent session.
     gen_llm: str = "gpt-5.4"
+    # Narration "gate" — a small/fast LLM that decides per turn what the
+    # narrator is allowed to reveal (curate authored plot vs. let the
+    # player improvise). Empty => same model as planner_llm. Keep this on
+    # a CHEAPER/FASTER model than story_llm if at all possible; runs every
+    # turn that the gate is active.
+    gate_llm: str = ""
     stt: str = "gpt-4o-mini-transcribe"
     tts: str = "gpt-4o-mini-tts"
     tts_voice: str = "ballad"
@@ -48,6 +54,7 @@ class ModelsCfg(BaseModel):
     llm_temperature: float = 0.9               # narrator (story)
     planner_temperature: float = 0.6           # architect + summariser
     gen_temperature: float = 0.8               # world / content generation
+    gate_temperature: float = 0.3              # curator (deterministic-ish)
     # Anti-repetition for the narrator. 0 = off (safe default, no behaviour
     # change); a mild 0.2-0.4 noticeably reduces repeated openers/phrases.
     frequency_penalty: float = 0.0
@@ -58,6 +65,7 @@ class ModelsCfg(BaseModel):
     story_endpoint: Endpoint = Endpoint()
     planner_endpoint: Endpoint = Endpoint()
     gen_endpoint: Endpoint = Endpoint()
+    gate_endpoint: Endpoint = Endpoint()
     stt_endpoint: Endpoint = Endpoint()
     tts_endpoint: Endpoint = Endpoint()
     embedding_endpoint: Endpoint = Endpoint()
@@ -69,6 +77,10 @@ class ModelsCfg(BaseModel):
     @property
     def gen(self) -> str:
         return self.gen_llm or self.story_llm
+
+    @property
+    def gate(self) -> str:
+        return self.gate_llm or self.planner_llm or self.story_llm
 
 
 class STTCfg(BaseModel):
@@ -163,6 +175,16 @@ class StoryCfg(BaseModel):
     beat_nudge_after: int = 3
     # Upper bound for KnownFacts entries (oldest noteless evicted first).
     known_facts_cap: int = 30
+    # Narration "gate": runs a small LLM each turn to decide which authored
+    # reveals (fragments / history / glossary items / substory resolution)
+    # the narrator MAY use this turn — the rest stays hidden. Player-driven
+    # improvisation and new spontaneous facts are NOT gated; only the
+    # pre-authored material is curated. Disable to fall back to the
+    # algorithmic-only spoiler guards (next-beat / resolution_hint already
+    # hidden everywhere).
+    narration_gate_enabled: bool = True
+    # Each turn the gate picks at most this many authored reveals to allow.
+    narration_gate_max_reveals: int = 3
     # Checkpoint retention: keep this many checkpoints per session thread
     # (0 = unlimited). `storyteller-cli prune` enforces it.
     checkpoint_keep_per_thread: int = 100

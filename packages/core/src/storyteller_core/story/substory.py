@@ -62,13 +62,16 @@ class SubstoryPlan(BaseModel):
                if self.adjustments else "")
         head = ("ÜBERGANG: Die vorige Substory ist aufgelöst — leite jetzt "
                 "weich in DIESE neue Substory über.\n" if transition else "")
+        # `resolution_hint` is intentionally NOT exposed in the prompt block
+        # — the narrator must not know the resolution in advance. It stays
+        # on the SubstoryPlan for the planner/curator and tools that need
+        # it. The narrator just plays the current sub-beat.
         return (
             f"{head}AKTUELLE SUBSTORY: {self.title}\n"
             f"Prämisse: {self.premise}\nAufhänger: {self.hook}\n"
             f"Sub-Beat {self.cursor + 1}/{len(self.beats) or 1}: {beat_txt}\n"
             f"Beteiligte Orte: {', '.join(self.involved_places) or '–'}; "
-            f"Personen: {', '.join(self.involved_persons) or '–'}\n"
-            f"Auflösung anstreben: {self.resolution_hint}{adj}\n"
+            f"Personen: {', '.join(self.involved_persons) or '–'}{adj}\n"
             "Treibe DIESE Substory voran, bis sie befriedigend aufgelöst ist; "
             "ist sie aufgelöst, rufe das Tool complete_substory auf (erfinde "
             "NICHT selbst einen komplett neuen Bogen — der Architekt plant ihn)."
