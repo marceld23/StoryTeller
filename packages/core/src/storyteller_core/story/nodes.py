@@ -305,6 +305,20 @@ def moderate(state: dict, config: RunnableConfig) -> dict:
             # internal directives bypass moderation entirely
             ctx.transcript.note(f"[internal] {user_text[:80]}")
         return {"moderation_ok": True}
+    # Skip the moderation HTTP round-trip for trivially short, benign-looking
+    # turns ("Ja", "Nein", "Vielen Dank"). Saves ~1.3s/turn on the hot path.
+    # Threshold is intentionally conservative — anything with > 3 words OR
+    # > 24 chars OR any non-letter content goes through the full check.
+    stripped = (user_text or "").strip()
+    if 0 < len(stripped) <= 24:
+        words = stripped.split()
+        if len(words) <= 3 and all(
+                all(c.isalpha() or c in "äöüÄÖÜß-'." for c in w)
+                for w in words):
+            if ctx.transcript:
+                ctx.transcript.user(user_text)
+                ctx.transcript.note("[moderate] skipped (short benign input)")
+            return {"moderation_ok": True}
     if ctx.transcript:
         ctx.transcript.user(user_text)
     ok, flagged, _scores = Moderator(ctx.cfg).check(user_text)

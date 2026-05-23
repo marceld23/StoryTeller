@@ -173,6 +173,11 @@ done X?") works natively via `engine.history()` / `engine.rewind_to(cp_id)`.
 
 Pre-narrator phase (moderation, RAG retrieval, substory ensure, dynamics
 roll) fans out **in parallel** — wall-clock latency = max() instead of sum.
+Moderation is skipped for trivially short benign inputs (`Ja`, `Vielen
+Dank`) so those turns don't pay the OpenAI round-trip. TTS chunks are
+fetched in parallel and played in a **streaming pipeline** — the player
+starts speaking the first chunk while later ones are still rendering, so
+most of the TTS latency happens *behind* the audio rather than before it.
 
 **Anti-spoiler narration gate** — a small per-turn LLM call (`gate_llm`,
 defaults to the same endpoint as the planner) curates which *authored*

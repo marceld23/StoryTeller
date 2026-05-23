@@ -6,12 +6,19 @@ XttsTTS    (daswer123/xtts-api-server style — HTTP but not OpenAI-shaped);
 LocalTTS   = Phase 10 (Pi 5 + AI HAT). Note: Whisper is NOT TTS.
 Selected via config.tts.provider, or auto-detected from the tts endpoint
 scheme (tcp://|wyoming:// -> Wyoming, xtts:// -> XTTS).
+
+Long narrations are chunked at sentence boundaries. The XTTS provider also
+exposes `synthesize_streaming`: it fetches all chunks IN PARALLEL but
+yields them in the original order as each becomes ready. The caller (the
+audio player) can start speaking the first chunk while the rest are still
+being synthesised — masking most of the TTS latency behind playback.
 """
 
 from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from urllib.parse import urlparse
 
 import numpy as np
@@ -28,6 +35,16 @@ class TTS(ABC):
     def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
         """Liefert (float32 mono [-1,1], sample_rate)."""
         ...
+
+    def synthesize_streaming(
+        self, text: str, instructions: str = "",
+    ) -> Iterator[tuple[np.ndarray, int]]:
+        """Yield ordered (float32 mono, sample_rate) chunks as they become
+        ready. Default = one-shot (yield the whole result). Providers that
+        chunk internally (e.g. XttsTTS) override this to enable streaming
+        playback — the player can start the first chunk while the rest are
+        still being synthesised."""
+        yield self.synthesize(text, instructions)
 
 
 class OpenAITTS(TTS):
@@ -275,11 +292,38 @@ class XttsTTS(TTS):
             chunks.append(cur)
         return chunks or [text]
 
-    def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
+    # --- internals -----------------------------------------------------
+    def _synth_one(self, client, chunk: str, idx: int, total: int,
+                   speaker: str, language: str) -> tuple[np.ndarray, int]:
+        """Fetch + decode + trim one chunk. Used by both the eager and the
+        streaming paths."""
         import io
 
-        import httpx
         import soundfile as sf
+
+        r = client.post(
+            f"{self.base}/tts_to_audio/",
+            json={"text": chunk, "speaker_wav": speaker, "language": language},
+        )
+        r.raise_for_status()
+        data, sr = sf.read(io.BytesIO(r.content), dtype="float32",
+                           always_2d=False)
+        if getattr(data, "ndim", 1) > 1:
+            data = data.mean(axis=1)
+        raw_samples = len(data)
+        data = self._trim_repetition(
+            np.asarray(data, dtype=np.float32), int(sr), chunk)
+        if len(data) < raw_samples:
+            log.info("  chunk %d/%d: %d chars -> %d samples @ %d Hz "
+                     "(trimmed %d ms XTTS repetition)",
+                     idx, total, len(chunk), len(data), int(sr),
+                     int(1000 * (raw_samples - len(data)) / int(sr)))
+        else:
+            log.debug("  chunk %d/%d: %d chars -> %d samples @ %d Hz",
+                      idx, total, len(chunk), len(data), int(sr))
+        return np.ascontiguousarray(data, dtype=np.float32), int(sr)
+
+    def _prepare(self, text: str) -> tuple[list[str], str, str]:
         from storyteller_core.i18n import norm
 
         speaker = self.cfg.models.tts_voice or self.cfg.models.tts
@@ -288,37 +332,57 @@ class XttsTTS(TTS):
         log.info("TTS: xtts speaker=%s language=%s endpoint=%s chunks=%d "
                  "(total %d chars)",
                  speaker, language, self.base, len(chunks), len(text or ""))
+        return chunks, speaker, language
+
+    # --- public API ----------------------------------------------------
+    def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
+        """Fetch ALL chunks in parallel, then concatenate. Wall-clock latency
+        is roughly max(chunk_render), not sum, so a long narration with N
+        chunks takes about as long as one chunk."""
+        import concurrent.futures as _cf
+
+        import httpx
+
+        chunks, speaker, language = self._prepare(text)
         if not chunks:
             return np.zeros(0, dtype=np.float32), 24000
         with httpx.Client(timeout=60.0) as client:
-            pieces: list[np.ndarray] = []
-            sr_out = 24000
-            for i, chunk in enumerate(chunks, 1):
-                r = client.post(
-                    f"{self.base}/tts_to_audio/",
-                    json={"text": chunk, "speaker_wav": speaker,
-                          "language": language},
-                )
-                r.raise_for_status()
-                data, sr = sf.read(io.BytesIO(r.content), dtype="float32",
-                                   always_2d=False)
-                if getattr(data, "ndim", 1) > 1:
-                    data = data.mean(axis=1)
-                raw_samples = len(data)
-                data = self._trim_repetition(
-                    np.asarray(data, dtype=np.float32), int(sr), chunk)
-                pieces.append(data)
-                sr_out = int(sr)
-                if len(data) < raw_samples:
-                    log.info("  chunk %d/%d: %d chars -> %d samples @ %d Hz "
-                             "(trimmed %d ms XTTS repetition)",
-                             i, len(chunks), len(chunk), len(data), sr_out,
-                             int(1000 * (raw_samples - len(data)) / sr_out))
-                else:
-                    log.debug("  chunk %d/%d: %d chars -> %d samples @ %d Hz",
-                              i, len(chunks), len(chunk), len(data), sr_out)
+            with _cf.ThreadPoolExecutor(max_workers=min(len(chunks), 4)) as ex:
+                futs = [ex.submit(self._synth_one, client, c, i + 1,
+                                  len(chunks), speaker, language)
+                        for i, c in enumerate(chunks)]
+                results = [f.result() for f in futs]
+        pieces = [a for a, _sr in results]
+        sr_out = int(results[-1][1])
         out = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
         return np.ascontiguousarray(out, dtype=np.float32), sr_out
+
+    def synthesize_streaming(
+        self, text: str, instructions: str = "",
+    ) -> Iterator[tuple[np.ndarray, int]]:
+        """Yield chunks in order as soon as each is ready. All chunks render
+        in parallel; the iterator blocks only on the *next* one in sequence,
+        so the audio player can start the first chunk while the rest finish."""
+        import concurrent.futures as _cf
+
+        import httpx
+
+        chunks, speaker, language = self._prepare(text)
+        if not chunks:
+            return
+        # Keep the http client + executor alive for the whole stream so the
+        # caller can consume at its own pace.
+        client = httpx.Client(timeout=60.0)
+        ex = _cf.ThreadPoolExecutor(max_workers=min(len(chunks), 4))
+        try:
+            futs = [ex.submit(self._synth_one, client, c, i + 1,
+                              len(chunks), speaker, language)
+                    for i, c in enumerate(chunks)]
+            for f in futs:
+                yield f.result()
+        finally:
+            ex.shutdown(wait=True)
+            client.close()
 
 
 class LocalTTS(TTS):

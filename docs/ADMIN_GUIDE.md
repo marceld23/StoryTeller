@@ -115,6 +115,18 @@ default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`,
 **Audio** → `data/audio.json`: output backend (`auto` / `alsa_softvol` /
 `portable` / `pipewire`) and an optional PipeWire sink.
 
+**Story** → `data/story.json` (optional, per-deployment): override any
+field of `[story]` from `config.toml`. Common tweak: a smaller
+`short_term_memory_turns` (e.g. `8`) on a Pi running a local LLM —
+shorter narrator prompt = noticeably faster per turn. Example:
+
+```json
+{ "short_term_memory_turns": 8, "narration_gate_max_reveals": 2 }
+```
+
+Empty/missing fields fall back to the `config.toml` defaults; the file is
+hot-reloaded the same way as `data/models.json`.
+
 **Moderation** → `data/moderation.json`: an **"Moderation aktiviert"
 checkbox** (uncheck to fully disable the OpenAI moderation gate — inputs
 then go straight to the narrator) plus per-category thresholds as JSON

@@ -308,6 +308,7 @@ def _watch_files(config_path: str | None) -> list[Path]:
         Path(config_path) if config_path else ROOT / "config" / "config.toml",
         ROOT / "data" / "models.json",
         ROOT / "data" / "audio.json",
+        ROOT / "data" / "story.json",
         ROOT / ".env",
     ]
 
@@ -337,6 +338,7 @@ def _build_config(config_path: str | None) -> Config:
     cfg.web.admin_token = (os.environ.get("STORYTELLER_ADMIN_TOKEN", "")
                            or cfg.web.admin_token or cfg.web.auth_token)
     _apply_model_overrides(cfg)
+    _apply_story_overrides(cfg)
     return cfg
 
 
@@ -387,3 +389,30 @@ def _apply_model_overrides(cfg: Config) -> None:
         cfg.models = ModelsCfg.model_validate(merged)
     except Exception as exc:
         log.warning("model overrides invalid, ignored: %r", exc)
+
+
+def _apply_story_overrides(cfg: Config) -> None:
+    """Per-deployment overrides for [story] (e.g. shorter memory window on a
+    Pi to keep narrator prompts smaller and the LLM faster). Same shape as
+    `_apply_model_overrides`: drop a `data/story.json` file with just the
+    keys you want to change, repo defaults live in `config/config.toml`.
+    """
+    import json
+    import logging
+
+    log = logging.getLogger("storyteller.config")
+    p = ROOT / "data" / "story.json"
+    if not p.exists():
+        return
+    try:
+        ov = json.loads(p.read_text())
+    except Exception as exc:
+        log.warning("data/story.json unreadable, ignored: %r", exc)
+        return
+    if not isinstance(ov, dict) or not ov:
+        return
+    try:
+        merged = {**cfg.story.model_dump(), **ov}
+        cfg.story = StoryCfg.model_validate(merged)
+    except Exception as exc:
+        log.warning("story overrides invalid, ignored: %r", exc)

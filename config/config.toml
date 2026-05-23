@@ -101,7 +101,7 @@ reverb_dry_level     = 0.85
 distortion_drive_db  = 0.0   # 0 = off; light distortion ~4–8
 
 [story]
-short_term_memory_turns   = 12
+short_term_memory_turns   = 12   # smaller (e.g. 8) trims the narrator prompt and noticeably speeds up local LLMs
 rag_top_k                 = 4    # fewer facts -> less detail flood
 cost_cap_usd_per_session  = 2.0
 max_substory_beats        = 5    # length of the mini tension arc per substory

@@ -2,13 +2,20 @@
 
 TTS PCM -> optional reverb -> temp WAV -> backend.play_wav.
 On the Pi this respects the ALSA softvol volume; on PC it is software gain.
-Streaming optimization later behind the same interface.
+
+Two paths:
+- `play_array(backend, audio, sr, stop=...)` — one-shot, the legacy path.
+- `play_stream(backend, chunks, fx=…, stop=…)` — consumes a generator of
+  `(audio, sr)` chunks and plays them in order as each becomes ready.
+  Lets the player start the first chunk while later ones are still being
+  synthesised (latency masking).
 """
 
 from __future__ import annotations
 
 import tempfile
 import threading
+from collections.abc import Iterable
 
 import numpy as np
 import soundfile as sf
@@ -28,3 +35,26 @@ def play_array(backend: AudioBackend, audio: np.ndarray, sample_rate: int,
         backend.play_wav_interruptible(path, stop)
     else:
         backend.play_wav(path)
+
+
+def play_stream(
+    backend: AudioBackend,
+    chunks: Iterable[tuple[np.ndarray, int]],
+    fx=None,                                  # VoiceFX | None
+    stop: threading.Event | None = None,
+) -> None:
+    """Play an iterator of `(audio, sr)` chunks sequentially. The chunks are
+    consumed lazily, so a streaming TTS producer can keep working while the
+    earlier chunks play. FX (if given) is applied per chunk — reverb tails
+    cannot bleed across chunks, which is the price for low first-audio
+    latency.
+
+    Stops cleanly as soon as `stop` is set (between or during chunks)."""
+    for audio, sr in chunks:
+        if stop is not None and stop.is_set():
+            return
+        if fx is not None:
+            audio = fx.process(audio, sr)
+        if audio is None or len(audio) == 0:
+            continue
+        play_array(backend, audio, sr, stop=stop)

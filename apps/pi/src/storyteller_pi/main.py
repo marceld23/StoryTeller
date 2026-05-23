@@ -94,22 +94,31 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
     speak=False (text/silent): only generate, no audio.
     interrupt: optional threading.Event — playback aborts when it is set
     (button barge-in). The caller inspects the event afterwards.
+
+    Streaming TTS path: while the LLM call is still being awaited we sit in
+    the wait-sound loop. As soon as `gen()` returns the text we kick off
+    `synthesize_streaming` — the player begins speaking the first sentence
+    chunk while later chunks are still rendering, masking most of the TTS
+    latency behind the audio playback.
     """
     if not speak:
         return gen()
-    from storyteller_hardware.audio.player import play_array
+    from storyteller_hardware.audio.player import play_stream
     from storyteller_voice.waitloop import WaitLoop
 
-    out = None
+    text = ""
     with WaitLoop(cfg, backend, world.wait_sound, leds):
         text = gen()
-        if text:
-            a, sr = tts.synthesize(text, world.narration_style)
-            out = (fx.process(a, sr), sr)
-    if out is not None:
-        if leds:
-            leds.speak()
-        play_array(backend, out[0], out[1], stop=interrupt)
+    if not text:
+        return text
+    if leds:
+        leds.speak()
+    play_stream(
+        backend,
+        tts.synthesize_streaming(text, world.narration_style),
+        fx=fx,
+        stop=interrupt,
+    )
     return text
 
 
@@ -119,7 +128,6 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
 
 def cmd_run(args: argparse.Namespace) -> int:
     from storyteller_hardware.audio.backend import get_backend
-    from storyteller_hardware.audio.player import play_array
     from storyteller_hardware.leds import LedRing
     from storyteller_hardware.menu.voice_menu import VoiceMenu
     from storyteller_hardware.runtime import resolve_profile
@@ -234,18 +242,20 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Bridge the opening generation with the wait sound (audio mode only).
     opening_interrupted = False
     if speak:
-        out = None
+        first = None
         with WaitLoop(cfg, backend, world.wait_sound, leds):
             first = _first_narration()
-            if first:
-                a, sr = tts.synthesize(first, world.narration_style)
-                out = (fx.process(a, sr), sr)
         rp(f"[green][Erzähler][/green] {first}")
-        if out is not None:
+        if first:
             leds.speak()
             ev = _arm()
             try:
-                play_array(backend, out[0], out[1], stop=ev)
+                from storyteller_hardware.audio.player import play_stream
+                play_stream(
+                    backend,
+                    tts.synthesize_streaming(first, world.narration_style),
+                    fx=fx, stop=ev,
+                )
             finally:
                 button.disarm()
             opening_interrupted = ev.is_set()

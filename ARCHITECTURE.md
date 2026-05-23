@@ -73,6 +73,8 @@ START → init_turn → moderate ──blocked──→ blocked_finalize → END
            ├→ roll_dynamic ─────┤
            └→ compute_flags ────┘
                                  ↓
+                              curate (gate: small LLM call, picks per-turn reveals)
+                                 ↓
                           build_prompt → narrate
    narrate ─tool_calls?─→ dispatch_tools ─complete_substory?─→ replan → narrate
            └─text────────→ finalize → END
@@ -82,6 +84,21 @@ The pre-narrator fan-out (moderation already done; substory ensure, RAG
 retrieval, dynamic roll, flags) runs **concurrently** — wall-clock latency is
 `max()` not `sum()`. After the narrator calls `complete_substory`, an in-turn
 `replan` node plans the next substory before narrating again.
+
+**Per-turn latency optimizations:**
+
+- *Moderation skip* — trivially short benign inputs (`Ja`, `Vielen Dank`) bypass
+  the OpenAI moderations call, saving ~1.3 s on those turns.
+- *Narration gate* ([curator.py](packages/core/src/storyteller_core/story/curator.py))
+  — one cheap LLM call per turn that picks which AUTHORED reveals the narrator
+  may use. Configured via `gate_llm` (empty → fall back to `planner_llm` →
+  `story_llm`). Empty gate output = no extra constraints; player improvisation
+  is never gated.
+- *TTS streaming* — XTTS chunks are fetched in **parallel** (ThreadPoolExecutor)
+  and consumed by a streaming player ([play_stream](packages/hardware/src/storyteller_hardware/audio/player.py))
+  that starts the first chunk while later ones are still rendering. Wall-clock
+  TTS latency drops from `sum(chunks)` to roughly `max(chunks)` + the playback
+  duration of the first chunk masks the rest.
 
 ### State ([state.py](packages/core/src/storyteller_core/story/state.py))
 

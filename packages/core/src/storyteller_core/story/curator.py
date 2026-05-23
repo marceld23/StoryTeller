@@ -12,12 +12,15 @@ is curated.
 from __future__ import annotations
 
 import json
+import logging
 
 from pydantic import BaseModel, Field
 
 from ..config import Config
 from ..i18n import GATE_SYS, norm
 from ..oai import get_chat_client
+
+log = logging.getLogger("storyteller.curator")
 
 
 class NarrationGate(BaseModel):
@@ -124,5 +127,11 @@ class Curator:
                     list(data.get("forbidden_topics") or []), 12),
                 tone_nudge=str(data.get("tone_nudge", "")).strip()[:160],
             )
-        except Exception:
+        except Exception as exc:
+            # Be loud about it — the previous silent fallback let the gate
+            # quietly time out every turn and made it look like the curator
+            # was just always permissive. INFO with the exception name lets
+            # ops grep for it without drowning the rest of the logs.
+            log.warning("XTTS gate fell back to empty: %s: %s",
+                        type(exc).__name__, exc)
             return NarrationGate()

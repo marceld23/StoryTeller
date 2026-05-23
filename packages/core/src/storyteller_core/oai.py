@@ -61,12 +61,15 @@ def get_chat_client(cfg: Config, role: str = "story") -> OpenAI:
         if ep is None or not (ep.base_url or "").strip():
             ep = _ep(cfg, "story_endpoint")
     key, base = _resolve(cfg, ep)
-    # gen does slow big-model JSON work; gate is on the hot per-turn path
-    # so it should fail fast; the others are latency-sensitive defaults.
+    # gen does slow big-model JSON work; the gate runs on the per-turn hot
+    # path and ideally points at a small/fast model (gpt-5.4-mini, qwen2.5:7b
+    # …) — but in single-GPU local setups it shares the narrator's big model,
+    # so the timeout has to be generous enough that the curator doesn't fail
+    # silently every turn. The others are latency-sensitive defaults.
     if role == "gen":
         timeout, retries = 180.0, 1
     elif role == "gate":
-        timeout, retries = 15.0, 1
+        timeout, retries = 60.0, 1
     else:
         timeout, retries = 30.0, 5
     return _make(key, base, timeout, retries)
