@@ -75,6 +75,10 @@ export async function putWorld(id: string, data: unknown): Promise<unknown> {
   );
 }
 
+export async function listWaitSounds(): Promise<string[]> {
+  return _json(await afetch(`${BACKEND}/api/wait_sounds`));
+}
+
 export async function deleteWorld(id: string): Promise<unknown> {
   return _json(
     await afetch(`${BACKEND}/api/worlds/${encodeURIComponent(id)}`, {

@@ -13,6 +13,8 @@ Endpoints (Phase 4b scope):
   GET    /api/saves                               list saved games (threads)
   DELETE /api/saves/{thread_id}                    reset one saved game
 
+  GET    /api/wait_sounds                         list .wav files available as world wait_sound
+
   GET    /api/settings/models                     model overrides
   PUT    /api/settings/models                     update model overrides
   GET    /api/settings/audio                      audio backend override
@@ -233,6 +235,21 @@ def list_saves() -> list[dict]:
         out.append({**t, "world_id": world_id, "source": source,
                     "world_name": names.get(world_id or "", world_id or tid)})
     return out
+
+
+@app.get("/api/wait_sounds")
+def list_wait_sounds() -> list[str]:
+    """Sorted list of filenames available as `World.wait_sound` — anything
+    audio-shaped (.wav/.flac/.ogg/.mp3) in `paths.wait_sounds_dir`. Drop a
+    file there and it shows up in the world editor's dropdown."""
+    cfg = _cfg()
+    p = cfg.path(cfg.paths.wait_sounds_dir)
+    if not p.is_dir():
+        return []
+    exts = {".wav", ".flac", ".ogg", ".mp3"}
+    return sorted(
+        f.name for f in p.iterdir()
+        if f.is_file() and f.suffix.lower() in exts and not f.name.startswith("."))
 
 
 @app.delete("/api/saves/{thread_id}")

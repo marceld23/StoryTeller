@@ -31,6 +31,11 @@ The **world editor** (`/worlds/<id>`) is a structured form:
 - **Core fields** — name, genre, player role, description, starting
   situation, narration style, **voice sample** (a 1–2 sentence style anchor),
   mood, ambience, physics/magic.
+- **Wartesound** — dropdown that lists every audio file in
+  `data/wait_sounds/` (`.wav` / `.flac` / `.ogg` / `.mp3`). Plays gaplessly
+  while the narrator "thinks". Drop a new file into that directory and
+  reload the page; it appears in the dropdown. *— kein —* turns the
+  ambience off. The repo ships `fantasy_ambient.wav` and `scifi_ambient.wav`.
 - **Tone** — sliders 0–5 (darkness / humor / romance / action / horror),
   pacing, free-text notes.
 - **Blueprint** — premise, escalation rule, and the macro beats (name, goal,

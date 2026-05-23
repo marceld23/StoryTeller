@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { getWorld, putWorld, reindexWorld, waitForJob, type Job } from '$lib/api';
+  import { getWorld, listWaitSounds, putWorld, reindexWorld, waitForJob, type Job } from '$lib/api';
   import ContentList from '$lib/ContentList.svelte';
   import { CONTENT_KINDS } from '$lib/worldFields';
 
@@ -13,6 +13,8 @@
   let raw = $state('');
   let reindexJob: Job | null = $state(null);
   let reindexing = $state(false);
+  // Files available as wait-sound (filenames in data/wait_sounds/).
+  let waitSounds: string[] = $state([]);
 
   $effect(() => {
     const id = page.params.id;
@@ -27,6 +29,8 @@
         error = String(e);
         loading = false;
       });
+    // independent: pull the wait-sound directory listing once
+    listWaitSounds().then((s) => (waitSounds = s)).catch(() => {});
   });
 
   // make sure optional containers exist so binding doesn't explode
@@ -157,7 +161,18 @@
           </select>
         </label>
         <label><span>Zielgruppe</span><input bind:value={world.audience} /></label>
-        <label><span>Wartesound (Datei)</span><input bind:value={world.wait_sound} /></label>
+        <label>
+          <span>Wartesound</span>
+          <select bind:value={world.wait_sound}>
+            <option value="">— kein —</option>
+            {#each waitSounds as f (f)}
+              <option value={f}>{f}</option>
+            {/each}
+            {#if world.wait_sound && !waitSounds.includes(world.wait_sound)}
+              <option value={world.wait_sound}>{world.wait_sound} (fehlt)</option>
+            {/if}
+          </select>
+        </label>
       </div>
       <label><span>Beschreibung</span><textarea bind:value={world.description} rows="3"></textarea></label>
       <label><span>Ausgangssituation</span><textarea bind:value={world.starting_situation} rows="2"></textarea></label>
