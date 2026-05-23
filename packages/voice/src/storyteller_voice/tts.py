@@ -132,7 +132,14 @@ class XttsTTS(TTS):
     actual request always goes over plain HTTP). ``models.tts_voice`` (or
     ``models.tts``) names the registered speaker, e.g. ``marcel``.
     Language follows ``cfg.general.locale`` (de/en).
+
+    Long narrations are split at sentence boundaries and synthesised in
+    chunks, then concatenated — XTTS v2 is autoregressive and produces
+    garbled audio toward the end of long single-request generations.
     """
+
+    # XTTS sentence limit hovers around 250 chars in practice; keep a margin.
+    MAX_CHUNK_CHARS = 220
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -148,6 +155,33 @@ class XttsTTS(TTS):
         self.port = u.port or 8002
         self.base = f"http://{self.host}:{self.port}"
 
+    @classmethod
+    def _chunks(cls, text: str) -> list[str]:
+        """Split text into <= MAX_CHUNK_CHARS pieces on sentence boundaries
+        (`.`, `!`, `?`, `…`). A single overlong sentence is kept as one
+        chunk; XTTS may still warble at its tail but splitting mid-sentence
+        sounds worse."""
+        import re
+
+        text = (text or "").strip()
+        if not text:
+            return []
+        # Split keeping punctuation with the preceding sentence.
+        parts = re.split(r"(?<=[.!?…])\s+", text)
+        chunks: list[str] = []
+        cur = ""
+        for s in (p.strip() for p in parts):
+            if not s:
+                continue
+            if cur and len(cur) + 1 + len(s) > cls.MAX_CHUNK_CHARS:
+                chunks.append(cur)
+                cur = s
+            else:
+                cur = f"{cur} {s}" if cur else s
+        if cur:
+            chunks.append(cur)
+        return chunks or [text]
+
     def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
         import io
 
@@ -157,19 +191,32 @@ class XttsTTS(TTS):
 
         speaker = self.cfg.models.tts_voice or self.cfg.models.tts
         language = norm(self.cfg.general.locale)
-        log.info("TTS: xtts speaker=%s language=%s endpoint=%s",
-                 speaker, language, self.base)
-        r = httpx.post(
-            f"{self.base}/tts_to_audio/",
-            json={"text": text, "speaker_wav": speaker, "language": language},
-            timeout=60.0,
-        )
-        r.raise_for_status()
-        data, sr = sf.read(io.BytesIO(r.content), dtype="float32",
-                           always_2d=False)
-        if getattr(data, "ndim", 1) > 1:
-            data = data.mean(axis=1)
-        return np.ascontiguousarray(data, dtype=np.float32), int(sr)
+        chunks = self._chunks(text)
+        log.info("TTS: xtts speaker=%s language=%s endpoint=%s chunks=%d "
+                 "(total %d chars)",
+                 speaker, language, self.base, len(chunks), len(text or ""))
+        if not chunks:
+            return np.zeros(0, dtype=np.float32), 24000
+        with httpx.Client(timeout=60.0) as client:
+            pieces: list[np.ndarray] = []
+            sr_out = 24000
+            for i, chunk in enumerate(chunks, 1):
+                r = client.post(
+                    f"{self.base}/tts_to_audio/",
+                    json={"text": chunk, "speaker_wav": speaker,
+                          "language": language},
+                )
+                r.raise_for_status()
+                data, sr = sf.read(io.BytesIO(r.content), dtype="float32",
+                                   always_2d=False)
+                if getattr(data, "ndim", 1) > 1:
+                    data = data.mean(axis=1)
+                pieces.append(np.asarray(data, dtype=np.float32))
+                sr_out = int(sr)
+                log.debug("  chunk %d/%d: %d chars -> %d samples @ %d Hz",
+                          i, len(chunks), len(chunk), len(data), sr_out)
+        out = np.concatenate(pieces) if len(pieces) > 1 else pieces[0]
+        return np.ascontiguousarray(out, dtype=np.float32), sr_out
 
 
 class LocalTTS(TTS):
