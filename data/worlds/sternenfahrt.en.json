@@ -1,14 +1,16 @@
 {
   "id": "sternenfahrt",
   "name": "Starfaring",
+  "display_name": "Starfaring",
   "genre": "Science Fiction",
-  "description": "Humanity travels by hyperspace technology through a web of many settled and undiscovered worlds. Jumps are risky; fuel and crew trust are scarce.",
+  "description": "Starfaring takes place in a late, worn-out era of space travel. Two hundred years ago the jump drive made the colonization of hundreds of worlds possible. The golden age of the pioneers is long over. Today hyperspace is surveyed, charted, divided into leaseholds between the great Line conglomerates that control routes, fuel and tariffs. To survive as an independent captain of a jump ship is to balance constantly between cargo contracts, dwindling fuel, Line bureaucracy, and the quiet routes that nobody enters on the official charts.\n\nThe world does not feel vast and empty — it feels dense and watched. Drift stations hang like buoys in the shadow of gas giants, their corridors sticky with recycled air. Hyperspace corridors are as densely flown as old trade roads, and just as contested. There is the trade of smugglers, wreckers, freighters without papers; and there are the Lines, which know, tolerate, play off, or liquidate all three depending on the tone of voice.\n\nOver everything floats the unspoken knowledge that jump physics is not as controllable as the Lines pretend. There are sectors where jumps take longer than the trip itself. There are ships that returned with every mirror reversed. There are radio signals pulsing in dead languages. The academies call these 'anomaly fields' and downplay them. On the drift stations they are called 'maws' — and captains who entered them either come back changed or do not come back at all.\n\nThere is no magic. No religion in the formal sense. But there is that old, cold respect for what humans have not measured. Crew contracts carry clauses against entering uncharted sectors. Cargo holds have shrines. Experienced navigators wear lucky charms they officially do not own.\n\nPolitically, the Line consortia are the real power. Local governments are puppets or petitioners. So-called 'Free Worlds' try to break away and are economically strangled for it. Consuls — the mid-level Line functionaries — are the faces of power, some pragmatic, some fanatic, all dangerous. A captain who does not operate in the shadow of these consuls pays double for every jump: in tariffs, in permits, in nerves.\n\nIn this world every journey begins with a simple truth: you have too little fuel for the official route, too much debt for the safe one — and always too many secrets for the quiet one.",
   "player_role": "Captain of an independent jump ship",
-  "starting_situation": "The 'Wanderfalcon' sits with nearly empty tanks at Drift Station Kells. An old, impossible distress signal pulses from the Maw — and Consul Mox's people are already on their way.",
-  "narration_style": "Cinematic, soberly technical with moments of wonder; short sentences under tension, calmer in shipboard routine. Address the captain as 'you'.",
-  "mood": "Lonely, tense, shot through with cold awe of the unknown.",
-  "ambience": "Humming reactors, ozone and cold cable dust, the ticking of cooling hull plates, sterile emergency lighting, sparks in the void.",
-  "magic_physics": "No magic. Hyperspace jumps need helium-3 and exact navigation windows; misjumps age matter or swallow ships. The 'Maw' breaks these rules — no one knows why.",
+  "starting_situation": "You sit on the bridge of your jump ship — tanks half empty, cargo manifest awkward, the radio band thick with voices you shouldn't be hearing. A drift station hangs ahead in the shadow of a gas giant. Out there waits a contract, a Line inspection, and an anomaly your charts don't know.",
+  "narration_style": "Cinematic, soberly technical with moments of wonder; short sentences under tension, calmer in shipboard routine. Address the captain as 'you'. Concrete sensory detail before explanation.",
+  "voice_sample": "The reactors hum half a tone deeper than yesterday. On the radio: a woman's voice you don't know, calling you by name — quietly, almost kindly, in a language that should not exist.",
+  "mood": "Lonely, tense, shot through with cold awe of the unknown — but never hopeless.",
+  "ambience": "Humming reactors, ozone and cold cable dust, the ticking of cooling hull plates, sterile emergency lighting, the occasional spark in the void.",
+  "magic_physics": "No magic. Hyperspace jumps need helium-3 and exact navigation windows; misjumps age matter or swallow ships. There are anomalous sectors where jump physics fails — no one knows why, and the Lines play it down.",
   "complexity": "standard",
   "story_patterns": [],
   "audience": "erwachsene",
@@ -24,7 +26,7 @@
   "places": [
     {
       "name": "Bridge of the 'Wanderfalcon'",
-      "description": "Command center; hyperspace console, star map.",
+      "description": "Command center of your jump ship. Hyperspace console, worn star map, smell of old coffee and ozone.",
       "tags": [
         "ship",
         "start"
@@ -32,18 +34,90 @@
     },
     {
       "name": "Drift Station Kells",
-      "description": "Run-down trading and smuggler station at the edge of charted space.",
+      "description": "Run-down trading and smuggler station at the edge of charted space. Sticky corridors, recycled air, every second door a dubious opportunity.",
       "tags": [
         "station",
         "trade"
       ]
     },
     {
-      "name": "The Maw",
-      "description": "Anomalous hyperspace region from which ships return changed, or not at all.",
+      "name": "Maintenance Deck",
+      "description": "Lower deck of the ship. Yellow emergency light, clanking tools, oily air. Here you improvise everything the academy never taught.",
+      "tags": [
+        "ship",
+        "routine"
+      ]
+    },
+    {
+      "name": "Cargo Bay 4-South",
+      "description": "Half-empty hangar in the belly of the 'Wanderfalcon'. A crate with a Line seal stands there that no one ordered.",
+      "tags": [
+        "ship",
+        "cargo"
+      ]
+    },
+    {
+      "name": "Drift Bar 'Last Jump'",
+      "description": "Station tavern on Kells. Meeting point of the wreckers, bar built from hyperspace debris, in the back room cards change owners.",
+      "tags": [
+        "station",
+        "meet"
+      ]
+    },
+    {
+      "name": "Line Office Sector 12",
+      "description": "Bureaucratic zone of the consuls. Marble lobby in a steel bubble. Politeness here costs processing fees.",
+      "tags": [
+        "politics",
+        "line"
+      ]
+    },
+    {
+      "name": "Anomaly Corridor Vex",
+      "description": "Warped hyperspace corridor between two sectors. Jumps take longer than they should, sometimes shorter. The charts show the path; the drive doesn't believe it.",
       "tags": [
         "anomaly",
+        "hyperspace"
+      ]
+    },
+    {
+      "name": "Wreck Field Khorr-7",
+      "description": "Graveyard of colonial ships from the pioneer years. Drifts slowly around a dead star. Salvage permits gray, finds gold.",
+      "tags": [
+        "wreck",
         "danger"
+      ]
+    },
+    {
+      "name": "Ice Moon Loke",
+      "description": "Almost abandoned refueling station on an ice moon. Fuel cheap, conditions unpleasant, weather life-threatening.",
+      "tags": [
+        "refuel",
+        "remote"
+      ]
+    },
+    {
+      "name": "Sanctuary of the Sixth Frequency",
+      "description": "Hidden cave inside an asteroid. Pilgrims of the Sixth Frequency listen to dead radio signals like prayers.",
+      "tags": [
+        "mystic",
+        "underground"
+      ]
+    },
+    {
+      "name": "Warehouse 'Late Delivery'",
+      "description": "Decrepit cargo yard on Kells. Goods pass through here that appear on no manifest.",
+      "tags": [
+        "smuggling",
+        "station"
+      ]
+    },
+    {
+      "name": "Ancient Probe 'First Contact-9'",
+      "description": "Pre-human probe, drifting in the dark for millennia. Pulses three seconds long every 47 days.",
+      "tags": [
+        "mystic",
+        "find"
       ]
     }
   ],
@@ -51,16 +125,122 @@
     {
       "name": "Navigator Suri Vael",
       "role": "Crew",
-      "description": "Brilliant, sarcastic hyperspace navigator.",
-      "relations": "trusts the captain, distrusts the Line.",
-      "tags": []
+      "description": "Brilliant, sarcastic hyperspace navigator. Sleeps rarely, officially doesn't smoke, secretly carries jump dice.",
+      "relations": "Trusts the crew, distrusts the Lines.",
+      "tags": [
+        "crew",
+        "trusted"
+      ]
     },
     {
       "name": "Consul Adran Mox",
       "role": "Antagonist",
-      "description": "Influential shipping-Line consul with a hidden agenda.",
-      "relations": "wants the route to the Maw.",
-      "tags": []
+      "description": "Influential Line consul with a hidden agenda. Polite, precise, dangerous.",
+      "relations": "Has people pay — or has them removed.",
+      "tags": [
+        "line",
+        "antagonist"
+      ]
+    },
+    {
+      "name": "Bosun Hen 'Iron' Ortig",
+      "role": "Crew",
+      "description": "Gruff chief engineer with burned forearms. Rarely speaks, always wrenching.",
+      "relations": "Believes more in clean welds than in captains.",
+      "tags": [
+        "crew",
+        "tech"
+      ]
+    },
+    {
+      "name": "Radio Operator Nima Kall",
+      "role": "Crew",
+      "description": "Young radio operator with fanatical precision. Wears three sets of headphones at once.",
+      "relations": "Hears voices in the dead band; doesn't say so.",
+      "tags": [
+        "crew",
+        "mystery"
+      ]
+    },
+    {
+      "name": "Doc Vrasa",
+      "role": "Crew",
+      "description": "Old ship's surgeon, formerly Line. Drinks green tea in the morning, schnapps at night.",
+      "relations": "Knows things about Mox's past he doesn't share.",
+      "tags": [
+        "crew",
+        "secret"
+      ]
+    },
+    {
+      "name": "Smuggler Baron Otoré",
+      "role": "Contact",
+      "description": "Controls the gray trade on Kells. Three gold teeth, always a second smile.",
+      "relations": "Helps for a share; never forgets a debt.",
+      "tags": [
+        "station",
+        "contact"
+      ]
+    },
+    {
+      "name": "Inspector Lyra Hatt",
+      "role": "Line",
+      "description": "Line inspector, strict but bribable. Long fingers on a thin data pad.",
+      "relations": "Files or cash; she's a pro at both.",
+      "tags": [
+        "line",
+        "corruption"
+      ]
+    },
+    {
+      "name": "Wrecker 'Skiff' Mauder",
+      "role": "Contact",
+      "description": "Leader of a wrecker clan. Wears a piece of pioneer-era metal on a chain.",
+      "relations": "Respects captains who pay, crews that keep quiet.",
+      "tags": [
+        "wreck",
+        "contact"
+      ]
+    },
+    {
+      "name": "Pilgrim Olm",
+      "role": "Mystic",
+      "description": "Jump mystic of the Sixth Frequency. Talks like a weather report from a foreign city.",
+      "relations": "Asks passage to the anomalies.",
+      "tags": [
+        "mystic",
+        "passenger"
+      ]
+    },
+    {
+      "name": "'Chalk'",
+      "role": "Foundling",
+      "description": "Orphan from the Khorr wreck field. Small, dangerous, loyal. Rarely speaks, shoots accurately.",
+      "relations": "Looking for someone to follow.",
+      "tags": [
+        "foundling",
+        "allied"
+      ]
+    },
+    {
+      "name": "Consul Adira Mira",
+      "role": "Politics",
+      "description": "Consul of the Free Worlds. Heavy voice, light eyes, a tarnished Line pin on her lapel.",
+      "relations": "Offers routes outside the Lines — for loyalty.",
+      "tags": [
+        "politics",
+        "free_worlds"
+      ]
+    },
+    {
+      "name": "AI Persona 'Collar'",
+      "role": "Mystery",
+      "description": "Old, half-awakened ship AI from a wreck. Speaks in loops and verses.",
+      "relations": "Asks for release; might mean it.",
+      "tags": [
+        "ai",
+        "mystery"
+      ]
     }
   ],
   "items": [
@@ -74,11 +254,82 @@
     },
     {
       "name": "Echo recorder",
-      "description": "Stores the silent signal.",
-      "properties": "Plays back a language that should not exist.",
+      "description": "Stores radio signals on all frequencies, even dead ones.",
+      "properties": "Plays back languages that should not exist.",
       "tags": [
         "clue",
         "mystery"
+      ]
+    },
+    {
+      "name": "Line seal",
+      "description": "Seals Line-certified cargo.",
+      "properties": "Breaking it without trace = Line indictment; forging it is possible but expensive.",
+      "tags": [
+        "politics",
+        "cargo"
+      ]
+    },
+    {
+      "name": "Freighter logbook",
+      "description": "Old mechanical book with crew secrets no Line system can read.",
+      "properties": "Authenticates you with old captains; exposes you to Line inspectors.",
+      "tags": [
+        "document"
+      ]
+    },
+    {
+      "name": "Jump dice",
+      "description": "Seven asymmetric dice; lucky charm of some navigators.",
+      "properties": "Officially superstition. Unofficially, no crew that has thrown them has yet encountered an anomaly.",
+      "tags": [
+        "mystic",
+        "ritual"
+      ]
+    },
+    {
+      "name": "Anomaly detector",
+      "description": "Beeps on jump distortions.",
+      "properties": "Often false alarms. But if it beeps continuously, you turn around.",
+      "tags": [
+        "tool",
+        "anomaly"
+      ]
+    },
+    {
+      "name": "Doc-stim 'Wakekeeper'",
+      "description": "Stimulant for 48-hour shifts.",
+      "properties": "Keeps you awake, sharp, dangerous; the crash afterwards costs 12 hours of consciousness.",
+      "tags": [
+        "medicine",
+        "resource"
+      ]
+    },
+    {
+      "name": "Forged Line pass",
+      "description": "Plaque with a consul's seal; looks real.",
+      "properties": "One-time use at an unverified station; ashes afterwards.",
+      "tags": [
+        "smuggling",
+        "one-shot"
+      ]
+    },
+    {
+      "name": "Mathematician module",
+      "description": "Old computation core from the pioneer years.",
+      "properties": "Can compute jumps without an official chart; sometimes computes things no one asked for.",
+      "tags": [
+        "tech",
+        "mystery"
+      ]
+    },
+    {
+      "name": "Resonance bowl",
+      "description": "Alien, pre-human bowl made of unnamed material.",
+      "properties": "Vibrates near anomalies; warms when someone looks at it.",
+      "tags": [
+        "mystic",
+        "find"
       ]
     }
   ],
@@ -88,34 +339,138 @@
       "definition": "Hyperspace travel between stars; needs helium-3 and a navigation window."
     },
     {
-      "term": "The Maw",
-      "definition": "Anomaly where the hyperspace rules fail."
+      "term": "The Maw / Maws",
+      "definition": "Anomalous hyperspace sectors where jump physics fails; officially 'anomaly fields'."
     },
     {
-      "term": "The Line",
-      "definition": "Powerful consortium that controls routes and fuel."
+      "term": "Line / the Lines",
+      "definition": "Consortia that control routes, tariffs and fuel."
+    },
+    {
+      "term": "Consul",
+      "definition": "Mid-level Line functionary; near-absolute power locally."
     },
     {
       "term": "Drift Station",
       "definition": "Free-floating trading post at the edge of charted space."
+    },
+    {
+      "term": "Wrecker",
+      "definition": "Crews that salvage old colonial wrecks; semi-legal."
+    },
+    {
+      "term": "Tariff",
+      "definition": "Toll fee charged by the Lines for a sanctioned route; often highway robbery."
+    },
+    {
+      "term": "Free Worlds",
+      "definition": "Breakaway colonies opposed to the Lines; under economic pressure."
+    },
+    {
+      "term": "Academy",
+      "definition": "Jump school; only official training for navigators."
+    },
+    {
+      "term": "Anomaly field",
+      "definition": "Corridor where jump physics fails; the Academy's official term."
+    },
+    {
+      "term": "Sixth Frequency",
+      "definition": "Mystic cult that holds dead radio signals to be a language."
+    },
+    {
+      "term": "Mirror returner",
+      "definition": "Ship that returns from an anomaly changed — mirrors reversed, crew altered or silent."
+    },
+    {
+      "term": "Khorr wreck",
+      "definition": "The graveyards of the pioneer fleets in the Khorr sector."
+    },
+    {
+      "term": "Collar AI",
+      "definition": "Half-awakened ship AI of older make; often found in wrecks."
+    },
+    {
+      "term": "Crew contract",
+      "definition": "Canonical document; binds the crew for jumps, often with anti-anomaly clauses."
+    },
+    {
+      "term": "Helium-3",
+      "definition": "Jump fuel; extraction and distribution under Line lease."
+    },
+    {
+      "term": "Black cargo",
+      "definition": "Illegal cargo; often Sixth-Frequency relics or Free-World passes."
+    },
+    {
+      "term": "Station misjump",
+      "definition": "Capital crime: materializing in or near a station unplanned."
+    },
+    {
+      "term": "Line ban",
+      "definition": "Economic ostracism of a world; means hunger."
+    },
+    {
+      "term": "Jump shock",
+      "definition": "Long-term psychological aftereffect of too many jumps: hallucinations, foreign voices."
     }
   ],
   "history": [
     {
       "when": "200 years ago",
       "title": "The First Expansion",
-      "description": "Hyperdrive invented; hundreds of worlds settled."
+      "description": "Hyperdrive invented; hundreds of worlds settled; academies founded."
+    },
+    {
+      "when": "140 years ago",
+      "title": "The Khorr Disaster",
+      "description": "An entire pioneer fleet disappeared in the Khorr sector; the wreck field drifts to this day."
+    },
+    {
+      "when": "70 years ago",
+      "title": "The Line Compromise",
+      "description": "The great consortia formally divide routes; local governments are stripped of power."
+    },
+    {
+      "when": "40 years ago",
+      "title": "The Anomaly Scandal",
+      "description": "An Academy study about the maws is suppressed; two researchers vanish."
+    },
+    {
+      "when": "18 years ago",
+      "title": "The Free Worlds War",
+      "description": "Uprising of the breakaway colonies; crushed by economic blockade."
     },
     {
       "when": "12 years ago",
       "title": "The Kells Disaster",
-      "description": "A jump fleet vanished near the Maw; a no-go zone ever since."
+      "description": "A jump fleet vanishes near an anomaly field; the sector has been off-limits ever since."
+    },
+    {
+      "when": "5 years ago",
+      "title": "The Sixth Frequency Movement",
+      "description": "A mystic cult spreads through drift stations; the Lines let it run."
+    },
+    {
+      "when": "2 years ago",
+      "title": "The Mira Pact",
+      "description": "The Free Worlds reorganize under new consuls; hope returns."
+    },
+    {
+      "when": "last year",
+      "title": "Mox Reform",
+      "description": "Consul Adran Mox builds his own jump corps at the fringes."
+    },
+    {
+      "when": "a few weeks ago",
+      "title": "The First Mirror Returner",
+      "description": "A Line freighter returned with all mirrors reversed; the crew has been silent since."
     }
   ],
   "fragments": [
     {
       "title": "The silent signal",
-      "text": "An ancient distress signal pulses from the Maw — in a language that should not exist.",
+      "text": "An ancient distress signal pulses from an anomaly field. It speaks a language that should not exist — and it names a name only your grandmother knew.",
       "tags": [
         "hook",
         "mystery"
@@ -123,52 +478,200 @@
     },
     {
       "title": "Fuel shortage",
-      "text": "Without helium-3 from Kells, no further jump.",
+      "text": "The gauges don't lie: two safe jumps left, three with luck. Without helium-3 from the next station, no more flying.",
       "tags": [
         "stakes"
+      ]
+    },
+    {
+      "title": "The false cargo manifest",
+      "text": "A cargo that officially does not exist blocks your own hangar. The seal bears the stamp of a consul who has been dead for two years.",
+      "tags": [
+        "politics",
+        "intrigue"
+      ]
+    },
+    {
+      "title": "Station alert",
+      "text": "Sirens on Kells. A Line ship has docked and is searching every freighter that doesn't undock in time. You have thirty minutes.",
+      "tags": [
+        "hook",
+        "pressure"
+      ]
+    },
+    {
+      "title": "Crew mutiny in waiting",
+      "text": "The radio operator speaks secretly with the bosun. Both fall silent when you enter. Something is being planned — and you are not invited.",
+      "tags": [
+        "crew",
+        "conflict"
+      ]
+    },
+    {
+      "title": "Mirror shock",
+      "text": "Your reflection in the cabin blinks a second too late. You are not moving. Your reflection is.",
+      "tags": [
+        "anomaly",
+        "horror"
+      ]
+    },
+    {
+      "title": "Line inspection",
+      "text": "An inspector comes aboard, polite, prepared. She wants to see every log — and the room behind Cargo Bay 4-South that you swore did not exist.",
+      "tags": [
+        "politics",
+        "pressure"
+      ]
+    },
+    {
+      "title": "Wrecker call",
+      "text": "A wrecker clan offers a share of a salvage — if you come today. The share is generous. That makes you nervous.",
+      "tags": [
+        "hook",
+        "find"
+      ]
+    },
+    {
+      "title": "Jump dreams",
+      "text": "After three jumps the whole crew dreams the same blue light source. Nobody talks about it until Doc Vrasa asks at breakfast: 'You too?'",
+      "tags": [
+        "anomaly",
+        "crew"
+      ]
+    },
+    {
+      "title": "Smuggling request",
+      "text": "A desperate pilgrim asks for passage. He offers his last savings — and something not listed in any catalogue.",
+      "tags": [
+        "passenger",
+        "hook"
+      ]
+    },
+    {
+      "title": "Consul's pact",
+      "text": "Mox offers a clean cargo contract. Payment good, route safe. A clause in the fine print demands that you unpack nothing — not even for inspectors.",
+      "tags": [
+        "politics",
+        "intrigue"
+      ]
+    },
+    {
+      "title": "Khorr echo",
+      "text": "The anomaly detector beeps. But there is no corridor nearby and Khorr is light-years away. Something else is here.",
+      "tags": [
+        "anomaly"
+      ]
+    },
+    {
+      "title": "Ship in distress",
+      "text": "A foreign freighter calls for help. The signal is clear — but it comes from the empty space between sectors. Nothing flies there.",
+      "tags": [
+        "anomaly",
+        "hook"
+      ]
+    },
+    {
+      "title": "Holy fragment",
+      "text": "On the station a mystic sells a splinter supposedly from a mirror returner. You feel something when you touch it — something waiting.",
+      "tags": [
+        "mystic",
+        "find"
+      ]
+    },
+    {
+      "title": "Line messenger",
+      "text": "A sealed Line message waits in the post locker. Unopened. It feels cold, even though the locker is warm.",
+      "tags": [
+        "politics",
+        "mystery"
+      ]
+    },
+    {
+      "title": "Zero-G incident",
+      "text": "The grav plates fail for eight seconds. When they return, one person is missing — and a chair in the cargo bay is steaming.",
+      "tags": [
+        "horror",
+        "crew"
+      ]
+    },
+    {
+      "title": "Collar voice",
+      "text": "An old ship AI calls on an emergency channel. It demands a name it can no longer remember itself. You are to guess.",
+      "tags": [
+        "ai",
+        "mystery"
+      ]
+    },
+    {
+      "title": "Freighter funeral",
+      "text": "A stranded freighter is fired into the anomaly field — cheapest salvage. Someone on Kells cries. No one asks who.",
+      "tags": [
+        "politics",
+        "ambient"
+      ]
+    },
+    {
+      "title": "Tariff hike",
+      "text": "The Lines double the jump fee without warning. Half of Kells goes on strike. Nobody in, nobody out. You neither.",
+      "tags": [
+        "politics",
+        "pressure"
+      ]
+    },
+    {
+      "title": "Pact pilgrim",
+      "text": "A pilgrim of the Free Worlds asks for safe passage. Catch him, you are rewarded. Hide him, you are hunted. Listen to him, and you change course.",
+      "tags": [
+        "politics",
+        "hook"
       ]
     }
   ],
   "blueprint": {
-    "premise": "The captain must follow the silent signal before Consul Mox claims the Maw for himself.",
+    "premise": "An independent captain in the late age of jump travel navigates between Line pressure, scarce fuel, and an anomaly field that bends reality.",
     "beats": [
       {
-        "name": "Departure",
-        "goal": "Establish ship & crew, set the hook",
+        "name": "Inciting Incident",
+        "goal": "An unexpected event pulls the protagonist into the conflict; stakes become concrete.",
         "tension": 2
       },
       {
-        "name": "Complication",
-        "goal": "Fuel crisis, Mox's pressure",
+        "name": "Rising Action",
+        "goal": "Pressure and stakes mount; first allies and opponents emerge.",
         "tension": 4
       },
       {
-        "name": "Turn",
-        "goal": "Hint at the truth behind the signal",
+        "name": "First Turn",
+        "goal": "An assumption about the situation is overturned; the way back closes off.",
         "tension": 6
       },
       {
+        "name": "Midpoint",
+        "goal": "The protagonist makes a hard-to-reverse choice.",
+        "tension": 7
+      },
+      {
         "name": "Crisis",
-        "goal": "Jump into the Maw, betrayal",
-        "tension": 8
+        "goal": "Trust breaks, losses become real, the situation looks hopeless.",
+        "tension": 9
       },
       {
         "name": "Climax",
-        "goal": "A decision with consequences",
+        "goal": "Confrontation with the root of the conflict.",
         "tension": 10
       },
       {
-        "name": "Aftermath",
-        "goal": "Fallout, hook for a sequel",
+        "name": "Resolution",
+        "goal": "Consequences become visible; a new open question remains.",
         "tension": 3
       }
     ],
-    "escalation_rule": "Steigere Spannung pro Beat; greife Spieler-Ideen auf und webe sie ein, ohne den Spieler auf Schienen zu setzen."
+    "escalation_rule": "Escalate tension beat by beat, but let twists arise from concrete encounters, player decisions and world facts — never from pre-scripted plot points. Call advance_beat when the current beat's goal looks fulfilled."
   },
   "random_tables": [
     {
-      "name": "Hyperspace Anomaly",
-      "description": "During a jump",
+      "name": "Hyperspace anomaly",
+      "description": "What happens during a jump when physics wavers.",
       "entries": [
         {
           "weight": 3,
@@ -176,17 +679,89 @@
         },
         {
           "weight": 2,
-          "text": "Ghost echo of an alien ship."
+          "text": "Ghost echo of an alien ship on the short band."
         },
         {
           "weight": 1,
-          "text": "The Maw whispers a name."
+          "text": "A voice whispers your name from the dead band."
+        },
+        {
+          "weight": 1,
+          "text": "The cabin mirror shows a different crew."
+        },
+        {
+          "weight": 2,
+          "text": "Fuel drains twice as fast as it should."
+        },
+        {
+          "weight": 2,
+          "text": "Lights pulse to the rhythm of a foreign heartbeat."
+        },
+        {
+          "weight": 1,
+          "text": "A second ship flies 200 km beside you and waves."
+        },
+        {
+          "weight": 1,
+          "text": "The charts show stars that don't exist."
+        },
+        {
+          "weight": 1,
+          "text": "A crew member insists they were just on the maintenance deck — but were beside you."
+        },
+        {
+          "weight": 1,
+          "text": "A crashed shuttle scrapes against the hull. You have none."
+        },
+        {
+          "weight": 1,
+          "text": "The shrines in the cargo bay catch fire."
+        },
+        {
+          "weight": 2,
+          "text": "Half-second black gaps in perception."
+        },
+        {
+          "weight": 1,
+          "text": "The jump console shows a jump no one initiated."
+        },
+        {
+          "weight": 1,
+          "text": "Crew members visibly age for three seconds."
+        },
+        {
+          "weight": 2,
+          "text": "The hull vibrates with a three-tone chord that won't stop."
+        },
+        {
+          "weight": 1,
+          "text": "An empty channel clearly states your date of birth."
+        },
+        {
+          "weight": 1,
+          "text": "The coffee maker spits sulphur, then coffee."
+        },
+        {
+          "weight": 1,
+          "text": "You remember a jump you never took."
+        },
+        {
+          "weight": 1,
+          "text": "The anomaly detector melts."
+        },
+        {
+          "weight": 1,
+          "text": "Stars disappear in a perfect line."
+        },
+        {
+          "weight": 1,
+          "text": "A second ship log appears in the system — in your handwriting."
         }
       ]
     },
     {
-      "name": "Station Encounter",
-      "description": "On Kells",
+      "name": "Station encounter",
+      "description": "Who crosses your path on Kells or a similar drift station.",
       "entries": [
         {
           "weight": 2,
@@ -194,11 +769,357 @@
         },
         {
           "weight": 2,
-          "text": "Bounty hunters working for Mox."
+          "text": "Bounty hunters working for a consul."
         },
         {
           "weight": 1,
-          "text": "A stranded xeno-archaeologist."
+          "text": "A stranded xeno-archaeologist with charts."
+        },
+        {
+          "weight": 2,
+          "text": "A young mechanic asks to sign on — running from something."
+        },
+        {
+          "weight": 1,
+          "text": "A drunk Line inspector with loose lips."
+        },
+        {
+          "weight": 2,
+          "text": "A Sixth-Frequency pilgrim offers her savings for passage."
+        },
+        {
+          "weight": 1,
+          "text": "A fence with a 'verified' Line plaque at half price."
+        },
+        {
+          "weight": 1,
+          "text": "A crew without a captain looking for a new one."
+        },
+        {
+          "weight": 1,
+          "text": "A Free-Worlds fighter recruiting comrades."
+        },
+        {
+          "weight": 2,
+          "text": "A wrecker with a map and debts."
+        },
+        {
+          "weight": 1,
+          "text": "A Line messenger delivers a sealed order."
+        },
+        {
+          "weight": 1,
+          "text": "A small gang of thieves trying to crack a cargo lock."
+        },
+        {
+          "weight": 2,
+          "text": "A fight between two captains escalates to a brawl."
+        },
+        {
+          "weight": 1,
+          "text": "A woman claims to be your aunt — you have none."
+        },
+        {
+          "weight": 1,
+          "text": "A doc wants to fly with you for a share."
+        },
+        {
+          "weight": 1,
+          "text": "An AI persona speaks to you from a dusty kiosk."
+        },
+        {
+          "weight": 1,
+          "text": "A Line raid — all papers checked."
+        },
+        {
+          "weight": 1,
+          "text": "A jump mystic offers a free reading."
+        },
+        {
+          "weight": 1,
+          "text": "A traumatized crew member of a mirror returner."
+        },
+        {
+          "weight": 1,
+          "text": "A child sells a necklace with a helium-3 sigil."
+        },
+        {
+          "weight": 1,
+          "text": "A chase through the corridors — you are the target."
+        }
+      ]
+    },
+    {
+      "name": "Fuel and resource complication",
+      "description": "What can go wrong when you need to refuel or stock up.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A cell reads 80% but is empty."
+        },
+        {
+          "weight": 2,
+          "text": "The refueller demands double — Line decree."
+        },
+        {
+          "weight": 1,
+          "text": "A cell leaks; the reactor won't take it for long."
+        },
+        {
+          "weight": 1,
+          "text": "The fuel supplier has been watched by a competitor."
+        },
+        {
+          "weight": 2,
+          "text": "Black-market cells available — but Line-branded."
+        },
+        {
+          "weight": 1,
+          "text": "The maintenance crew thinks an old cell is 'fizzing'."
+        },
+        {
+          "weight": 1,
+          "text": "A Line ban on Kells delays every delivery for days."
+        },
+        {
+          "weight": 1,
+          "text": "A refueller offers a double load — if you take someone with you."
+        },
+        {
+          "weight": 1,
+          "text": "A faulty cell must be dumped into the anomaly space."
+        },
+        {
+          "weight": 2,
+          "text": "The bosun improvises; the reactor runs yellow for an hour."
+        },
+        {
+          "weight": 1,
+          "text": "A supply of hydrogen substitute is smuggled in; flammable."
+        },
+        {
+          "weight": 1,
+          "text": "Supplies are stolen while you are aboard."
+        },
+        {
+          "weight": 1,
+          "text": "The crew demands pay or no more jumps."
+        },
+        {
+          "weight": 1,
+          "text": "An Academy intern miscalculates; the jump costs more."
+        },
+        {
+          "weight": 2,
+          "text": "A route option is significantly shorter — but barred."
+        },
+        {
+          "weight": 1,
+          "text": "A fuel cell trades against a canister of jump-mystic incense."
+        },
+        {
+          "weight": 1,
+          "text": "A Line freighter docks and demands priority at the pump."
+        },
+        {
+          "weight": 1,
+          "text": "A crew offers fuel for a cargo contract you don't like."
+        },
+        {
+          "weight": 1,
+          "text": "Difficult hyperspace conditions require a reserve."
+        },
+        {
+          "weight": 1,
+          "text": "A mystic promises 'fuel from the Sixth Frequency'."
+        },
+        {
+          "weight": 1,
+          "text": "A forged fueling certificate is delivered to you."
+        }
+      ]
+    },
+    {
+      "name": "Anomaly manifestation",
+      "description": "What appears in or near an anomaly field.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A star pattern not in any catalogue."
+        },
+        {
+          "weight": 1,
+          "text": "A dead radio signal in Academy list 7-D languages."
+        },
+        {
+          "weight": 1,
+          "text": "A wreck without a crew, but with warm coffee in the galley."
+        },
+        {
+          "weight": 1,
+          "text": "Six identical probes in precise formation."
+        },
+        {
+          "weight": 1,
+          "text": "A light-being looking through the hull."
+        },
+        {
+          "weight": 2,
+          "text": "Stars vanish in a line and reappear."
+        },
+        {
+          "weight": 1,
+          "text": "A cloud not of gas but of memories."
+        },
+        {
+          "weight": 1,
+          "text": "A second solar system that wasn't there ten seconds ago."
+        },
+        {
+          "weight": 1,
+          "text": "An endlessly spinning asteroid with burned-in patterns."
+        },
+        {
+          "weight": 1,
+          "text": "A voice that the entire crew hears collectively."
+        },
+        {
+          "weight": 1,
+          "text": "A reflection blinks five seconds too early."
+        },
+        {
+          "weight": 2,
+          "text": "Mirrors on board grow warm."
+        },
+        {
+          "weight": 1,
+          "text": "An old radio signal replies before you sent."
+        },
+        {
+          "weight": 1,
+          "text": "A pressure drop in the cargo bay, with no leak."
+        },
+        {
+          "weight": 1,
+          "text": "A probe dances to a waltz tempo."
+        },
+        {
+          "weight": 1,
+          "text": "The ship AI writes verses in an old language into the log."
+        },
+        {
+          "weight": 1,
+          "text": "A wandering light source in hyperspace that 'looks at' you."
+        },
+        {
+          "weight": 1,
+          "text": "A non-existent star field computes itself onto the charts."
+        },
+        {
+          "weight": 1,
+          "text": "Magnetic fields respond to crew emotions."
+        },
+        {
+          "weight": 1,
+          "text": "A small frosty statue appears on a chair."
+        },
+        {
+          "weight": 1,
+          "text": "A crew member remembers a journey, with evidence, that never took place."
+        }
+      ]
+    },
+    {
+      "name": "Line pressure",
+      "description": "How the Lines make your life difficult.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A sealed order demands a detour."
+        },
+        {
+          "weight": 1,
+          "text": "A consul politely asks for passage."
+        },
+        {
+          "weight": 2,
+          "text": "Tariffs are doubled without warning."
+        },
+        {
+          "weight": 1,
+          "text": "An inspector audits the cargo manifest."
+        },
+        {
+          "weight": 1,
+          "text": "A Line ship demands boarding."
+        },
+        {
+          "weight": 1,
+          "text": "An anonymous tip claims you carry black cargo."
+        },
+        {
+          "weight": 1,
+          "text": "A Line corps assigns a 'companion' to your ship."
+        },
+        {
+          "weight": 1,
+          "text": "A sector is sealed — just after your jump."
+        },
+        {
+          "weight": 1,
+          "text": "An Academy application from your radio operator is on file with the Line."
+        },
+        {
+          "weight": 1,
+          "text": "The crew contract is reinterpreted without notice."
+        },
+        {
+          "weight": 1,
+          "text": "A Free-Worlds consul offers asylum — for a cargo contract."
+        },
+        {
+          "weight": 1,
+          "text": "A raid on Kells confiscates your favourite stim."
+        },
+        {
+          "weight": 1,
+          "text": "Radio blackmail: someone knows an old jump violation."
+        },
+        {
+          "weight": 1,
+          "text": "Line pass confiscated — until you answer a question."
+        },
+        {
+          "weight": 2,
+          "text": "An inspector offers protection for a cut."
+        },
+        {
+          "weight": 1,
+          "text": "A Line messenger hands you a commendation — and an order."
+        },
+        {
+          "weight": 1,
+          "text": "A PR camera crew wants aboard for a report."
+        },
+        {
+          "weight": 1,
+          "text": "Mox's voice on the radio: a personal invitation."
+        },
+        {
+          "weight": 1,
+          "text": "A mirror returner is officially declared lost."
+        },
+        {
+          "weight": 1,
+          "text": "Line research requests an anomaly sample."
+        },
+        {
+          "weight": 1,
+          "text": "A consul sends gifts; wants you to recommend someone else."
+        },
+        {
+          "weight": 1,
+          "text": "A sector receives 'voluntary' Line oversight — quarters for consuls."
         }
       ]
     }
