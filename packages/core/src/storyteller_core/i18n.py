@@ -159,14 +159,23 @@ MODERATION_BLOCKED = {
 
 # --- Engine/CLI directives ---
 OPENING_DIRECTIVE = {
-    "de": ("[Beginne EINFACH und kurz: 3–5 kurze Sätze zur Ausgangslage, "
-           "höchstens ein, zwei konkrete Dinge nennen, keine Infoflut. Ende "
-           "mit EINER klaren, offenen Lage oder Frage, auf die der Spieler "
-           "direkt reagieren kann.]"),
-    "en": ("[Begin SIMPLY and briefly: 3–5 short sentences on the starting "
-           "situation, mention at most one or two concrete things, no info "
-           "flood. End with ONE clear, open situation or question the player "
-           "can react to directly.]"),
+    "de": ("[Dies ist eine NEUE Geschichte — der Spieler hat diese Welt "
+           "noch nicht gespielt. Beginne mit einer kurzen, ruhigen "
+           "Einführung in die Welt (1–2 Sätze: Stimmung, Ort, Zeitgefühl "
+           "— KEIN Faktenkatalog, ein Bild). Geh dann NAHTLOS in die "
+           "Eröffnung über: 2–3 kurze Sätze zur konkreten Ausgangslage "
+           "der Spielfigur, höchstens ein, zwei konkrete Dinge. Ende mit "
+           "EINER klaren, offenen Lage oder Frage, auf die der Spieler "
+           "direkt reagieren kann. Insgesamt einfach und fürs Zuhören — "
+           "keine Aufzählungen, keine Infoflut.]"),
+    "en": ("[This is a NEW story — the player has not played this world "
+           "yet. Open with a short, quiet introduction to the world (1–2 "
+           "sentences: mood, place, sense of time — NOT a fact list, a "
+           "picture). Then transition SEAMLESSLY into the opening: 2–3 "
+           "short sentences on the protagonist's starting situation, at "
+           "most one or two concrete things. End with ONE clear, open "
+           "situation or question the player can react to directly. "
+           "Overall simple and audio-friendly — no lists, no info flood.]"),
 }
 RESTORE_DIRECTIVE = {
     "de": ("[Setze die Geschichte fort: fasse in 1-2 Sätzen zusammen, wo wir "
