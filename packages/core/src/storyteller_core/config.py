@@ -101,6 +101,11 @@ class CaptureCfg(BaseModel):
     silence_seconds: float = 1.2   # pause that ends the turn
     start_timeout_s: float = 6.0   # no speech at all -> give up, re-prompt
     min_seconds: float = 0.5       # never end before this (ignore 1st breath)
+    # VAD energy threshold: voiced frame iff rms >= max(noise * voiced_multiplier,
+    # silence_floor_rms). Lower => more sensitive (picks up quieter speech but
+    # also more ambient noise). Defaults match the historical hardcoded values.
+    voiced_multiplier: float = 3.0   # how far above ambient noise counts as speech
+    silence_floor_rms: float = 300.0 # minimum RMS in quiet rooms (prevents over-sensitivity)
 
 
 class GeneralCfg(BaseModel):

@@ -49,6 +49,16 @@ max_seconds     = 30.0   # hard upper bound (cost / runaway protection)
 silence_seconds = 2.0    # pause that ends the turn (longer = more think-mid-sentence)
 start_timeout_s = 10.0   # nothing said at all -> abort, ask again
 min_seconds     = 0.5    # never end before this (ignore the first breath)
+# Mic sensitivity (VAD energy threshold). Lower => more sensitive: picks up
+# quieter speech but also more ambient noise.
+#   voiced_multiplier: how far above the ambient noise floor a frame must be
+#                      to count as speech. 3.0 = default; try 2.0–2.5 if the
+#                      ReSpeaker misses quiet talkers.
+#   silence_floor_rms: minimum RMS used in very quiet rooms — keeps a whisper-
+#                      quiet ambient from being amplified into "speech". 300
+#                      = default; lower (e.g. 150) to hear softer voices.
+voiced_multiplier  = 3.0
+silence_floor_rms  = 300.0
 
 [tts]
 # Provider is also auto-detected from the tts endpoint URL scheme — leave

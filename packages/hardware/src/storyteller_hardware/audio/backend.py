@@ -181,7 +181,7 @@ class AudioBackend(ABC):
                     if len(cal) >= cal_n:
                         noise = sorted(cal)[len(cal) // 2]  # median floor
                     continue
-                thr = max(noise * 3.0, 300.0)
+                thr = max(noise * c.voiced_multiplier, c.silence_floor_rms)
                 voiced = rms >= thr
                 if not speaking:
                     preroll.append(frame)
