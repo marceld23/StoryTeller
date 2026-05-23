@@ -30,6 +30,11 @@ data/*.log
 # Regenerable audio caches (rebuild: storyteller voice-prompts / wait-sounds):
 data/voice_prompts/
 data/wait_sounds/
+# Except: ship the two default ambient files so a fresh clone works
+# out of the box (re-generated from ambient.py whenever the generator
+# changes, see `write_ambient()`).
+!data/wait_sounds/fantasy_ambient.wav
+!data/wait_sounds/scifi_ambient.wav
 
 %APPDATA%/*
 
