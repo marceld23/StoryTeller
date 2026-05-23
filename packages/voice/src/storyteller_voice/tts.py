@@ -2,9 +2,10 @@
 
 OpenAITTS (default, OpenAI-compatible HTTP — incl. self-hosted kokoro);
 WyomingTTS (Wyoming/TCP, e.g. a Piper server — NOT HTTP);
-LocalTTS = Phase 10 (Pi 5 + AI HAT). Note: Whisper is NOT TTS.
+XttsTTS    (daswer123/xtts-api-server style — HTTP but not OpenAI-shaped);
+LocalTTS   = Phase 10 (Pi 5 + AI HAT). Note: Whisper is NOT TTS.
 Selected via config.tts.provider, or auto-detected from the tts endpoint
-scheme (tcp://|wyoming:// -> Wyoming).
+scheme (tcp://|wyoming:// -> Wyoming, xtts:// -> XTTS).
 """
 
 from __future__ import annotations
@@ -121,6 +122,57 @@ class WyomingTTS(TTS):
         return bytes(buf), rate
 
 
+class XttsTTS(TTS):
+    """TTS over the daswer123/xtts-api-server HTTP API.
+
+    Routes are not OpenAI-shaped — they live at ``/tts_to_audio/`` (POST)
+    with body ``{text, speaker_wav, language}`` and return ``audio/wav``.
+    Configured via the tts endpoint as ``xtts://host:port`` (or
+    ``xtts+http://host:port`` — the prefix triggers this provider; the
+    actual request always goes over plain HTTP). ``models.tts_voice`` (or
+    ``models.tts``) names the registered speaker, e.g. ``marcel``.
+    Language follows ``cfg.general.locale`` (de/en).
+    """
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        raw = cfg.models.tts_endpoint.base_url
+        # Strip the marker scheme so urlparse gives host:port; the wire is
+        # always plain HTTP regardless of the scheme used in config.
+        for prefix in ("xtts+http://", "xtts+https://", "xtts://"):
+            if raw.startswith(prefix):
+                raw = "http://" + raw[len(prefix):]
+                break
+        u = urlparse(raw)
+        self.host = u.hostname or "127.0.0.1"
+        self.port = u.port or 8002
+        self.base = f"http://{self.host}:{self.port}"
+
+    def synthesize(self, text: str, instructions: str = "") -> tuple[np.ndarray, int]:
+        import io
+
+        import httpx
+        import soundfile as sf
+
+        from storyteller_core.i18n import norm
+
+        speaker = self.cfg.models.tts_voice or self.cfg.models.tts
+        language = norm(self.cfg.general.locale)
+        log.info("TTS: xtts speaker=%s language=%s endpoint=%s",
+                 speaker, language, self.base)
+        r = httpx.post(
+            f"{self.base}/tts_to_audio/",
+            json={"text": text, "speaker_wav": speaker, "language": language},
+            timeout=60.0,
+        )
+        r.raise_for_status()
+        data, sr = sf.read(io.BytesIO(r.content), dtype="float32",
+                           always_2d=False)
+        if getattr(data, "ndim", 1) > 1:
+            data = data.mean(axis=1)
+        return np.ascontiguousarray(data, dtype=np.float32), int(sr)
+
+
 class LocalTTS(TTS):
     """Phase 10 (optional): lokales TTS — NUR Pi 5 + AI HAT."""
 
@@ -132,10 +184,13 @@ class LocalTTS(TTS):
 
 
 def get_tts(cfg: Config) -> TTS:
-    # Auto-detect Wyoming from the endpoint scheme so it's admin-configurable
-    # and hot-reloaded; OpenAI stays the default for everything else.
+    # Auto-detect from the endpoint scheme so it's admin-configurable and
+    # hot-reloaded; OpenAI stays the default for everything else.
     ep = cfg.models.tts_endpoint.base_url or ""
     if cfg.tts.provider == "wyoming" or ep.startswith(("tcp://", "wyoming://")):
         return WyomingTTS(cfg)
+    if cfg.tts.provider == "xtts" or ep.startswith(
+            ("xtts://", "xtts+http://", "xtts+https://")):
+        return XttsTTS(cfg)
     return {"openai": OpenAITTS, "local": LocalTTS}.get(
         cfg.tts.provider, OpenAITTS)(cfg)
