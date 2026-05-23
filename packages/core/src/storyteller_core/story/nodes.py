@@ -22,6 +22,7 @@ from ..i18n import (
     NARRATION_GUIDANCE,
     Q_PREFIXES,
     REPAIR_LANGUAGE_SYS,
+    SESSION_CONTINUITY_RULE,
     SUMMARIZER_SYS,
     SYNOPSIS_LABEL,
     VOICE_SAMPLE_LABEL,
@@ -253,6 +254,7 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"Hintergrundwissen (nur einbauen, wenn es JETZT zur Szene passt; "
         f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
         f"{_guidance(cfg, locale)}\n{LANG_INSTRUCTION[locale]}\n"
+        f"{SESSION_CONTINUITY_RULE[locale]}\n"
         "Tools bei Bedarf still nutzen (get_world_overview, "
         "retrieve_world_fact, lookup_glossary, roll_random_event, "
         "roll_story_dynamic, track_character) — das Ergebnis IMMER in "

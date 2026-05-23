@@ -147,6 +147,29 @@ NARRATION_GUIDANCE = {
 }
 
 # --- Language instruction injected into the narrator system prompt ---
+# Session-continuity guardrail: prevents the "Gute Nacht"-loop bug where
+# the narrator, having said farewell once on "Das war's für heute", keeps
+# repeating the farewell on every subsequent player input because the LLM
+# mimics the closing pattern in memory. Injected unconditionally into the
+# narrator system prompt.
+SESSION_CONTINUITY_RULE = {
+    "de": ("SESSION-KONTINUITÄT: War deine letzte Antwort ein Abschluss-/"
+           "Abschieds-Satz (z.B. 'Gute Nacht', 'Bis später', 'Mach's gut') "
+           "und der Spieler spricht jetzt einfach weiter, nimm das als "
+           "ausdrücklichen Wunsch, die Geschichte fortzusetzen — knüpfe an "
+           "die letzte Erzähl-Szene an und führe sie weiter. NIEMALS zwei "
+           "Abschluss-/Abschieds-Sätze hintereinander. Nur wenn der Spieler "
+           "EXPLIZIT erneut beendet ('Schluss', 'Ende', 'Das war's wirklich') "
+           "darfst du den Abschluss bestätigen."),
+    "en": ("SESSION CONTINUITY: If your previous reply was a farewell line "
+           "(e.g. 'Good night', 'See you later') and the player just keeps "
+           "talking, treat that as an explicit wish to continue the story — "
+           "pick up the last narrative scene and carry it forward. NEVER "
+           "produce two farewell lines in a row. Only when the player "
+           "EXPLICITLY ends again ('We're done', 'Really stop now') may you "
+           "confirm the farewell."),
+}
+
 LANG_INSTRUCTION = {
     "de": ("SPRACH-REGEL (verbindlich): Antworte AUSSCHLIESSLICH auf Deutsch. "
            "KEINE chinesischen, englischen, russischen, arabischen oder "
