@@ -140,6 +140,12 @@ class XttsTTS(TTS):
 
     # XTTS sentence limit hovers around 250 chars in practice; keep a margin.
     MAX_CHUNK_CHARS = 220
+    # Speech tempo. XTTS speed is a SERVER-GLOBAL setting (the per-request
+    # body doesn't accept speed), so we push it once via /set_tts_settings
+    # at start-up. 1.0 = normal, 1.2 = slightly brisker, 1.5 starts feeling
+    # rushed; lower than 1.0 = slow/deliberate. Tweak here to retune.
+    DEFAULT_SPEED = 1.2
+    _settings_applied: bool = False   # one-shot guard, per process
     # Trim heuristic: XTTS v2 frequently appends a verbatim repetition of
     # short inputs after a long pause ("stacking reverb" effect). Only
     # attempt the cut when the audio is much longer than the text would
@@ -164,6 +170,34 @@ class XttsTTS(TTS):
         self.host = u.hostname or "127.0.0.1"
         self.port = u.port or 8002
         self.base = f"http://{self.host}:{self.port}"
+        # One-shot per process: sync the server's global TTS settings to our
+        # preferred values (mainly: speech speed). XttsTTS is reconstructed
+        # every idle cycle, so a class-level flag prevents needless HTTP.
+        if not XttsTTS._settings_applied:
+            self._apply_server_settings()
+            XttsTTS._settings_applied = True
+
+    def _apply_server_settings(self) -> None:
+        """Pin server-globals (esp. `speed`). GETs current settings first to
+        preserve fields we don't care about, then POSTs the merged dict only
+        if anything actually differs. Best-effort: a failure is logged and
+        ignored — TTS still works with whatever the server had."""
+        import httpx
+
+        try:
+            cur = httpx.get(f"{self.base}/get_tts_settings",
+                            timeout=5.0).json()
+            target = dict(cur)
+            target["speed"] = self.DEFAULT_SPEED
+            if any(target.get(k) != cur.get(k) for k in target):
+                httpx.post(f"{self.base}/set_tts_settings", json=target,
+                           timeout=5.0).raise_for_status()
+                log.info("XTTS: server settings synced (speed=%.2f)",
+                         self.DEFAULT_SPEED)
+            else:
+                log.debug("XTTS: server settings already at target")
+        except Exception as exc:
+            log.warning("XTTS settings sync failed: %r", exc)
 
     @classmethod
     def _trim_repetition(cls, audio: np.ndarray, sr: int,
