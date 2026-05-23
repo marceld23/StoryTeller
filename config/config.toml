@@ -41,8 +41,8 @@ language = "de"
 # Voice recording ends on a speech pause instead of after a fixed time —
 # the player may talk as long as they want (up to max_seconds).
 max_seconds     = 30.0   # hard upper bound (cost / runaway protection)
-silence_seconds = 1.2    # pause that ends the turn
-start_timeout_s = 6.0    # nothing said at all -> abort, ask again
+silence_seconds = 2.0    # pause that ends the turn (longer = more think-mid-sentence)
+start_timeout_s = 10.0   # nothing said at all -> abort, ask again
 min_seconds     = 0.5    # never end before this (ignore the first breath)
 
 [tts]
