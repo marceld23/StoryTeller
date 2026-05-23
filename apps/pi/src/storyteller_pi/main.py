@@ -95,11 +95,13 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
     interrupt: optional threading.Event — playback aborts when it is set
     (button barge-in). The caller inspects the event afterwards.
 
-    Streaming TTS path: while the LLM call is still being awaited we sit in
-    the wait-sound loop. As soon as `gen()` returns the text we kick off
-    `synthesize_streaming` — the player begins speaking the first sentence
-    chunk while later chunks are still rendering, masking most of the TTS
-    latency behind the audio playback.
+    Wait-sound coverage: the ambient loop keeps playing across BOTH the
+    LLM call AND the first TTS chunk render — otherwise the player hears
+    a confusing silent gap (5–10 s) between "wait loop stops" and "first
+    audio arrives". As soon as chunk 1 is ready we drop the wait loop,
+    switch the LEDs to speak, and play chunk 1; the remaining chunks
+    pipeline behind it via the streaming player (chunk N+1 renders while
+    chunk N plays).
     """
     if not speak:
         return gen()
@@ -107,18 +109,28 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
     from storyteller_voice.waitloop import WaitLoop
 
     text = ""
+    first_chunk: tuple | None = None
+    chunks_iter = None
     with WaitLoop(cfg, backend, world.wait_sound, leds):
         text = gen()
+        if text:
+            chunks_iter = tts.synthesize_streaming(text, world.narration_style)
+            try:
+                first_chunk = next(chunks_iter)
+            except StopIteration:
+                first_chunk = None
     if not text:
         return text
     if leds:
         leds.speak()
-    play_stream(
-        backend,
-        tts.synthesize_streaming(text, world.narration_style),
-        fx=fx,
-        stop=interrupt,
-    )
+
+    def _rest():
+        if first_chunk is not None:
+            yield first_chunk
+        if chunks_iter is not None:
+            yield from chunks_iter
+
+    play_stream(backend, _rest(), fx=fx, stop=interrupt)
     return text
 
 
@@ -245,27 +257,21 @@ def cmd_run(args: argparse.Namespace) -> int:
         return engine.opening()
 
     # Bridge the opening generation with the wait sound (audio mode only).
+    # _say keeps the wait loop alive across BOTH the LLM call and the first
+    # TTS chunk render, so the player hears continuous ambience until the
+    # narrator actually starts speaking — no silent gap.
     opening_interrupted = False
     if speak:
-        first = None
-        with WaitLoop(cfg, backend, world.wait_sound, leds):
-            first = _first_narration()
+        ev = _arm()
+        try:
+            first = _say(cfg, world, backend, tts, fx, leds,
+                         _first_narration, speak=True, interrupt=ev)
+        finally:
+            button.disarm()
         rp(f"[green][Erzähler][/green] {first}")
-        if first:
-            leds.speak()
-            ev = _arm()
-            try:
-                from storyteller_hardware.audio.player import play_stream
-                play_stream(
-                    backend,
-                    tts.synthesize_streaming(first, world.narration_style),
-                    fx=fx, stop=ev,
-                )
-            finally:
-                button.disarm()
-            opening_interrupted = ev.is_set()
-            if opening_interrupted:
-                rp("[yellow]… unterbrochen — ich höre …[/yellow]")
+        opening_interrupted = ev.is_set()
+        if opening_interrupted:
+            rp("[yellow]… unterbrochen — ich höre …[/yellow]")
     else:
         first = _first_narration()
         rp(f"[green][Erzähler][/green] {first}")
@@ -418,12 +424,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                 prompts.play("starting", backend)
             else:
                 rp("[dim](Welt zurückgesetzt)[/dim]")
-            with WaitLoop(cfg, backend, world.wait_sound, leds):
-                opening = engine.opening()
+            # _say handles the wait sound across both LLM and first TTS
+            # chunk — no extra WaitLoop needed here.
+            opening = _say(cfg, world, backend, tts, fx, leds,
+                           engine.opening, speak=speak)
             if opening:
                 rp(f"[green][Erzähler][/green] {opening}")
-                _say(cfg, world, backend, tts, fx, leds, (lambda: opening),
-                     speak=speak)
             return None
         else:  # close
             prompts.play("closed", backend) if speak \
