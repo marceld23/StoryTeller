@@ -127,11 +127,11 @@ class AudioCfg(BaseModel):
     # almost inaudible. The WaitLoop multiplies sample values by this gain
     # before sending to the backend, with saturating clip to the int16
     # range so loud peaks don't fold over.
-    # 1.0 = original level; 9.0 (default) brings the ~5% source up to a
-    # comfortable presence below the TTS output level (~45% of full int16)
-    # — clearly audible but doesn't compete with the narrator. Tune up/down
-    # in `data/audio.json`.
-    wait_sound_gain: float = 9.0
+    # 1.0 = original level. The repo's ambient WAVs sit at ~20 % peak so
+    # they don't compete with the narrator; 2.5 lifts them to ~50 % peak
+    # — clearly audible but in the background. Tune up/down in
+    # `data/audio.json` if your speakers / room call for it.
+    wait_sound_gain: float = 2.5
 
 
 class WakeWordCfg(BaseModel):
