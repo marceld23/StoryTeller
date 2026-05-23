@@ -6,8 +6,13 @@
 
 Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
 ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
-(text or hold-to-talk voice). Powered by the OpenAI API and a LangGraph
-story engine. Localized for German and English.
+(text or hold-to-talk voice). Built on a LangGraph story engine that talks
+to **any OpenAI-compatible endpoint** — the OpenAI API by default, or
+self-hosted backends like Ollama / vLLM / llama.cpp (LLM + embeddings),
+faster-whisper (STT), and Piper via Wyoming/TCP (TTS). Endpoints are
+configurable per role (story / planner / gen / STT / TTS / embeddings), so
+you can run fully local, fully cloud, or mix and match. Localized for
+German and English.
 
 ➡ **Architecture, decisions & roadmap: [PLAN.md](PLAN.md)**
 ➡ **Conventions for working on the codebase: [AGENTS.md](AGENTS.md)**
