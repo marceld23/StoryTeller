@@ -29,10 +29,12 @@ data/*.log
 *.tmp
 # Regenerable audio caches (rebuild: storyteller voice-prompts / wait-sounds):
 data/voice_prompts/
-data/wait_sounds/
-# Except: ship the two default ambient files so a fresh clone works
-# out of the box (re-generated from ambient.py whenever the generator
-# changes, see `write_ambient()`).
+# Wait sounds: ignore everything in the directory except the two default
+# ambient files that ship with the repo (re-generated from ambient.py
+# whenever the generator changes, see `write_ambient()`). Note the
+# `dir/*` form — `dir/` excludes the directory itself and would block
+# any negation below.
+data/wait_sounds/*
 !data/wait_sounds/fantasy_ambient.wav
 !data/wait_sounds/scifi_ambient.wav
 
