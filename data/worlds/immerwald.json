@@ -210,5 +210,6 @@
     "reverb_wet_level": 0.22,
     "reverb_dry_level": null,
     "distortion_drive_db": null
-  }
+  },
+  "display_name": "Immerwald"
 }

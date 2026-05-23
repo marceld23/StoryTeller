@@ -40,7 +40,7 @@ class VoiceMenu:
         self._load_kw = (("laden", "spielstand") if self.locale == "de"
                          else ("load", "save game", "saved game"))
 
-    # --- world catalog (id, name, genre, short description) ---
+    # --- world catalog (id, name, display_name, genre, short description) ---
     def _worlds(self) -> list[dict]:
         from storyteller_core.worlds.registry import all_world_ids, load_world
 
@@ -48,17 +48,22 @@ class VoiceMenu:
         for wid in all_world_ids(self.cfg):
             try:
                 w = load_world(self.cfg, wid)
-                out.append({"id": w.id, "name": w.name, "genre": w.genre,
+                # `display_name` is the short, easy-to-pronounce form used in
+                # the spoken menu (and what the player would actually say);
+                # `name` is the full prose title for the LLM classifier.
+                disp = (getattr(w, "display_name", "") or w.name).strip()
+                out.append({"id": w.id, "name": w.name, "display_name": disp,
+                            "genre": w.genre,
                             "desc": (w.description or "")[:160]})
             except Exception:
                 continue
         return out
 
     def _play_choose(self, worlds: list[dict]) -> None:
-        """Announce the available worlds by name (synthesised once). Falls
-        back to the static cached prompt if TTS is unavailable."""
+        """Announce the available worlds by short name (synthesised once).
+        Falls back to the static cached prompt if TTS is unavailable."""
         if self._menu_wav is None:
-            names = ", ".join(w["name"] for w in worlds)
+            names = ", ".join(w["display_name"] for w in worlds)
             text = (f"Welche Welt möchtest du spielen? Verfügbar sind: {names}."
                     if self.locale == "de"
                     else f"Which world would you like to play? Available: {names}.")
@@ -101,13 +106,17 @@ class VoiceMenu:
 
             ids = [w["id"] for w in worlds]
             catalog = "\n".join(
-                f'- id="{w["id"]}" name="{w["name"]}" genre="{w["genre"]}": '
+                f'- id="{w["id"]}" name="{w["name"]}" '
+                f'short="{w["display_name"]}" genre="{w["genre"]}": '
                 f'{w["desc"]}' for w in worlds)
             sys = (
                 "Map the user's spoken menu choice to exactly one option. "
                 "Options are the world ids below, or 'load' (resume a saved "
-                "game), or 'unknown' if unclear. Consider meaning, not exact "
-                "words (e.g. 'something in space' -> the sci-fi world). "
+                "game), or 'unknown' if unclear. Consider meaning AND "
+                "pronunciation variants — the player may say the short name, "
+                "the full name, a fuzzy phonetic version, or describe the "
+                "genre (e.g. 'something in space' -> the sci-fi world; "
+                "'Aquatika' -> a world with short name 'Aquatica'). "
                 f"Answer JSON only: {{\"choice\": \"<one of: "
                 f"{', '.join(ids)}, load, unknown>\"}}\n\nWORLDS:\n{catalog}")
             r = get_chat_client(self.cfg, "story").chat.completions.create(

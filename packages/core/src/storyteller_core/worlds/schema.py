@@ -116,6 +116,7 @@ class World(BaseModel):
     # --- Core / description ---
     id: str
     name: str
+    display_name: str = ""                 # short name for voice menu/TTS; "" => fall back to `name`
     genre: str
     description: str                       # game/world description
     player_role: str

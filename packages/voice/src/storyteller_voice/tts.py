@@ -153,7 +153,6 @@ class XttsTTS(TTS):
 
         import httpx
         import soundfile as sf
-
         from storyteller_core.i18n import norm
 
         speaker = self.cfg.models.tts_voice or self.cfg.models.tts

@@ -24,8 +24,7 @@ def norm(locale: str | None) -> str:
 VOICE_PROMPTS: dict[str, dict[str, str]] = {
     "de": {
         "welcome": "Willkommen beim Geschichtenerzähler.",
-        "choose_world": "Welche Welt möchtest du spielen? Sage Sternenfahrt "
-                        "für Science-Fiction, oder Immerwald für Fantasy.",
+        "choose_world": "Welche Welt möchtest du spielen?",
         "world_sternenfahrt": "Sternenfahrt. Du bist Raumschiffkapitän.",
         "world_immerwald": "Das Immerwald-Reich. Du bist Waldläufer.",
         "menu_hint": "Du kannst sagen: neue Geschichte, Spielstand laden, "
@@ -69,8 +68,7 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
-        "choose_world": "Which world would you like to play? Say Starfaring "
-                        "for science fiction, or Everwood for fantasy.",
+        "choose_world": "Which world would you like to play?",
         "world_sternenfahrt": "Starfaring. You are a starship captain.",
         "world_immerwald": "The Everwood Realm. You are a ranger.",
         "menu_hint": "You can say: new story, load save, or save story.",
@@ -146,8 +144,32 @@ NARRATION_GUIDANCE = {
 
 # --- Language instruction injected into the narrator system prompt ---
 LANG_INSTRUCTION = {
-    "de": "Antworte auf Deutsch.",
-    "en": "Respond in English.",
+    "de": ("SPRACH-REGEL (verbindlich): Antworte AUSSCHLIESSLICH auf Deutsch. "
+           "KEINE chinesischen, englischen, russischen, arabischen oder "
+           "anderen nicht-lateinischen Schriftzeichen oder Wörter im Output, "
+           "auch nicht als Beispiel, Zitat oder Stilisierung. Eigennamen "
+           "aus der Welt bleiben unverändert."),
+    "en": ("LANGUAGE RULE (mandatory): Respond ONLY in English. NO Chinese, "
+           "German, Russian, Arabic or any other non-English / non-Latin "
+           "characters or words in the output, even as examples, quotes or "
+           "stylisation. World proper nouns are kept as-is."),
+}
+
+# Repair system prompt used when the narrator drifts into another language
+# (notably Chinese with qwen-based models). One extra LLM call translates the
+# drifted text back into the target locale while preserving voice.
+REPAIR_LANGUAGE_SYS = {
+    "de": ("Du erhältst Erzähltext mit Sprach-Abweichungen (z.B. "
+           "chinesische oder russische Wörter mittendrin). Übersetze ihn "
+           "vollständig und natürlich ins Deutsche, behalte Stil und "
+           "Bedeutung der Erzählung. Eigennamen bleiben unverändert. Gib "
+           "AUSSCHLIESSLICH den überarbeiteten Erzähltext zurück — kein "
+           "Kommentar, keine Anführungszeichen darum."),
+    "en": ("You receive narrative text with language drift (e.g. Chinese "
+           "or Russian words mixed in). Translate it fully and naturally "
+           "to English, preserving the narrative style and meaning. Proper "
+           "nouns remain unchanged. Return ONLY the cleaned narrative text "
+           "— no commentary, no surrounding quotes."),
 }
 
 MODERATION_BLOCKED = {

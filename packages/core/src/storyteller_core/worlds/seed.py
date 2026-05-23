@@ -32,6 +32,7 @@ from .schema import (
 SCIFI = World(
     id="sternenfahrt",
     name="Sternenfahrt",
+    display_name="Sternenfahrt",
     genre="Science-Fiction",
     description=(
         "Die Menschheit reist mit Hyperraum-Technologie durch ein Netz aus "
@@ -157,6 +158,7 @@ SCIFI = World(
 FANTASY = World(
     id="immerwald",
     name="Das Immerwald-Reich",
+    display_name="Immerwald",
     genre="High-Fantasy",
     description=(
         "Eine epische High-Fantasy-Welt: uralte Wälder, zerfallende "

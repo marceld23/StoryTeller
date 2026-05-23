@@ -20,6 +20,7 @@ from ..i18n import (
     MODERATION_BLOCKED,
     NARRATION_GUIDANCE,
     Q_PREFIXES,
+    REPAIR_LANGUAGE_SYS,
     SUMMARIZER_SYS,
     SYNOPSIS_LABEL,
     VOICE_SAMPLE_LABEL,
@@ -37,6 +38,47 @@ from .substory import SubstoryPlan, SubstoryPlanner
 from .tools import TOOLS, dispatch_tool
 
 log = logging.getLogger("storyteller.engine")
+
+
+# --- language-drift safety net -------------------------------------------
+# qwen-family models occasionally fall into Chinese mid-narration; the same
+# pattern can happen with other multilingual LLMs (Cyrillic, Arabic). We
+# detect that by counting characters outside Latin/Latin-Extended and, on
+# clear drift, issue one repair call to translate the answer back into the
+# locale's language while keeping voice and meaning.
+
+def _has_language_drift(text: str) -> bool:
+    if not text:
+        return False
+    drift = 0
+    for ch in text:
+        cp = ord(ch)
+        if (0x4E00 <= cp <= 0x9FFF        # CJK Unified Ideographs
+                or 0x3400 <= cp <= 0x4DBF   # CJK Extension A
+                or 0x3040 <= cp <= 0x30FF   # Hiragana + Katakana
+                or 0x0400 <= cp <= 0x04FF   # Cyrillic
+                or 0x0600 <= cp <= 0x06FF):  # Arabic
+            drift += 1
+            if drift >= 3:
+                return True
+    return False
+
+
+def _repair_language(text: str, locale: str, cfg: Config) -> str:
+    """One LLM call to clean drifted text. Falls back to the original on
+    any error — the broken-language response is better than nothing."""
+    try:
+        r = get_chat_client(cfg, "story").chat.completions.create(
+            model=cfg.models.story_llm,
+            temperature=0.3,
+            messages=[{"role": "system", "content": REPAIR_LANGUAGE_SYS[locale]},
+                      {"role": "user", "content": text}],
+        )
+        out = (r.choices[0].message.content or "").strip()
+        return out or text
+    except Exception as exc:  # pragma: no cover - network
+        log.warning("language-repair call failed: %r", exc)
+        return text
 
 
 CO_CREATION = (
@@ -401,6 +443,10 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         }
 
     text = (msg.content or "").strip()
+    if _has_language_drift(text):
+        locale = _locale(state, ctx)
+        log.warning("Sprach-Drift im Erzähler-Output erkannt — Repair-Call (locale=%s)", locale)
+        text = _repair_language(text, locale, cfg)
     memory = list(state.get("memory") or [])
     memory.append({"role": "assistant", "content": text})
     return {
