@@ -16,13 +16,13 @@ PID = 0x0018
 
 # A clear "I'm listening — talk now" cue: the ring glows green up and fades
 # back down in a slow breathing rhythm. The vendor firmware has no built-in
-# breathing pattern, so we animate it from a background thread by holding
-# the colour at green and modulating set_brightness.
-_LISTEN_COLOR = 0x00FF00      # pure green
+# breathing pattern AND its `set_brightness` only scales the firmware
+# patterns (commands 2/3/4), not the static mono mode used for our colour.
+# So we animate by re-sending `set_color` with a varying green channel.
 _LISTEN_PERIOD_S = 1.8        # full breath cycle (glow up + fade down)
 _LISTEN_FPS = 12              # USB-friendly tick rate
-_LISTEN_BRIGHT_MIN = 2        # never fully off — keeps the ring "alive"
-_LISTEN_BRIGHT_MAX = 20       # firmware default is 10, 20 is a clear "on"
+_LISTEN_GREEN_MIN = 24        # never fully off — keeps the ring "alive"
+_LISTEN_GREEN_MAX = 255       # peak brightness on the green channel
 _DEFAULT_BRIGHTNESS = 10
 
 
@@ -68,24 +68,20 @@ class LedRing:
         t.start()
 
     def _breathe_green(self) -> None:
-        """Run until _anim_stop: hold the ring green, pulse the brightness."""
-        # Set the colour once; afterwards we only push brightness changes —
-        # cheap and avoids fighting the firmware patterns.
-        self._safe("set_color", _LISTEN_COLOR)
+        """Run until _anim_stop: pulse the green channel of `set_color`."""
         period = _LISTEN_PERIOD_S
         tick = 1.0 / _LISTEN_FPS
-        span = _LISTEN_BRIGHT_MAX - _LISTEN_BRIGHT_MIN
+        span = _LISTEN_GREEN_MAX - _LISTEN_GREEN_MIN
         t0 = time.monotonic()
-        try:
-            while not self._anim_stop.is_set():
-                phase = (time.monotonic() - t0) * 2 * math.pi / period
-                # 0.5 * (1 + sin) goes 0..1 — bright at the top of the breath
-                level = int(_LISTEN_BRIGHT_MIN + span * 0.5 * (1 + math.sin(phase)))
-                self._safe("set_brightness", level)
-                if self._anim_stop.wait(tick):
-                    break
-        finally:
-            self._safe("set_brightness", _DEFAULT_BRIGHTNESS)
+        # set_color signature is (rgb=None, r=0, g=0, b=0) — keep r and b at
+        # 0 and modulate g for a pure green that glows up and fades down.
+        while not self._anim_stop.is_set():
+            phase = (time.monotonic() - t0) * 2 * math.pi / period
+            # 0.5 * (1 + sin) goes 0..1 — bright at the top of the breath
+            g = int(_LISTEN_GREEN_MIN + span * 0.5 * (1 + math.sin(phase)))
+            self._safe("set_color", None, 0, g, 0)
+            if self._anim_stop.wait(tick):
+                break
 
     # --- semantic states -> pixel_ring patterns --------------------------
     def idle(self) -> None:
