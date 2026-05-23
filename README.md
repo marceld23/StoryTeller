@@ -1,5 +1,9 @@
 # Storyteller
 
+<p align="center">
+  <img src="docs/assets/storyteller_logo.png" alt="Storyteller — your voice, infinite stories." width="320">
+</p>
+
 Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
 ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
 (text or hold-to-talk voice). Powered by the OpenAI API and a LangGraph
