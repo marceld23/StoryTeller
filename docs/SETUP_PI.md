@@ -169,7 +169,15 @@ After code changes:
 sudo systemctl restart storyteller storyteller-admin storyteller-web-ui
 # if Python deps changed:  uv sync && bash scripts/install_wakeword.sh
 # if a frontend changed:   bash scripts/build_frontends.sh
+# if voice / TTS swapped:  bash scripts/bake_voice_prompts.sh --force
 ```
+
+The Pi voice loop auto-re-bakes any voice prompt whose i18n text
+changed at boot (per-prompt staleness — only the touched ones cost
+TTS time). Run `bash scripts/bake_voice_prompts.sh` to force this
+incremental rebuild from outside the loop, or `--force` for a full
+rebuild after switching `models.tts_voice` / `models.tts` /
+`models.tts_endpoint`.
 
 Logs: `journalctl -u storyteller -f` (also `data/storyteller.log`).
 Admin: `http://<pi-ip>:8080` · Player: `http://<pi-ip>:8090`.
