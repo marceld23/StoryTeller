@@ -198,6 +198,26 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
     gloss = "; ".join(f"{g.term}={g.definition}"
                       for g in getattr(w, "glossary", [])[:12])
     rtables = ", ".join(t.name for t in w.random_tables)
+    # Compact lookup tables for the geography + politics layers. Only
+    # names + 1-liner so the prompt stays bounded; full descriptions
+    # land via RAG when a name actually surfaces in the scene.
+    regions_brief = "; ".join(
+        f"{r.name}: {(r.description or '').splitlines()[0]}"
+        for r in (getattr(w, "regions", []) or [])[:12])
+    factions_brief = "; ".join(
+        f"{f.name} ({f.goals})" if f.goals else f.name
+        for f in (getattr(w, "factions", []) or [])[:8])
+    tm = getattr(w, "tech_magic", None)
+    if tm is not None and (tm.description or tm.rules):
+        rule_lines = "\n".join(f"  - {r}" for r in (tm.rules or [])[:7])
+        tm_block = (
+            f"\nTECH/MAGIE-SYSTEM ({tm.kind}): "
+            f"{tm.description or '–'}\nREGELN:\n"
+            f"{rule_lines or '  –'}"
+            + (f"\nKOSTEN/RISIKO: {tm.cost_or_risk}\n"
+               if tm.cost_or_risk else "\n"))
+    else:
+        tm_block = ""
 
     vsample = (f"{VOICE_SAMPLE_LABEL[locale]}\n{w.voice_sample}\n"
                if getattr(w, "voice_sample", "") else "")
@@ -249,8 +269,13 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"{vsample}"
         f"STIMMUNG: {w.mood or '–'}\nAMBIENTE: {w.ambience or '–'}\n"
         f"PHYSIK/MAGIE: {w.magic_physics or '–'}\n"
+        f"{tm_block}"
         f"{_tone_line(w)}\n"
         f"AUSGANGSSITUATION: {w.starting_situation or '–'}\n"
+        f"REGIONEN (Orte liegen in einer Region; Details via "
+        f"retrieve_world_fact): {regions_brief or '–'}\n"
+        f"FRAKTIONEN (Personen können einer angehören; Details via "
+        f"retrieve_world_fact): {factions_brief or '–'}\n"
         f"GLOSSAR (Begriffe konsistent verwenden; vollständig via "
         f"lookup_glossary): {gloss or '–'}\n"
         f"ZUFALLSLISTEN (konkret, bei passender Gelegenheit via "

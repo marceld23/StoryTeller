@@ -91,16 +91,56 @@ class WorldRAG:
             return 0
 
         items: list[tuple[str, str]] = []
+        for r in getattr(world, "regions", []) or []:
+            items.append(("region",
+                           f"REGION {r.name}: {r.description}"))
         for p in world.places:
-            items.append(("place", f"ORT {p.name}: {p.description}"))
+            # Enrich place facts with structural relations so a RAG hit
+            # on the place name brings region / neighbours / sub-places
+            # along in the same fact — saves the narrator from doing
+            # multiple lookups to assemble geography.
+            extras = []
+            if getattr(p, "region", ""):
+                extras.append(f"liegt in {p.region}")
+            if getattr(p, "contains", []):
+                extras.append(f"enthält {', '.join(p.contains)}")
+            if getattr(p, "adjacent", []):
+                extras.append(f"grenzt an {', '.join(p.adjacent)}")
+            tail = f" ({'; '.join(extras)})" if extras else ""
+            items.append(("place",
+                           f"ORT {p.name}{tail}: {p.description}"))
+        for f in getattr(world, "factions", []) or []:
+            alliance = ""
+            if getattr(f, "allies", []):
+                alliance += f" Verbündete: {', '.join(f.allies)}."
+            if getattr(f, "enemies", []):
+                alliance += f" Gegner: {', '.join(f.enemies)}."
+            items.append(("faction",
+                           f"FRAKTION {f.name}: {f.description} "
+                           f"Ziel: {f.goals}.{alliance} {f.relations}"))
         for pe in world.persons:
+            # Person facts now carry faction membership inline so the
+            # narrator can correctly stage allegiances without a second
+            # RAG round-trip on the faction.
+            fac = ""
+            if getattr(pe, "faction", ""):
+                role = getattr(pe, "faction_role", "")
+                fac = (f" Mitglied der Fraktion {pe.faction}"
+                       + (f" ({role})." if role else "."))
             items.append(("person",
                            f"PERSON {pe.name} ({pe.role}): {pe.description} "
-                           f"{pe.relations}"))
+                           f"{pe.relations}{fac}"))
         for it in getattr(world, "items", []):
             items.append(("item",
                            f"GEGENSTAND {it.name}: {it.description} "
                            f"{it.properties}"))
+        for cr in getattr(world, "creatures", []) or []:
+            habitat = f" Lebensraum: {cr.habitat}." if cr.habitat else ""
+            threat = (f" Gefahrenstufe: {cr.threat_level}."
+                      if getattr(cr, "threat_level", "") else "")
+            items.append(("creature",
+                           f"KREATUR {cr.name}: {cr.description}"
+                           f"{habitat}{threat}"))
         for g in getattr(world, "glossary", []):
             items.append(("glossary", f"BEGRIFF {g.term}: {g.definition}"))
         for h in getattr(world, "history", []):
@@ -113,6 +153,19 @@ class WorldRAG:
             val = getattr(world, attr, "")
             if val:
                 items.append(("system", f"{label}: {val}"))
+        # Tech/magic structured rules: one fact per rule lets the RAG
+        # surface only the relevant constraint instead of the whole
+        # spec. The description is added once as an umbrella fact.
+        tm = getattr(world, "tech_magic", None)
+        if tm is not None:
+            if tm.description:
+                items.append(("tech_magic",
+                               f"SYSTEM ({tm.kind}): {tm.description}"))
+            for rule in (tm.rules or []):
+                items.append(("tech_magic", f"REGEL: {rule}"))
+            if tm.cost_or_risk:
+                items.append(("tech_magic",
+                               f"KOSTEN/RISIKO: {tm.cost_or_risk}"))
         if not items:
             return 0
 

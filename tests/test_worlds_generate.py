@@ -2,7 +2,8 @@
 even when the LLM under-delivers on individual steps.
 
 Mocks the generator client (no network). Verifies:
-- Exactly one LLM call per pipeline step (skeleton + blueprint + 7 lists).
+- Exactly one LLM call per pipeline step (skeleton + tech_magic +
+  blueprint + 10 lists incl. regions, factions, creatures).
 - Narrative fallbacks fill empty fields.
 - Blueprint always ends up with beats (functional fallback if LLM was empty).
 - Lists populate from per-list calls.
@@ -22,27 +23,47 @@ def _fake_client(calls):
         {"name": "Aurora", "genre": "Fantasy",
          "description": "Eine windige Inselkette.",
          "player_role": "Kartograf:in"},
-        # 2: blueprint (empty -> triggers fallback)
+        # 2: tech_magic
+        {"kind": "magic", "description": "Windrituale binden Routen.",
+         "rules": ["Karten verlieren Tinte ohne Berührung."],
+         "cost_or_risk": "Ein Ritual kostet einen Atemzug Erinnerung."},
+        # 3: blueprint (empty -> triggers fallback)
         {},
-        # 3: places
-        {"places": [{"name": "Hafen", "description": "alt", "tags": []},
+        # 4: regions
+        {"regions": [{"name": "Nordmeer", "description": "rau", "tags": []},
+                     {"name": "Schattengründe", "description": "tief",
+                      "tags": []}]},
+        # 5: places
+        {"places": [{"name": "Hafen", "description": "alt",
+                     "region": "Nordmeer", "contains": [], "adjacent": [],
+                     "tags": []},
                     {"name": "Leuchtturm", "description": "windig",
+                     "region": "Nordmeer", "contains": [], "adjacent": [],
                      "tags": []}]},
-        # 4: persons
+        # 6: factions
+        {"factions": [{"name": "Kartografen-Gilde", "description": "alt",
+                       "goals": "Karten retten", "allies": [],
+                       "enemies": [], "relations": "", "tags": []}]},
+        # 7: persons
         {"persons": [{"name": "Lea", "role": "Wache", "description": "",
-                      "relations": "", "tags": []}]},
-        # 5: items
+                      "relations": "", "faction": "Kartografen-Gilde",
+                      "faction_role": "Späherin", "tags": []}]},
+        # 8: items
         {"items": [{"name": "Kompass", "description": "alt",
                     "properties": "", "tags": []}]},
-        # 6: glossary
+        # 9: creatures
+        {"creatures": [{"name": "Sturmaal", "description": "blass",
+                        "habitat": "Nordmeer", "threat_level": "medium",
+                        "tags": []}]},
+        # 10: glossary
         {"glossary": [{"term": "Sprung", "definition": "Inselwechsel"}]},
-        # 7: history
+        # 11: history
         {"history": [{"when": "vor 100 Jahren", "title": "Der Sturm",
                       "description": ""}]},
-        # 8: fragments
+        # 12: fragments
         {"fragments": [{"title": "Gerücht", "text": "Etwas treibt im "
                         "Wasser.", "tags": []}]},
-        # 9: random_tables
+        # 13: random_tables
         {"random_tables": [{"name": "Wetter", "description": "",
                             "entries": [{"weight": 1, "text": "Sturm"}]}]},
     ]
@@ -69,8 +90,8 @@ def test_multistep_pipeline_produces_full_world(monkeypatch):
 
     w = gen_mod.generate_world(load_config(), "Eine kleine Inselkette")
 
-    # 9 calls: skeleton + blueprint + 7 lists
-    assert len(calls) == 9
+    # 13 calls: skeleton + tech_magic + blueprint + 10 lists.
+    assert len(calls) == 13
 
     # Narrative fields filled (some from LLM, some via fallback)
     assert w.name == "Aurora"
@@ -83,10 +104,21 @@ def test_multistep_pipeline_produces_full_world(monkeypatch):
     assert w.blueprint.beats
     assert len(w.blueprint.beats) >= 4
 
-    # Per-list calls populated all lists
+    # Structured tech/magic system landed.
+    assert w.tech_magic is not None
+    assert w.tech_magic.kind == "magic"
+    assert w.tech_magic.rules
+
+    # Per-list calls populated all lists.
+    assert len(w.regions) >= 2
     assert len(w.places) >= 2
+    assert w.places[0].region == "Nordmeer"          # canon constraint held
+    assert len(w.factions) >= 1
     assert len(w.persons) >= 1
+    assert w.persons[0].faction == "Kartografen-Gilde"
     assert len(w.items) >= 1
+    assert len(w.creatures) >= 1
+    assert w.creatures[0].habitat == "Nordmeer"
     assert len(w.glossary) >= 1
     assert len(w.history) >= 1
     assert len(w.fragments) >= 1

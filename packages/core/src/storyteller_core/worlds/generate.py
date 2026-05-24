@@ -4,15 +4,24 @@ Multi-step pipeline (serial), each step is its own LLM call so that the
 model can think about ONE thing at a time and produce richer output than a
 monolithic JSON dump would:
 
-    1. skeleton         — identity + narrative fields + long description
-    2. blueprint        — premise + functional beats (NO proper nouns)
-    3. places           — ~10 entries
-    4. persons          — ~10 entries
-    5. items            — ~8 entries
-    6. glossary         — ~18 entries
-    7. history          — ~8 entries
-    8. fragments        — ~18 entries (the main pool of vignette material)
-    9. random_tables    — ~5 tables, each with 20+ entries
+    1.  skeleton       — identity + narrative fields + long description
+    2.  tech_magic     — structured tech/magic system (kind, rules, …)
+    3.  blueprint      — premise + functional beats (NO proper nouns)
+    4.  regions        — ~6 large areas / domains (places live in them)
+    5.  places         — ~10 entries, each linked to a region
+    6.  factions       — ~5 groups with goals + allies/enemies
+    7.  persons        — ~10 entries, optionally linked to a faction
+    8.  items          — ~8 entries
+    9.  creatures      — ~6 beings keyed to regions / habitats
+    10. glossary       — ~18 entries
+    11. history        — ~8 entries
+    12. fragments      — ~18 entries (the main pool of vignette material)
+    13. random_tables  — ~5 tables, each with 20+ entries
+
+The extra structured steps (regions / factions / creatures) feed
+downstream prompts so places can reference an existing region, persons
+can declare a faction, and creatures get a known habitat — keeps the
+named entities self-consistent across the generated world.
 
 Calls route through `get_chat_client(cfg, "gen")` (long HTTP timeout, low
 retry count) because big-model JSON-mode generation can take ~60-90 s and
@@ -112,26 +121,78 @@ _SYS_BLUEPRINT = (
 # Target sizes per list. The LLM is asked for these counts; we keep what
 # it returns even if it under-delivers (the admin can top up later).
 _LIST_SPECS = {
-    "places": {
-        "count": 10,
+    "regions": {
+        "count": 6,
         "shape": '[{"name":"","description":"","tags":[]}]',
         "instruction": (
-            "Generate {count} distinct, vivid PLACES (locations) for "
-            "this world. Mix scales: hubs, hidden spots, dangerous "
-            "frontiers, mundane corners. 1-3 sentence descriptions. "
-            "Tags are short keywords (e.g. 'hub', 'danger', 'ruin')."
+            "Generate {count} distinct REGIONS — larger geographies, "
+            "domains, biomes, or political areas of this world. Each "
+            "is a containing space that places will live IN (e.g. a "
+            "city district, a forest zone, a star system, a nation, "
+            "an underground level). 1-3 sentence descriptions. Tags "
+            "are short keywords."
+        ),
+    },
+    "places": {
+        "count": 10,
+        "shape": ('[{"name":"","description":"","region":"",'
+                  '"contains":[],"adjacent":[],"tags":[]}]'),
+        "instruction": (
+            "Generate {count} distinct, vivid PLACES (specific "
+            "locations) for this world. Mix scales: hubs, hidden "
+            "spots, dangerous frontiers, mundane corners. 1-3 "
+            "sentence descriptions. EVERY place MUST set `region` to "
+            "the name of one of the regions listed in the world data "
+            "above. `contains` is a list of sub-place names that the "
+            "narrator should treat as inside this place (also listed "
+            "elsewhere here when they exist). `adjacent` is a list of "
+            "neighbouring place names. Use empty lists when none "
+            "apply. Tags are short keywords."
+        ),
+    },
+    "factions": {
+        "count": 5,
+        "shape": ('[{"name":"","description":"","goals":"",'
+                  '"allies":[],"enemies":[],"relations":"","tags":[]}]'),
+        "instruction": (
+            "Generate {count} distinct FACTIONS — groups, orders, "
+            "guilds, houses, governments, cabals, or any organised "
+            "powers that drive the world's politics. `goals` is what "
+            "each faction wants (1 sentence). `allies` / `enemies` "
+            "are lists of OTHER faction names from this same output "
+            "(empty when standalone). `relations` is a free-text "
+            "1-sentence nuance. Tags are short keywords."
         ),
     },
     "persons": {
         "count": 10,
-        "shape": ('[{"name":"","role":"","description":"","relations":""'
-                  ',"tags":[]}]'),
+        "shape": ('[{"name":"","role":"","description":"","relations":"",'
+                  '"faction":"","faction_role":"","tags":[]}]'),
         "instruction": (
             "Generate {count} distinct PERSONS / NPCs for this world. "
             "Mix roles: allies, rivals, neutrals, antagonists, "
             "bystanders with their own agendas. Describe quirks, "
-            "motivation, look. relations: 1 sentence on who they trust "
-            "or oppose. Tags = short keywords."
+            "motivation, look. `relations` (1 sentence): who they "
+            "trust or oppose. `faction` (string): name of the faction "
+            "they belong to from the world data above, or empty if "
+            "unaffiliated. `faction_role`: their role inside that "
+            "faction (e.g. 'leader', 'agent', 'novice'), empty if no "
+            "faction. Tags = short keywords."
+        ),
+    },
+    "creatures": {
+        "count": 6,
+        "shape": ('[{"name":"","description":"","habitat":"",'
+                  '"threat_level":"medium","tags":[]}]'),
+        "instruction": (
+            "Generate {count} distinct CREATURES — non-person beings "
+            "of this world (animals, monsters, spirits, machines, "
+            "anything that lives or moves but isn't an NPC). 1-3 "
+            "sentence descriptions of look + behaviour. `habitat` "
+            "names a region from the world data above (or a place "
+            "type like 'tunnels', 'deep sea', 'orbit'). "
+            "`threat_level` is exactly one of `low`, `medium`, "
+            "`high`. Mix mundane and dangerous."
         ),
     },
     "items": {
@@ -193,9 +254,13 @@ _LIST_SPECS = {
     },
 }
 
-# Lists where we accept smaller outputs (LLM-dependent) but warn.
-_LIST_ORDER = ("places", "persons", "items", "glossary", "history",
-               "fragments", "random_tables")
+# Order matters: regions before places (places reference them), factions
+# before persons (persons reference them), creatures get regions as
+# habitat context (so generated AFTER regions). Anything purely
+# descriptive comes after the structural lists.
+_LIST_ORDER = ("regions", "places", "factions", "persons", "items",
+               "creatures", "glossary", "history", "fragments",
+               "random_tables")
 
 
 def _slug(s: str) -> str:
@@ -241,12 +306,19 @@ def _llm_json(cfg: Config, system: str, user: str) -> dict:
     return json.loads(r.choices[0].message.content or "{}")
 
 
-def _world_context(skeleton: dict, prompt: str) -> str:
+def _world_context(skeleton: dict, prompt: str,
+                   *, regions: list | None = None,
+                   factions: list | None = None) -> str:
     """Full context anchor passed to every per-list and blueprint call.
     The user's original prompt is the primary source of flavour; the
     skeleton fields nail down established names + tone. No truncation:
     the prompt cap (web.max_prompt_chars, default 300k) is enforced at
-    the entry point, and modern LLMs comfortably take that per step."""
+    the entry point, and modern LLMs comfortably take that per step.
+
+    Optional `regions` / `factions` are appended so downstream steps
+    (places need regions, persons need factions, creatures need
+    habitat-able regions) can cite existing named entities by their
+    canonical names instead of inventing new ones."""
     name = skeleton.get("name", "")
     genre = skeleton.get("genre", "")
     desc = skeleton.get("description") or ""
@@ -254,15 +326,32 @@ def _world_context(skeleton: dict, prompt: str) -> str:
     ambience = skeleton.get("ambience", "")
     magic = skeleton.get("magic_physics", "")
     role = skeleton.get("player_role", "")
-    return (
-        f"WORLD: {name} ({genre})\n"
-        f"DESCRIPTION: {desc}\n"
-        f"PLAYER ROLE: {role}\n"
-        f"MOOD: {mood}\n"
-        f"AMBIENCE: {ambience}\n"
-        f"PHYSICS/MAGIC: {magic}\n"
-        f"ORIGINAL PROMPT: {prompt}"
-    )
+    lines = [
+        f"WORLD: {name} ({genre})",
+        f"DESCRIPTION: {desc}",
+        f"PLAYER ROLE: {role}",
+        f"MOOD: {mood}",
+        f"AMBIENCE: {ambience}",
+        f"PHYSICS/MAGIC: {magic}",
+    ]
+    if regions:
+        lines.append("REGIONS (use these names verbatim — every Place's "
+                     "`region` MUST match one):")
+        for r in regions:
+            rn = (r.get("name") or "").strip()
+            rd = (r.get("description") or "").strip()
+            if rn:
+                lines.append(f"- {rn}: {rd}" if rd else f"- {rn}")
+    if factions:
+        lines.append("FACTIONS (use these names verbatim when a person "
+                     "belongs to one):")
+        for f in factions:
+            fn = (f.get("name") or "").strip()
+            fg = (f.get("goals") or "").strip()
+            if fn:
+                lines.append(f"- {fn}: {fg}" if fg else f"- {fn}")
+    lines.append(f"ORIGINAL PROMPT: {prompt}")
+    return "\n".join(lines)
 
 
 def _generate_skeleton(cfg: Config, prompt: str,
@@ -343,9 +432,12 @@ def _generate_blueprint(cfg: Config, skeleton: dict, prompt: str,
 
 
 def _generate_list(cfg: Config, kind: str, skeleton: dict, prompt: str,
-                   step_idx: int, progress: ProgressFn | None) -> list:
+                   step_idx: int, step_total: int,
+                   progress: ProgressFn | None,
+                   *, regions: list | None = None,
+                   factions: list | None = None) -> list:
     spec = _LIST_SPECS[kind]
-    _p(progress, f"{step_idx}/9 {kind} (~{spec['count']})…")
+    _p(progress, f"{step_idx}/{step_total} {kind} (~{spec['count']})…")
     sys = (
         "You expand ONE list of an existing world. Return JSON ONLY:\n"
         '{"' + kind + '":' + spec["shape"] + "}\n"
@@ -365,7 +457,8 @@ def _generate_list(cfg: Config, kind: str, skeleton: dict, prompt: str,
         "\nSame language as the world data. Vary every entry — no near-"
         "duplicates. Output the list ONLY, no commentary."
     )
-    user = _world_context(skeleton, prompt) + (
+    user = _world_context(skeleton, prompt, regions=regions,
+                          factions=factions) + (
         f"\n\nNow generate the '{kind}' list described in the system "
         "prompt. Preserve any user-named entries first, then fill."
     )
@@ -381,17 +474,86 @@ def _generate_list(cfg: Config, kind: str, skeleton: dict, prompt: str,
     return out
 
 
+_SYS_TECH_MAGIC = (
+    "You design the TECH / MAGIC SYSTEM of an existing world. From the "
+    "user's brief and skeleton, write a structured spec. Answer JSON "
+    "ONLY:\n"
+    '{"kind":"technology|magic|both|neither",'
+    '"description":"","rules":[""],"cost_or_risk":""}\n'
+    "Field rules:\n"
+    "- kind: one of the four values. Pick the dominant flavour; use "
+    "'both' for science-fantasy; 'neither' if the world is mundane.\n"
+    "- description: 2-4 sentences on how the system FEELS in play.\n"
+    "- rules: 3-7 short rules the narrator can rely on. Each rule is "
+    "ONE sentence describing what's POSSIBLE or IMPOSSIBLE (e.g. "
+    "'Teleportation requires a known anchor point.'). Be concrete.\n"
+    "- cost_or_risk: 1-2 sentences on what using the system costs the "
+    "user (mana, fuel, attention from a power, side effects).\n"
+    "Same language as the world data. Output the JSON only.")
+
+
+def _generate_tech_magic(cfg: Config, skeleton: dict, prompt: str,
+                         step_idx: int, step_total: int,
+                         progress: ProgressFn | None) -> dict | None:
+    _p(progress, f"{step_idx}/{step_total} tech_magic…")
+    user = _world_context(skeleton, prompt) + (
+        "\n\nNow generate the tech/magic system spec described in the "
+        "system prompt.")
+    try:
+        data = _llm_json(cfg, _SYS_TECH_MAGIC, user)
+    except Exception as exc:
+        _log.warning("tech_magic call failed: %r", exc)
+        return None
+    if not isinstance(data, dict):
+        return None
+    kind = (data.get("kind") or "neither").strip().lower()
+    if kind not in ("technology", "magic", "both", "neither"):
+        kind = "neither"
+    rules = data.get("rules") or []
+    if not isinstance(rules, list):
+        rules = []
+    return {
+        "kind": kind,
+        "description": (data.get("description") or "").strip(),
+        "rules": [str(r).strip() for r in rules if str(r).strip()],
+        "cost_or_risk": (data.get("cost_or_risk") or "").strip(),
+    }
+
+
 def generate_world(cfg: Config, prompt: str,
                    progress: ProgressFn | None = None) -> World:
-    """One prompt -> a validated, fully-populated World via 9 LLM calls."""
+    """One prompt -> a validated, fully-populated World via 13 LLM calls.
+
+    Pipeline order is structurally constrained: regions feed places +
+    creature habitats; factions feed person memberships. The dependent
+    steps see the already-generated names through `_world_context()` and
+    are told to use them verbatim.
+    """
+    total = 3 + len(_LIST_ORDER)               # skeleton + tech + blueprint + lists
     skeleton = _generate_skeleton(cfg, prompt, progress)
+    tech_magic = _generate_tech_magic(cfg, skeleton, prompt, 2, total,
+                                      progress)
     blueprint = _generate_blueprint(cfg, skeleton, prompt, progress)
 
     lists: dict[str, list] = {}
-    for i, kind in enumerate(_LIST_ORDER, start=3):
-        lists[kind] = _generate_list(cfg, kind, skeleton, prompt, i,
-                                     progress)
+    regions_ctx: list = []
+    factions_ctx: list = []
+    for offset, kind in enumerate(_LIST_ORDER):
+        step_idx = 4 + offset
+        # Threading: places + creatures see regions, persons see factions.
+        ctx_regions = regions_ctx if kind in ("places", "creatures") else None
+        ctx_factions = factions_ctx if kind == "persons" else None
+        lists[kind] = _generate_list(
+            cfg, kind, skeleton, prompt, step_idx, total, progress,
+            regions=ctx_regions, factions=ctx_factions)
+        # Latch the freshly generated lists for downstream steps.
+        if kind == "regions":
+            regions_ctx = lists[kind]
+        elif kind == "factions":
+            factions_ctx = lists[kind]
 
     data = {**skeleton, "blueprint": blueprint, **lists}
+    if tech_magic is not None:
+        data["tech_magic"] = tech_magic
     _p(progress, "Welt validieren…")
     return World.model_validate(data)

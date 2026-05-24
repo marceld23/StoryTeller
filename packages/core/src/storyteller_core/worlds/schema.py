@@ -12,9 +12,34 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class Region(BaseModel):
+    """A larger geography / area / domain. Places live inside regions —
+    every Place.region SHOULD name an existing Region (the generator
+    enforces this when both lists are produced together)."""
+
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
 class Place(BaseModel):
     name: str
     description: str
+    region: str = ""                                  # Region name (or "")
+    contains: list[str] = Field(default_factory=list)  # Sub-places by name
+    adjacent: list[str] = Field(default_factory=list)  # Neighbouring places
+    tags: list[str] = Field(default_factory=list)
+
+
+class Faction(BaseModel):
+    """A group / order / guild / power with goals and stance toward others."""
+
+    name: str
+    description: str = ""
+    goals: str = ""
+    allies: list[str] = Field(default_factory=list)
+    enemies: list[str] = Field(default_factory=list)
+    relations: str = ""                              # free-text nuance
     tags: list[str] = Field(default_factory=list)
 
 
@@ -22,8 +47,32 @@ class Person(BaseModel):
     name: str
     role: str = ""
     description: str = ""
-    relations: str = ""
+    relations: str = ""                              # ties to other persons
+    faction: str = ""                                # primary Faction (or "")
+    faction_role: str = ""                           # role within that faction
     tags: list[str] = Field(default_factory=list)
+
+
+class Creature(BaseModel):
+    """A non-person being of the world (animal, monster, spirit, …).
+    Habitat references a Region or place type."""
+
+    name: str
+    description: str = ""
+    habitat: str = ""                                # Region name or place type
+    threat_level: str = "medium"                     # low | medium | high
+    tags: list[str] = Field(default_factory=list)
+
+
+class TechMagic(BaseModel):
+    """Structured description of the world's tech / magic system.
+    Backs the free-text `World.magic_physics` summary; the narrator
+    consults `rules` for what the world actually allows."""
+
+    kind: str = "neither"                            # technology|magic|both|neither
+    description: str = ""
+    rules: list[str] = Field(default_factory=list)
+    cost_or_risk: str = ""
 
 
 class Item(BaseModel):
@@ -134,12 +183,19 @@ class World(BaseModel):
     tone: Tone = Field(default_factory=Tone)
 
     # --- Structured world content ---
+    regions: list[Region] = Field(default_factory=list)
     places: list[Place] = Field(default_factory=list)
+    factions: list[Faction] = Field(default_factory=list)
     persons: list[Person] = Field(default_factory=list)
     items: list[Item] = Field(default_factory=list)
+    creatures: list[Creature] = Field(default_factory=list)
     glossary: list[GlossaryEntry] = Field(default_factory=list)
     history: list[HistoryEvent] = Field(default_factory=list)
     fragments: list[Fragment] = Field(default_factory=list)
+    # Structured tech/magic system. `magic_physics` (above) stays as the
+    # quick free-text summary used for prompt injection; `tech_magic`
+    # holds the actionable rules the narrator can reference.
+    tech_magic: TechMagic | None = None
 
     # --- Dramaturgy & game mechanics ---
     blueprint: Blueprint
