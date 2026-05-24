@@ -40,21 +40,33 @@ def chat_extras(
     temperature: float | None = None,
     frequency_penalty: float | None = None,
     presence_penalty: float | None = None,
+    tools: bool = False,
 ) -> dict:
     """Sampling kwargs to merge into ``chat.completions.create``.
 
-    OpenAI reasoning models (gpt-5.x with ``reasoning_effort`` != none) only
-    accept the default ``temperature`` / ``top_p`` / ``frequency_penalty``
-    / ``presence_penalty`` — passing a custom value returns HTTP 400. So
-    when reasoning is active for this role, we forward ONLY
-    ``reasoning_effort`` and DROP every sampling knob. When reasoning is
-    off we forward the non-None / non-zero values the caller passed.
+    Two OpenAI constraints to navigate at once:
+      * Reasoning models (gpt-5.x with ``reasoning_effort`` != none) only
+        accept the default ``temperature`` / ``top_p`` /
+        ``frequency_penalty`` / ``presence_penalty`` — any custom value
+        returns HTTP 400.
+      * ``/v1/chat/completions`` does NOT support ``tools=`` together
+        with ``reasoning_effort`` for gpt-5.x; that combination returns
+        "Function tools with reasoning_effort are not supported for
+        gpt-5.4 in /v1/chat/completions. Please use /v1/responses
+        instead." So when the caller will be passing function tools we
+        MUST suppress reasoning_effort, and instead forward normal
+        sampling knobs (temperature / penalties).
 
-    Use this helper EVERYWHERE you'd otherwise pass
-    ``temperature=cfg.models.<x>_temperature, **reasoning_kwargs(...)``.
+    Behaviour:
+      * tools=False + reasoning active -> {"reasoning_effort": "<v>"}
+      * tools=False + reasoning off    -> {"temperature": …, plus
+                                           non-zero penalties}
+      * tools=True (any reasoning)     -> {"temperature": …, plus
+                                           non-zero penalties} — reasoning
+                                           is dropped.
     """
     effort = cfg.models.reasoning_effort_for(role)
-    if effort in _VALID_EFFORTS:
+    if effort in _VALID_EFFORTS and not tools:
         return {"reasoning_effort": effort}
     out: dict = {}
     if temperature is not None:

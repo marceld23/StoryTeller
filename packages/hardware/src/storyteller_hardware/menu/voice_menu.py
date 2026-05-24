@@ -10,10 +10,13 @@ Returns: {action: 'play'|'load', world_id, save_name}.
 from __future__ import annotations
 
 import json
+import logging
 import tempfile
 
 from storyteller_core.config import Config
 from storyteller_core.i18n import norm, world_keywords
+
+log = logging.getLogger("storyteller.voice_menu")
 
 
 def _match_keyword(text: str, keywords: dict[str, list[str]]) -> str | None:
@@ -59,6 +62,34 @@ class VoiceMenu:
                 continue
         return out
 
+    def _play_world_pick(self, world_id: str, worlds: list[dict]) -> None:
+        """Confirm the player's pick aloud. Uses the baked `world_<id>`
+        voice prompt if available, otherwise live-synthesises a short
+        "Du wählst {display_name}" line so runtime-generated worlds also
+        get spoken confirmation. Any TTS failure is swallowed — the
+        subsequent "starting" prompt is the load-bearing announcement."""
+        pid = f"world_{world_id}"
+        if pid in self.prompts.prompts:
+            self.prompts.play(pid, self.backend)
+            return
+        disp = next((w["display_name"] for w in worlds
+                     if w["id"] == world_id), world_id)
+        text = (f"Du wählst {disp}." if self.locale == "de"
+                else f"You picked {disp}.")
+        try:
+            import numpy as np
+            import soundfile as sf
+            from storyteller_voice.tts import get_tts
+
+            audio, sr = get_tts(self.cfg).synthesize(text)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
+                path = t.name
+            sf.write(path, np.clip(audio, -1, 1).astype(np.float32), sr,
+                     subtype="PCM_16")
+            self.backend.play_wav(path)
+        except Exception as exc:
+            log.warning("live world-pick TTS failed: %r", exc)
+
     def _play_choose(self, worlds: list[dict]) -> None:
         """Announce the available worlds by short name (synthesised once).
         Falls back to the static cached prompt if TTS is unavailable."""
@@ -94,9 +125,18 @@ class VoiceMenu:
             path = t.name
         self.backend.record_until_silence(path)
         try:
-            return self.stt.transcribe(path)
-        except Exception:
-            return ""
+            said = self.stt.transcribe(path) or ""
+        except Exception as exc:
+            log.warning("STT failed in voice menu: %r", exc)
+            said = ""
+        # Surface the transcript in the journal so a misclassified menu
+        # answer can be debugged from logs (otherwise we only see the
+        # final "Welt: …" line and have no idea what the player said).
+        if said.strip():
+            log.info("[Menu/Du] %s", said.strip())
+        else:
+            log.info("[Menu/Du] (Stille)")
+        return said
 
     # --- LLM intent classification ---
     def _classify_llm(self, said: str, worlds: list[dict]) -> str:
@@ -109,16 +149,38 @@ class VoiceMenu:
                 f'- id="{w["id"]}" name="{w["name"]}" '
                 f'short="{w["display_name"]}" genre="{w["genre"]}": '
                 f'{w["desc"]}' for w in worlds)
+            # NAME-FIRST: prior wording was too genre-friendly and could
+            # pick a popular sci-fi world when the player clearly named a
+            # different one ("Justus Scify" -> "Sternenfahrt"). Now: match
+            # the spoken phrase against id / name / short / phonetic
+            # variants first; genre is only the last resort when nothing
+            # else fits.
             sys = (
-                "Map the user's spoken menu choice to exactly one option. "
-                "Options are the world ids below, or 'load' (resume a saved "
-                "game), or 'unknown' if unclear. Consider meaning AND "
-                "pronunciation variants — the player may say the short name, "
-                "the full name, a fuzzy phonetic version, or describe the "
-                "genre (e.g. 'something in space' -> the sci-fi world; "
-                "'Aquatika' -> a world with short name 'Aquatica'). "
+                "Map the user's spoken menu choice to exactly one option.\n"
+                "Options are: the world ids below, 'load' (resume a saved "
+                "game), or 'unknown'.\n\n"
+                "MATCHING RULES (strict order — stop at the first that "
+                "fires):\n"
+                "1. NAME MATCH: if the user's phrase clearly contains the "
+                "short name, the full name, the id (with spaces/hyphens "
+                "ignored), or a recognisable phonetic variant of any "
+                "world, return THAT world's id. Treat STT artefacts "
+                "liberally (Justus / Justice / Jüstus, Scify / Sci-Fi / "
+                "Sai-Fai, Sternenfahrt / Sternfahrt are all valid "
+                "matches if they refer to one of the listed worlds).\n"
+                "2. LOAD: if the user wants to resume / load / continue / "
+                "weiter / spielstand a saved game, return 'load'.\n"
+                "3. GENRE FALLBACK: only if NO name match plausibly "
+                "applies, and the user clearly described a genre or "
+                "vibe ('something in space', 'eine Fantasy-Welt'), pick "
+                "the best-matching world by genre.\n"
+                "4. Otherwise return 'unknown'.\n\n"
+                "Do NOT prefer a popular genre over an explicit name. "
+                "If the user said a name, the matching world wins even "
+                "if another world has a more dominant genre.\n\n"
                 f"Answer JSON only: {{\"choice\": \"<one of: "
-                f"{', '.join(ids)}, load, unknown>\"}}\n\nWORLDS:\n{catalog}")
+                f"{', '.join(ids)}, load, unknown>\"}}\n\n"
+                f"WORLDS:\n{catalog}")
             r = get_chat_client(self.cfg, "story").chat.completions.create(
                 model=self.cfg.models.story_llm,
                 messages=[{"role": "system", "content": sys},
@@ -128,10 +190,11 @@ class VoiceMenu:
             )
             choice = json.loads(r.choices[0].message.content or "{}") \
                 .get("choice", "unknown").strip()
+            log.info("[Menu/LLM] said=%r -> choice=%r", said, choice)
             if choice in ids or choice in ("load", "unknown"):
                 return choice
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("classify_llm failed: %r", exc)
         return "unknown"
 
     def run(self) -> dict:
@@ -177,7 +240,13 @@ class VoiceMenu:
                 return {"action": "load", "world_id": None,
                         "save_name": None}
             if choice != "unknown":
-                self.prompts.play(f"world_{choice}", self.backend)
+                # Per-world prompt is only baked for the canonical demo
+                # worlds. For worlds the admin generated at runtime (no
+                # `world_<id>` in the voice-prompts cache) synthesise a
+                # short confirmation live so the player hears the name
+                # they picked. Falls through to the generic "starting"
+                # prompt either way.
+                self._play_world_pick(choice, worlds)
                 self.prompts.play("starting", self.backend)
                 return {"action": "play", "world_id": choice,
                         "save_name": None}

@@ -516,14 +516,18 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         "model": cfg.models.story_llm,
         "messages": messages,
     }
-    # chat_extras handles the reasoning-vs-sampling switch: reasoning models
-    # reject any non-default temperature/penalty, so when reasoning_effort
-    # is active these knobs are silently dropped.
+    # chat_extras handles two OpenAI constraints: reasoning models reject
+    # custom sampling knobs, AND chat completions rejects tools+reasoning
+    # for gpt-5.x. We pass tools=use_tools so reasoning gets dropped on
+    # turns that need function calls (every tool round), keeping
+    # temperature/penalties — non-tool turns (final narration after tool
+    # roundtrip) still get reasoning if configured.
     kw.update(chat_extras(
         cfg, "story",
         temperature=cfg.models.llm_temperature,
         frequency_penalty=cfg.models.frequency_penalty,
         presence_penalty=cfg.models.presence_penalty,
+        tools=use_tools,
     ))
     if use_tools:
         kw["tools"] = TOOLS
@@ -532,10 +536,28 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
             and cfg.transcripts.capture_prompts:
         ctx.transcript.prompt(cfg.models.story_llm, messages, tools=use_tools)
 
+    import time as _time
+    t_call = _time.perf_counter()
+    mode = ("reason=" + kw["reasoning_effort"]) if "reasoning_effort" in kw \
+           else f"temp={kw.get('temperature', '?')}"
+    log.info("narrate -> %s iter=%d tools=%s %s msgs=%d",
+             cfg.models.story_llm, iteration, use_tools, mode, len(messages))
     try:
         resp = get_chat_client(cfg, "story").chat.completions.create(**kw)
+        dt = _time.perf_counter() - t_call
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            log.info("narrate <- %.2fs in=%s out=%s reason_out=%s",
+                     dt,
+                     getattr(usage, "prompt_tokens", "?"),
+                     getattr(usage, "completion_tokens", "?"),
+                     getattr(getattr(usage, "completion_tokens_details",
+                                     None), "reasoning_tokens", "?"))
+        else:
+            log.info("narrate <- %.2fs (no usage reported)", dt)
     except Exception as exc:
-        log.warning("LLM/Verbindung gestört: %r", exc)
+        dt = _time.perf_counter() - t_call
+        log.warning("narrate FAILED after %.2fs: %r", dt, exc)
         # Roll back the user message we appended, so the conversation has no hole.
         mem = list(state.get("memory") or [])
         if mem and mem[-1].get("role") == "user":

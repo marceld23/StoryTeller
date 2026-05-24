@@ -95,9 +95,22 @@ class VoicePromptCache:
         if not wav.exists():
             if not self.cfg.voice_prompts.allow_live_fallback:
                 return
+            # World-specific prompts (e.g. `world_<id>` for worlds created
+            # at runtime) have no entry in self.prompts, so .get returns
+            # "" — sending "" to OpenAI TTS errors with 400 empty_string
+            # and crashes the loop. Skip silently instead: the caller
+            # always plays a generic follow-up ("starting" etc.).
+            text = self.prompts.get(pid, "")
+            if not text.strip():
+                import logging
+                logging.getLogger("storyteller.prompts").info(
+                    "voice_prompt %r has no text and no cached WAV — "
+                    "skipping (caller should play a generic follow-up).",
+                    pid)
+                return
             from .tts import get_tts
 
-            audio, sr = get_tts(self.cfg).synthesize(self.prompts.get(pid, ""))
+            audio, sr = get_tts(self.cfg).synthesize(text)
             sf.write(str(wav), np.clip(audio, -1, 1).astype(np.float32), sr,
                      subtype="PCM_16")
         # Indicate "system is talking" on the LED ring (e.g. dodger blue)
