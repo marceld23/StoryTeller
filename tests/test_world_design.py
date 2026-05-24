@@ -31,13 +31,36 @@ def _fake_client(reply_text: str):
 
 
 def test_classify_play_mode_branches():
-    assert classify_play_mode("eine neue Welt") == "create"
-    assert classify_play_mode("ich möchte eine bestehende spielen") == "existing"
-    assert classify_play_mode("erstellen bitte") == "create"
+    # Play branch: bare "spielen" + English equivalents.
+    assert classify_play_mode("ich möchte spielen") == "play"
+    assert classify_play_mode("bestehende welt spielen") == "play"
+    assert classify_play_mode("play existing") == "play"
+    # Manage branch: explicit verwalten + any of the sub-action words
+    # (so "neue Welt erstellen" / "Welt löschen" / "kopieren" all route
+    # straight into management even without "verwalten" being said).
+    assert classify_play_mode("welten verwalten") == "manage"
+    assert classify_play_mode("eine neue Welt") == "manage"
+    assert classify_play_mode("kopier mir die welt") == "manage"
+    assert classify_play_mode("welt löschen") == "manage"
+    assert classify_play_mode("new world please") == "manage"
+    # Fallback.
     assert classify_play_mode("hmm") == "unclear"
     assert classify_play_mode("") == "unclear"
-    assert classify_play_mode("new world please") == "create"
-    assert classify_play_mode("play existing") == "existing"
+
+
+def test_classify_manage_action_branches():
+    from storyteller_core.i18n import classify_manage_action
+
+    assert classify_manage_action("neue welt erstellen") == "create_world"
+    assert classify_manage_action("kopier die welt") == "copy"
+    assert classify_manage_action("welt umbenennen") == "rename"
+    assert classify_manage_action("welt löschen") == "delete"
+    assert classify_manage_action("abbrechen") == "cancel"
+    assert classify_manage_action("zurück") == "cancel"
+    assert classify_manage_action("hmm") == "unclear"
+    assert classify_manage_action("") == "unclear"
+    # Disambiguation: "kopier die neue welt" => copy wins over create_world.
+    assert classify_manage_action("kopier die neue welt") == "copy"
 
 
 def test_interview_brief_and_history():

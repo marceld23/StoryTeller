@@ -25,7 +25,27 @@ immediately — no restart. See [README](../README.md#production-deploy-systemd)
 ## Pages
 
 ### Welten (`/`)
-List of worlds; create a new one, open one to edit, or delete.
+Table of every world with **Kopieren / Umbenennen / Löschen** per row,
+plus an Edit link into the structured editor. Use the *Generieren*
+page below to build a brand-new world from a free-form prompt.
+
+- **Kopieren** opens an inline form: pick a new name, the id is auto-
+  derived (slugified, lowercase, `[a-z0-9_]`) but stays editable.
+  The copy is a fresh world definition — saved games stay attached
+  to the source. RAG is rebuilt for the copy automatically so it's
+  queryable from the first turn.
+- **Umbenennen** does the same but in place: the old JSON file moves
+  to the new id (per locale), the RAG partition is repointed
+  server-side (no costly re-embed), and saved Pi sessions migrate
+  along (`pi-<old>` → `pi-<new>` thread_ids in
+  `data/checkpoints.db`). Web-UI sessions use UUID thread_ids and
+  are unaffected.
+- **Löschen** removes everything for that world in one shot: JSON
+  file(s) per locale, the matching `world_facts` rows in
+  `data/rag.db`, and every Pi save (`pi-<id>`, plus the `-<ts>`
+  variants from `--new`). A confirmation dialog spells out what's
+  about to disappear. The same actions are also reachable via voice
+  on the Pi — see [USER_GUIDE → Welten verwalten](USER_GUIDE.md#welten-verwalten).
 
 The **world editor** (`/worlds/<id>`) is a structured form:
 - **Core fields** — name, genre, player role, description, starting

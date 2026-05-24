@@ -77,9 +77,26 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "start_question": "Möchtest du loslegen?",
         "start_question_repeat": "Ich habe das nicht verstanden — "
                                   "bitte sag Ja oder Nein.",
-        "mode_question": "Möchtest du eine bestehende Welt spielen oder "
-                          "eine neue Welt erstellen?",
-        "mode_repeat": "Bitte sag: bestehende Welt oder neue Welt.",
+        "mode_question": "Möchtest du eine Welt spielen oder Welten "
+                          "verwalten?",
+        "mode_repeat": "Bitte sag: spielen oder verwalten.",
+        # World-management sub-menu prompts (Pi voice).
+        "manage_intro": "Du bist im Verwaltungs-Modus. Du kannst sagen: "
+                         "Neue Welt, Welt kopieren, Welt umbenennen, "
+                         "oder Welt löschen. Mit Abbrechen geht's "
+                         "zurück.",
+        "manage_choose_action": "Was möchtest du machen?",
+        "manage_choose_world": "Welche Welt?",
+        "manage_ask_new_name": "Wie soll die Welt heißen?",
+        "manage_world_not_found": "Die Welt habe ich nicht gefunden. "
+                                    "Ich versuche es nochmal.",
+        "manage_name_in_use": "Eine Welt mit dem Namen gibt es schon. "
+                                "Bitte sag einen anderen Namen.",
+        "manage_action_unclear": "Das habe ich nicht verstanden. Sag "
+                                   "Neue Welt, Kopieren, Umbenennen, "
+                                   "Löschen oder Abbrechen.",
+        "manage_cancelled": "Abgebrochen.",
+        "manage_done": "Erledigt.",
         "design_intro": "Wir gestalten zusammen eine neue Welt. Ich "
                          "stelle dir ein paar Fragen — wenn dir die "
                          "Details reichen, sag einfach Generieren. Das "
@@ -176,9 +193,24 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "start_question": "Would you like to get started?",
         "start_question_repeat": "I didn't catch that — please say "
                                   "yes or no.",
-        "mode_question": "Would you like to play an existing world, or "
-                          "create a new one?",
-        "mode_repeat": "Please say: existing world, or new world.",
+        "mode_question": "Would you like to play a world, or manage "
+                          "worlds?",
+        "mode_repeat": "Please say: play, or manage.",
+        # World-management sub-menu prompts (Pi voice).
+        "manage_intro": "You're in the management menu. You can say: "
+                         "New world, copy world, rename world, or "
+                         "delete world. Cancel to go back.",
+        "manage_choose_action": "What would you like to do?",
+        "manage_choose_world": "Which world?",
+        "manage_ask_new_name": "What should it be called?",
+        "manage_world_not_found": "I couldn't find that world. Let me "
+                                    "ask again.",
+        "manage_name_in_use": "A world with that name already exists. "
+                                "Please say a different name.",
+        "manage_action_unclear": "I didn't catch that. Say new, copy, "
+                                   "rename, delete, or cancel.",
+        "manage_cancelled": "Cancelled.",
+        "manage_done": "Done.",
         "design_intro": "Let's design a new world together. I'll ask "
                          "you a few questions — when you have enough "
                          "details, just say Generate. Building the "
@@ -533,6 +565,17 @@ CMD_KEYWORDS = {
         # player input does not accidentally trigger a replay.
         "repeat": ("wiederhole", "wiederhol", "wiederholen", "nochmal",
                      "nochmals"),
+        # Verwaltungs-Modus: Worte für die Aktions-Auswahl im
+        # "Welten verwalten"-Untermenü auf dem Pi.
+        "manage": ("verwalten", "verwaltung", "managen", "manage"),
+        "create_world": ("neue", "neue welt", "neu", "erstell",
+                          "erstellen", "anlegen", "create", "new"),
+        "copy": ("kopier", "kopieren", "kopie", "duplizier",
+                   "duplizieren", "duplikat", "copy", "duplicate"),
+        "rename": ("umbenenn", "umbenennen", "umname", "umtaufen",
+                     "umtauf", "rename"),
+        "delete": ("lösch", "löschen", "entfern", "entfernen", "weg",
+                     "delete", "remove"),
         # First token in the world-design interview loop that signals
         # "stop asking, build the world now". Matched ONLY inside the
         # interview — outside it the words are ignored.
@@ -556,6 +599,12 @@ CMD_KEYWORDS = {
         # short standalone phrase so a mid-sentence "again" inside a
         # player input does not accidentally trigger a replay.
         "repeat": ("repeat", "again", "once more"),
+        # World management sub-menu (Pi voice).
+        "manage": ("manage", "management", "administer", "admin"),
+        "create_world": ("new", "new world", "create", "make", "build"),
+        "copy": ("copy", "duplicate", "clone"),
+        "rename": ("rename", "retitle"),
+        "delete": ("delete", "remove", "destroy"),
         "generate": ("generate", "create", "build", "go", "ready",
                       "done"),
         "cancel": ("cancel", "stop", "abort", "quit", "end",
@@ -592,24 +641,67 @@ NO_KEYWORDS = (
 
 
 def classify_play_mode(text: str) -> str:
-    """Classify the answer to "existing world or new world?".
+    """Classify the answer to "spielen oder verwalten?".
 
-    Returns ``"existing"`` / ``"create"`` / ``"unclear"``. Used only by the
+    Returns ``"play"`` / ``"manage"`` / ``"unclear"``. Used only by the
     Pi main loop; intentionally heuristic (no LLM call) so the question
-    stays free regardless of cost cap status.
+    stays free regardless of cost cap status. Manage keywords win when
+    both fire (a player who says "neue Welt erstellen" obviously wants
+    the management branch even though "spielen" might also appear).
     """
     lw = (text or "").strip().lower()
     if not lw:
         return "unclear"
-    create_kw = ("neu", "neue", "erstell", "generier", "neue welt",
-                 "create", "new", "build", "design")
-    existing_kw = ("bestehend", "vorhanden", "spielen", "weitermachen",
-                   "fortsetzen", "existing", "old", "saved", "load",
-                   "play")
+    manage_kw = ("verwalt", "managen", "manage", "admin",
+                 "neue welt", "neu", "erstell", "anlegen", "generier",
+                 "kopier", "kopie", "umbenenn", "umtauf", "rename",
+                 "lösch", "löschen", "entfern", "delete", "remove",
+                 "duplikat", "duplizier", "duplicate", "build",
+                 "design", "new world", "new ", "create", "make",
+                 "destroy", "clone")
+    play_kw = ("spielen", "spiel", "bestehend", "vorhanden",
+               "weitermachen", "fortsetzen", "play", "existing", "old",
+               "saved", "load", "weiter")
+    if any(k in lw for k in manage_kw):
+        return "manage"
+    if any(k in lw for k in play_kw):
+        return "play"
+    return "unclear"
+
+
+def classify_manage_action(text: str) -> str:
+    """Classify the answer to "Was möchtest du machen?" inside the
+    Verwaltungs-Modus into one of the four world-mgmt sub-actions
+    or a cancel intent.
+
+    Returns ``"create_world"`` / ``"copy"`` / ``"rename"`` /
+    ``"delete"`` / ``"cancel"`` / ``"unclear"``. Heuristic only.
+    """
+    lw = (text or "").strip().lower()
+    if not lw:
+        return "unclear"
+    cancel_kw = ("abbrech", "abbruch", "zurück", "stop", "stopp",
+                 "raus", "ende", "cancel", "abort", "back", "nevermind")
+    create_kw = ("neue welt", "neu erstell", "neu anleg", "neue",
+                 "neu", "erstell", "generier", "new", "create", "build",
+                 "design")
+    copy_kw = ("kopier", "kopie", "duplizier", "duplikat", "copy",
+               "duplicate", "clone")
+    rename_kw = ("umbenenn", "umtauf", "umname", "rename")
+    delete_kw = ("lösch", "entfern", "weg damit", "delete", "remove",
+                 "destroy")
+    if any(k in lw for k in cancel_kw):
+        return "cancel"
+    # Order matters: copy/rename/delete win over the broad "neu" trigger
+    # so "kopier die neue welt" doesn't get routed to create_world.
+    if any(k in lw for k in copy_kw):
+        return "copy"
+    if any(k in lw for k in rename_kw):
+        return "rename"
+    if any(k in lw for k in delete_kw):
+        return "delete"
     if any(k in lw for k in create_kw):
-        return "create"
-    if any(k in lw for k in existing_kw):
-        return "existing"
+        return "create_world"
     return "unclear"
 
 

@@ -26,14 +26,14 @@ into the story, following a dramatic arc.
    answer (*"Ja, ich will die Scify-Welt spielen"*, *"Yes, Starfaring
    please"*), the Pi skips the mode question and the world menu and
    jumps straight into that world.
-4. *"Would you like to play an existing world, or create a new one?"*
+4. *"Möchtest du eine Welt spielen oder Welten verwalten?"*
    (only asked when step 3's answer didn't already pick a world)
-   * **Existing** → the world menu opens (*"Which world…?"*): answer
+   * **Spielen** → the world menu opens (*"Which world…?"*): answer
      naturally, e.g. *"something in space"* → Starfaring, *"dragons
      and magic"* → Everwood. (Recognition is LLM-based, so free
      phrasing works.) Each world resumes where you last left it.
-   * **New** → the [voice-mode world design](#voice-mode-world-design)
-     starts (see below).
+   * **Verwalten** → the [world-management menu](#welten-verwalten)
+     opens: new world, copy, rename, or delete (see below).
    Pass `--new` to start a world over from scratch.
 5. **Once a world is picked**, just before the first narration you
    hear the in-story commands briefing (Vermerken / Wiederhole /
@@ -41,9 +41,45 @@ into the story, following a dramatic arc.
    via the system menu (*commands info on/off*) if you don't want
    to hear it every session.
 
+### Welten verwalten
+
+When you answer *"verwalten"* (or *"manage"*) at the mode question
+— or use any management-flavoured word like *"neue Welt"*,
+*"kopieren"*, *"umbenennen"*, *"löschen"* — Jarvis opens the world
+management sub-menu. Single-shot UX: one action per visit, then
+back to the wake-word idle.
+
+1. *"Du bist im Verwaltungs-Modus. Du kannst sagen: Neue Welt, Welt
+   kopieren, Welt umbenennen, oder Welt löschen. Mit Abbrechen
+   geht's zurück."*
+2. *"Was möchtest du machen?"* — say one of:
+   * **Neue Welt** → drops into the [voice-mode world design](#voice-mode-world-design).
+   * **Welt kopieren** → asks which world, then for the new name.
+     Confirms with yes/no. The copy gets the suffix " (Kopie)" by
+     default unless you give it a different name; saves stay attached
+     to the source (the copy is a fresh world definition).
+   * **Welt umbenennen** → asks which world, then for the new name.
+     Confirms with yes/no. Saved games migrate to the new id
+     automatically (`pi-<old>` → `pi-<new>` in `data/checkpoints.db`),
+     and the RAG index is repointed in place (no costly re-embed).
+   * **Welt löschen** → asks which world, then a destructive
+     confirmation (*"…Welt-Daten und Spielstand gehen verloren. Ja
+     oder Nein?"*). Cleans up JSON + RAG embeddings + Pi saves.
+   * **Abbrechen** at any prompt → cancels and returns to wake-word
+     idle.
+3. After the action Jarvis says *"Erledigt."* and goes back to the
+   wake-word idle (the device says *"Ich höre jetzt nicht mehr aktiv
+   zu — sag Hey Jarvis, um mich zu wecken."* once before going
+   silent).
+
+World selection inside the management menu uses the same free-form
+LLM classifier as the play-menu — say *"die Justus-Scify"* or
+*"Sternenfahrt"* and Jarvis picks the right world (STT artefacts
+like *"Scify / Sci-Fi / Sai-Fai"* all match).
+
 ### Voice-mode world design
 
-When you say *"new world"* at the mode question, Jarvis walks you
+When you say *"neue Welt"* in the management menu, Jarvis walks you
 through a short interview to gather your idea, then generates the
 world live. Step by step:
 

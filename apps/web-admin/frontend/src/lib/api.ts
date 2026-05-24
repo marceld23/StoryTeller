@@ -87,6 +87,34 @@ export async function deleteWorld(id: string): Promise<unknown> {
   );
 }
 
+export async function copyWorld(
+  id: string,
+  new_id: string,
+  new_name: string = ''
+): Promise<{ ok: boolean; world_id: string; name: string }> {
+  return _json(
+    await afetch(`${BACKEND}/api/worlds/${encodeURIComponent(id)}/copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_id, new_name })
+    })
+  );
+}
+
+export async function renameWorld(
+  id: string,
+  new_id: string,
+  new_name: string = ''
+): Promise<{ ok: boolean; world_id: string; name: string }> {
+  return _json(
+    await afetch(`${BACKEND}/api/worlds/${encodeURIComponent(id)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_id, new_name })
+    })
+  );
+}
+
 export type Job = {
   id: string;
   kind: string;

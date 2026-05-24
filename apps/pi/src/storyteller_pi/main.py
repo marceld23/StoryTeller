@@ -33,6 +33,7 @@ from storyteller_core.i18n import (
     NOTE_PROMPTS,
     RESTORE_DIRECTIVE,
     YES_KEYWORDS,
+    classify_manage_action,
     classify_play_mode,
     matches_end_story,
     norm,
@@ -43,7 +44,15 @@ from storyteller_core.story.ledger import CostLedger
 from storyteller_core.story.user_notes import create_user_note
 from storyteller_core.story.world_design import WorldDesignInterview
 from storyteller_core.worlds.generate import generate_world
-from storyteller_core.worlds.registry import load_world, save_world
+from storyteller_core.worlds.registry import (
+    copy_world,
+    delete_world,
+    load_world,
+    rename_world,
+    save_world,
+    slugify_world_id,
+    world_exists,
+)
 
 log = logging.getLogger("storyteller.pi")
 
@@ -357,8 +366,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             # Bei zweitem Miss zurück in Idle (Wake-Word-Wait).
 
     def _ask_play_mode() -> str:
-        """Ask "existing world or new world?". Returns "existing", "create"
-        or "" (unclear after one retry — caller should drop back to idle)."""
+        """Ask "Welt spielen oder Welten verwalten?". Returns "play",
+        "manage" or "" (unclear after one retry — caller should drop
+        back to idle)."""
         if speak:
             prompts.play("mode_question", backend)
         answer = _record_answer()
@@ -371,7 +381,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         answer = _record_answer()
         rp(f"[cyan][Du][/cyan] {answer}")
         cls = classify_play_mode(answer)
-        return cls if cls in ("existing", "create") else ""
+        return cls if cls in ("play", "manage") else ""
 
     def _design_world_interactively():
         """Voice-mode world design + generation. Returns the freshly
@@ -554,6 +564,177 @@ def cmd_run(args: argparse.Namespace) -> int:
             return world
         return None
 
+    def _manage_worlds_interactively() -> None:
+        """Verwaltungs-Modus: copy / rename / delete an existing world,
+        or generate a brand-new one. One action per session; returns
+        when done so the outer loop drops back to wake-word idle (the
+        player who just managed a world rarely wants to immediately
+        start a story, and a single-shot UX is far simpler to navigate
+        by voice than a stacking menu)."""
+        from types import SimpleNamespace
+
+        from storyteller_core.worlds.schema import FXPreset
+        from storyteller_hardware.menu.voice_menu import (
+            classify_world_choice,
+            load_world_catalog,
+        )
+
+        loc = norm(cfg.general.locale)
+        # Stub world so the live-TTS confirm call can go through _say
+        # (which dereferences world.wait_sound + world.narration_style).
+        manage_stub = SimpleNamespace(
+            wait_sound=cfg.story.world_gen_wait_sound,
+            narration_style="ruhig, freundlich, neutral",
+            fx_preset=FXPreset(),
+        )
+        manage_fx = VoiceFX(cfg, manage_stub.fx_preset)
+        if speak:
+            prompts.play("manage_intro", backend)
+            prompts.play("manage_choose_action", backend)
+        answer = _record_answer()
+        rp(f"[cyan][Du][/cyan] {answer}")
+        action = classify_manage_action(answer)
+        log.info("[Manage] action=%r from %r", action, answer)
+
+        if action == "cancel" or action == "unclear":
+            if speak and action == "unclear":
+                prompts.play("manage_action_unclear", backend)
+            if speak:
+                prompts.play("manage_cancelled", backend)
+            return
+
+        if action == "create_world":
+            # Delegate to the existing voice-mode world-design flow.
+            # We discard the returned World — the player can pick it
+            # via the regular menu on the next wake.
+            try:
+                _design_world_interactively()
+            except Exception as exc:
+                log.warning("manage/create failed: %r", exc)
+            return
+
+        # copy / rename / delete all need: pick a world, confirm,
+        # for copy+rename also collect a new name.
+        catalog = load_world_catalog(cfg)
+        if not catalog:
+            log.info("manage: catalog empty, nothing to operate on")
+            if speak:
+                prompts.play("manage_cancelled", backend)
+            return
+
+        if speak:
+            prompts.play("manage_choose_world", backend)
+        world_answer = _record_answer()
+        rp(f"[cyan][Du][/cyan] {world_answer}")
+        pick = classify_world_choice(cfg, world_answer, catalog)
+        if pick not in {w["id"] for w in catalog}:
+            if speak:
+                prompts.play("manage_world_not_found", backend)
+                prompts.play("manage_cancelled", backend)
+            return
+        target = next(w for w in catalog if w["id"] == pick)
+        display = target["display_name"] or target["name"] or target["id"]
+
+        # Common helper: live-TTS a confirm question and gate on yes/no.
+        # Goes through _say with the manage_stub so the wait-sound loop
+        # (= generic_waiting.wav) covers any TTS render latency.
+        def _confirm_live(question: str) -> bool:
+            _say(cfg, manage_stub, backend, tts, manage_fx, leds,
+                 (lambda q=question: q), speak=speak)
+            ans = _record_answer()
+            rp(f"[cyan][Du][/cyan] {ans}")
+            return _yesno(ans) == "yes"
+
+        if action == "delete":
+            if loc == "de":
+                q = (f"Möchtest du die Welt {display} wirklich löschen? "
+                     "Welt-Daten und Spielstand gehen verloren. "
+                     "Bitte sag Ja oder Nein.")
+            else:
+                q = (f"Do you really want to delete the world {display}? "
+                     "World data and saves will be lost. Say yes or no.")
+            if not _confirm_live(q):
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+                return
+            try:
+                report = delete_world(cfg, pick)
+                log.info("manage/delete: %s", report)
+                if speak:
+                    prompts.play("manage_done", backend)
+            except Exception as exc:
+                log.warning("manage/delete failed: %r", exc)
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+            return
+
+        # copy + rename both need a new name.
+        if speak:
+            prompts.play("manage_ask_new_name", backend)
+        # Allow up to 2 tries so the player can recover from name-in-use
+        # without bouncing all the way back out of the manage menu.
+        for _ in range(2):
+            name_answer = _record_answer()
+            rp(f"[cyan][Du][/cyan] {name_answer}")
+            new_name = name_answer.strip()
+            new_id = slugify_world_id(new_name)
+            if not new_id or new_id == pick:
+                # Pure-noise input → recoverable: re-ask once more.
+                if speak:
+                    prompts.play("manage_ask_new_name", backend)
+                continue
+            if world_exists(cfg, new_id):
+                if speak:
+                    prompts.play("manage_name_in_use", backend)
+                continue
+            # We have a usable name + a free id; break to confirm.
+            break
+        else:
+            if speak:
+                prompts.play("manage_cancelled", backend)
+            return
+
+        # Confirmation (live TTS with names interpolated).
+        if action == "copy":
+            if loc == "de":
+                q = (f"Welt {display} als {new_name} kopieren? "
+                     "Bitte sag Ja oder Nein.")
+            else:
+                q = (f"Copy world {display} as {new_name}? Say yes or no.")
+            if not _confirm_live(q):
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+                return
+            try:
+                copy_world(cfg, pick, new_id, new_name=new_name)
+                if speak:
+                    prompts.play("manage_done", backend)
+            except Exception as exc:
+                log.warning("manage/copy failed: %r", exc)
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+            return
+
+        if action == "rename":
+            if loc == "de":
+                q = (f"Welt {display} zu {new_name} umbenennen? "
+                     "Bitte sag Ja oder Nein.")
+            else:
+                q = (f"Rename world {display} to {new_name}? Say yes or no.")
+            if not _confirm_live(q):
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+                return
+            try:
+                rename_world(cfg, pick, new_id, new_name=new_name)
+                if speak:
+                    prompts.play("manage_done", backend)
+            except Exception as exc:
+                log.warning("manage/rename failed: %r", exc)
+                if speak:
+                    prompts.play("manage_cancelled", backend)
+            return
+
     def _play_one_story() -> str:
         """Run ONE story session.
 
@@ -606,17 +787,15 @@ def cmd_run(args: argparse.Namespace) -> int:
                     world = load_world(cfg, pick)
             if world is None:
                 mode = _ask_play_mode()
-                if mode == "create":
-                    # Voice-mode world generation.
-                    # _design_world_interactively runs the interview,
-                    # calls generate_world under the neutral wait-
-                    # sound, and asks "start now or back to menu". On
-                    # None we fall through to the regular menu so the
-                    # just-saved world (if any) can be picked there.
-                    world = _design_world_interactively()
-                    if world is None:
-                        return "next_story"
-                elif mode == "existing":
+                if mode == "manage":
+                    # Verwaltungs-Modus: copy / rename / delete an
+                    # existing world or generate a brand-new one.
+                    # Always returns to wake-word idle afterwards
+                    # (one mgmt action per session, then the player
+                    # decides what's next).
+                    _manage_worlds_interactively()
+                    return "next_story"
+                elif mode == "play":
                     sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww,
                                     speak).run()
                     wid = sel.get("world_id") or "sternenfahrt"
