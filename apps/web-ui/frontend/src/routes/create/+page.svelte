@@ -11,7 +11,7 @@
   // Server-side cap (web.max_prompt_chars). Loaded once at mount so the
   // counter matches whatever the operator configured. Falls back to the
   // shipped default if /api/health is unreachable.
-  let maxChars = $state(100000);
+  let maxChars = $state(300000);
 
   const tooLong = $derived(prompt.length > maxChars);
 

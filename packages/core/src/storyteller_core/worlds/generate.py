@@ -245,7 +245,7 @@ def _world_context(skeleton: dict, prompt: str) -> str:
     """Full context anchor passed to every per-list and blueprint call.
     The user's original prompt is the primary source of flavour; the
     skeleton fields nail down established names + tone. No truncation:
-    the prompt cap (web.max_prompt_chars, default 100k) is enforced at
+    the prompt cap (web.max_prompt_chars, default 300k) is enforced at
     the entry point, and modern LLMs comfortably take that per step."""
     name = skeleton.get("name", "")
     genre = skeleton.get("genre", "")

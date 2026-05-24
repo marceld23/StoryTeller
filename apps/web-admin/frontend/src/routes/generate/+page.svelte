@@ -11,7 +11,7 @@
   // Hard cap surfaced by the backend (web.max_prompt_chars). Loaded once at
   // mount so the textarea can show a live counter + early "too long" warning
   // before the user hits Generieren and gets a 413.
-  let maxChars: number = $state(100000);
+  let maxChars: number = $state(300000);
 
   onMount(async () => {
     try {

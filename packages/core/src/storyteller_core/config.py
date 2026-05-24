@@ -290,13 +290,12 @@ class WebCfg(BaseModel):
     # max_prompt_chars covers the admin "generate world from prompt" box
     # + the player web-ui's /create page. Multi-page world briefs (lore,
     # tone, sample voice, NPC sketches) need plenty of headroom; modern
-    # cloud LLMs (gpt-5.x, 200k+ token ctx) take 100k chars (~25-30k
-    # tokens) without breaking a sweat. Local qwen3-30b-32k (32k token
-    # ctx) is borderline at that size but still fits — system prompts
-    # in the gen pipeline are <500 tokens and per-call outputs cap at
-    # ~3k tokens, so a 100k-char input + outputs stays under 32k.
+    # cloud LLMs (gpt-5.x, 200k+ token ctx) take 300k chars (~75-90k
+    # tokens) per step comfortably. Local qwen3-30b-32k (32k token ctx)
+    # will refuse briefs near the upper end — switch to a larger-context
+    # local model or trim the brief if running fully offline.
     max_turn_chars: int = 2000
-    max_prompt_chars: int = 100000
+    max_prompt_chars: int = 300000
 
 
 class ModerationCfg(BaseModel):
