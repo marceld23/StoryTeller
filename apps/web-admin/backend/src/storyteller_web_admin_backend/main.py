@@ -122,7 +122,14 @@ def _write_json(p: Path, data: Any) -> None:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True}
+    cfg = _cfg()
+    return {
+        "ok": True,
+        "limits": {
+            "max_prompt_chars": cfg.web.max_prompt_chars,
+            "max_turn_chars": cfg.web.max_turn_chars,
+        },
+    }
 
 
 # --------------------------------------------------------------------------

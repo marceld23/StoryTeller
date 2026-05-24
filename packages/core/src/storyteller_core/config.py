@@ -274,8 +274,12 @@ class WebCfg(BaseModel):
         "http://localhost:5173", "http://localhost:5174",
     ]
     # Hard caps on player/admin free-text input (cost/abuse guard).
+    # max_prompt_chars covers the admin "generate world from prompt" box —
+    # raised to fit multi-page world briefs (rich description, lore, tone
+    # notes, sample voice, …). Both modern cloud LLMs (gpt-5.x, 200k+ ctx)
+    # and the local qwen3-30b-32k (32k ctx) handle this comfortably.
     max_turn_chars: int = 2000
-    max_prompt_chars: int = 4000
+    max_prompt_chars: int = 50000
 
 
 class ModerationCfg(BaseModel):
