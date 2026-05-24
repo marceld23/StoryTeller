@@ -84,6 +84,12 @@
               oninput={(e) => (item[f.key] = strToTags((e.target as HTMLInputElement).value))}
               placeholder="komma, getrennt"
             />
+          {:else if f.type === 'select'}
+            <select bind:value={item[f.key]}>
+              {#each (f.options ?? []) as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
           {:else}
             <input bind:value={item[f.key]} />
           {/if}

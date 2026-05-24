@@ -667,12 +667,31 @@ def reindex_world(world_id: str) -> dict:
 
 # keys the model must return for each content kind (mirrors schema.py)
 _SUGGEST_SHAPES: dict[str, list[str]] = {
-    "place": ["name", "description", "tags"],
-    "person": ["name", "role", "description", "relations", "tags"],
+    "region": ["name", "description", "tags"],
+    "place": ["name", "description", "region", "contains", "adjacent",
+              "tags"],
+    "faction": ["name", "description", "goals", "allies", "enemies",
+                "relations", "tags"],
+    "person": ["name", "role", "description", "relations", "faction",
+               "faction_role", "tags"],
     "item": ["name", "description", "properties", "tags"],
+    "creature": ["name", "description", "habitat", "threat_level", "tags"],
     "glossary": ["term", "definition"],
     "history": ["when", "title", "description"],
     "fragment": ["title", "text", "tags"],
+}
+
+# List-typed fields per kind — the suggest endpoint coerces these to
+# list[str] so the editor always gets a real array, even if the LLM
+# returned a single string or null.
+_SUGGEST_LIST_FIELDS: dict[str, set[str]] = {
+    "place": {"tags", "contains", "adjacent"},
+    "faction": {"tags", "allies", "enemies"},
+    "person": {"tags"},
+    "item": {"tags"},
+    "creature": {"tags"},
+    "region": {"tags"},
+    "fragment": {"tags"},
 }
 
 
@@ -720,13 +739,16 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
     except Exception as exc:
         raise HTTPException(502, f"gen model error: {exc!r}") from exc
 
-    # keep only known keys; coerce tags to list[str], other fields to str
+    # keep only known keys; coerce list fields to list[str], scalar fields
+    # to str. list_fields covers the per-kind list extensions
+    # (contains/adjacent/allies/enemies) plus the universal `tags`.
+    list_fields = _SUGGEST_LIST_FIELDS.get(kind, set()) | {"tags"}
     piece: dict = {}
     for k in keys:
         if k not in data:
             continue
         v = data[k]
-        if k == "tags":
+        if k in list_fields:
             if isinstance(v, str):
                 v = [t.strip() for t in v.split(",") if t.strip()]
             elif not isinstance(v, list):

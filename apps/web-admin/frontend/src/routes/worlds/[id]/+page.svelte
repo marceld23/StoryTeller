@@ -19,8 +19,11 @@
   let waitSounds: string[] = $state([]);
 
   // ----- Tab state (URL-persistent: ?tab=orte) -----
-  type TabId = 'grundlagen' | 'ton' | 'orte' | 'personen' | 'items' | 'lore' | 'zufall' | 'notizen';
-  const TAB_IDS: TabId[] = ['grundlagen', 'ton', 'orte', 'personen', 'items', 'lore', 'zufall', 'notizen'];
+  type TabId = 'grundlagen' | 'ton' | 'regionen' | 'orte' | 'fraktionen'
+    | 'personen' | 'items' | 'kreaturen' | 'lore' | 'zufall' | 'notizen';
+  const TAB_IDS: TabId[] = ['grundlagen', 'ton', 'regionen', 'orte',
+    'fraktionen', 'personen', 'items', 'kreaturen', 'lore', 'zufall',
+    'notizen'];
   let tab: TabId = $state('grundlagen');
 
   // User notes (Phase A/B): notes the player added via "Vermerken: …"
@@ -126,9 +129,12 @@
   // make sure optional containers exist so binding doesn't explode
   function normalize(w: any): any {
     w.story_patterns ??= [];
+    w.regions ??= [];
     w.places ??= [];
+    w.factions ??= [];
     w.persons ??= [];
     w.items ??= [];
+    w.creatures ??= [];
     w.glossary ??= [];
     w.history ??= [];
     w.fragments ??= [];
@@ -136,7 +142,42 @@
     w.tone ??= { darkness: 2, humor: 1, romance: 1, action: 3, horror: 1, pacing: 'medium', notes: '' };
     w.blueprint ??= { premise: '', beats: [], escalation_rule: '' };
     w.blueprint.beats ??= [];
+    // tech_magic is allowed to stay null (no system at all); we just
+    // normalise the inner shape lazily when the editor needs it (see
+    // ensureTechMagic). Existing worlds without the field load fine.
+    // Also normalise the new per-entry fields on places/persons/
+    // creatures so binding doesn't trip on undefined when the world
+    // was generated with the old pipeline.
+    for (const p of w.places) {
+      p.region ??= ''; p.contains ??= []; p.adjacent ??= [];
+    }
+    for (const p of w.persons) {
+      p.faction ??= ''; p.faction_role ??= '';
+    }
+    for (const c of w.creatures) {
+      c.habitat ??= ''; c.threat_level ??= 'medium';
+    }
     return w;
+  }
+
+  function ensureTechMagic() {
+    world.tech_magic ??= {
+      kind: 'neither', description: '', rules: [], cost_or_risk: ''
+    };
+    world.tech_magic.rules ??= [];
+  }
+  function addRule() {
+    ensureTechMagic();
+    world.tech_magic.rules = [...world.tech_magic.rules, ''];
+  }
+  function rmRule(i: number) {
+    if (!world.tech_magic) return;
+    world.tech_magic.rules = world.tech_magic.rules.filter(
+      (_: any, idx: number) => idx !== i);
+  }
+  function clearTechMagic() {
+    if (!confirm('Tech/Magie-System komplett entfernen?')) return;
+    world.tech_magic = null;
   }
 
   async function save() {
@@ -241,12 +282,18 @@
       <button class:active={tab === 'grundlagen'} onclick={() => setTab('grundlagen')}>Grundlagen</button>
       <button class:active={tab === 'ton'} onclick={() => setTab('ton')}>Ton &amp; Bogen
         <span class="count">{(world.blueprint.beats ?? []).length}</span></button>
+      <button class:active={tab === 'regionen'} onclick={() => setTab('regionen')}>Regionen
+        <span class="count">{world.regions.length}</span></button>
       <button class:active={tab === 'orte'} onclick={() => setTab('orte')}>Orte
         <span class="count">{world.places.length}</span></button>
+      <button class:active={tab === 'fraktionen'} onclick={() => setTab('fraktionen')}>Fraktionen
+        <span class="count">{world.factions.length}</span></button>
       <button class:active={tab === 'personen'} onclick={() => setTab('personen')}>Personen
         <span class="count">{world.persons.length}</span></button>
       <button class:active={tab === 'items'} onclick={() => setTab('items')}>Gegenstände
         <span class="count">{world.items.length}</span></button>
+      <button class:active={tab === 'kreaturen'} onclick={() => setTab('kreaturen')}>Kreaturen
+        <span class="count">{world.creatures.length}</span></button>
       <button class:active={tab === 'lore'} onclick={() => setTab('lore')}>Lore
         <span class="count">{world.glossary.length + world.history.length + world.fragments.length}</span></button>
       <button class:active={tab === 'zufall'} onclick={() => setTab('zufall')}>Zufallslisten
@@ -302,12 +349,64 @@
           <label><span>Stimmung</span><textarea bind:value={world.mood} rows="2"></textarea></label>
           <label><span>Ambiente</span><textarea bind:value={world.ambience} rows="2"></textarea></label>
         </div>
-        <label><span>Physik/Magie</span>
+        <label><span>Physik/Magie (Kurz-Zusammenfassung, freitext — gilt
+          immer; die strukturierte Spec unten ergänzt sie)</span>
           <textarea bind:value={world.magic_physics} rows="5"></textarea>
         </label>
         <label><span>Story-Patterns (komma)</span>
           <input value={patternsStr()} oninput={(e) => setPatterns((e.target as HTMLInputElement).value)} />
         </label>
+      </section>
+
+      <section>
+        <h3>Tech / Magie-System (strukturiert)</h3>
+        <p class="hint">
+          Strukturierte Spec, die der Erzähler bei Fragen nach Regeln /
+          Möglichkeiten konsultiert. Jede Regel ist ein kurzer Satz
+          (z. B. „Teleportation braucht einen bekannten Anker-Punkt.").
+          Lass das Feld leer (auf „—") wenn die Welt keine besonderen
+          Tech/Magie-Regeln hat.
+        </p>
+        {#if !world.tech_magic}
+          <div class="row">
+            <button onclick={ensureTechMagic}>+ Tech/Magie-System anlegen</button>
+            <span class="hint">— aktuell: keine strukturierte Spec.</span>
+          </div>
+        {:else}
+          <div class="grid">
+            <label><span>Art</span>
+              <select bind:value={world.tech_magic.kind}>
+                <option value="neither">— keine (alltägliche Welt)</option>
+                <option value="technology">technology</option>
+                <option value="magic">magic</option>
+                <option value="both">both (Science-Fantasy)</option>
+              </select>
+            </label>
+            <label><span>Kosten / Risiken</span>
+              <input bind:value={world.tech_magic.cost_or_risk}
+                placeholder="z. B. kostet einen Atemzug Erinnerung" />
+            </label>
+          </div>
+          <label><span>Beschreibung (2–4 Sätze, wie fühlt sich das System an)</span>
+            <textarea bind:value={world.tech_magic.description} rows="4"></textarea>
+          </label>
+          <h4>Regeln <button onclick={addRule}>+ Regel</button></h4>
+          {#if world.tech_magic.rules.length === 0}
+            <p class="hint">Noch keine Regeln. „+ Regel" für je einen kurzen Satz.</p>
+          {/if}
+          {#each world.tech_magic.rules as r, i (i)}
+            <div class="row">
+              <input placeholder="kurze Regel (1 Satz)"
+                bind:value={world.tech_magic.rules[i]} />
+              <button class="danger" onclick={() => rmRule(i)}>×</button>
+            </div>
+          {/each}
+          <div class="row" style="margin-top: 0.7rem">
+            <button class="danger" onclick={clearTechMagic}>
+              System komplett entfernen
+            </button>
+          </div>
+        {/if}
       </section>
     {/if}
 
@@ -351,8 +450,16 @@
       </section>
     {/if}
 
+    {#if tab === 'regionen'}
+      <ContentList spec={spec('regions')} bind:items={world.regions} worldId={page.params.id} />
+    {/if}
+
     {#if tab === 'orte'}
       <ContentList spec={spec('places')} bind:items={world.places} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'fraktionen'}
+      <ContentList spec={spec('factions')} bind:items={world.factions} worldId={page.params.id} />
     {/if}
 
     {#if tab === 'personen'}
@@ -361,6 +468,10 @@
 
     {#if tab === 'items'}
       <ContentList spec={spec('items')} bind:items={world.items} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'kreaturen'}
+      <ContentList spec={spec('creatures')} bind:items={world.creatures} worldId={page.params.id} />
     {/if}
 
     {#if tab === 'lore'}

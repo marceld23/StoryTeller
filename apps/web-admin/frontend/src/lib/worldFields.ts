@@ -3,7 +3,9 @@
 export type FieldSpec = {
   key: string;
   label: string;
-  type: 'text' | 'textarea' | 'tags';
+  type: 'text' | 'textarea' | 'tags' | 'select';
+  /** Options for type=select (each {value, label}). */
+  options?: { value: string; label: string }[];
 };
 
 export type KindSpec = {
@@ -19,6 +21,17 @@ export type KindSpec = {
 
 export const CONTENT_KINDS: KindSpec[] = [
   {
+    prop: 'regions',
+    suggestKind: 'region',
+    label: 'Regionen',
+    titleKey: 'name',
+    fields: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'description', label: 'Beschreibung', type: 'textarea' },
+      { key: 'tags', label: 'Tags', type: 'tags' }
+    ]
+  },
+  {
     prop: 'places',
     suggestKind: 'place',
     label: 'Orte',
@@ -26,6 +39,24 @@ export const CONTENT_KINDS: KindSpec[] = [
     fields: [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'description', label: 'Beschreibung', type: 'textarea' },
+      { key: 'region', label: 'Region (Name einer Region)', type: 'text' },
+      { key: 'contains', label: 'Enthält (Sub-Orte, komma)', type: 'tags' },
+      { key: 'adjacent', label: 'Grenzt an (komma)', type: 'tags' },
+      { key: 'tags', label: 'Tags', type: 'tags' }
+    ]
+  },
+  {
+    prop: 'factions',
+    suggestKind: 'faction',
+    label: 'Fraktionen',
+    titleKey: 'name',
+    fields: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'description', label: 'Beschreibung', type: 'textarea' },
+      { key: 'goals', label: 'Ziele (1 Satz)', type: 'text' },
+      { key: 'allies', label: 'Verbündete (komma)', type: 'tags' },
+      { key: 'enemies', label: 'Gegner (komma)', type: 'tags' },
+      { key: 'relations', label: 'Beziehungs-Nuancen', type: 'text' },
       { key: 'tags', label: 'Tags', type: 'tags' }
     ]
   },
@@ -38,7 +69,9 @@ export const CONTENT_KINDS: KindSpec[] = [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'role', label: 'Rolle', type: 'text' },
       { key: 'description', label: 'Beschreibung', type: 'textarea' },
-      { key: 'relations', label: 'Beziehungen', type: 'text' },
+      { key: 'relations', label: 'Beziehungen (Personen, freitext)', type: 'text' },
+      { key: 'faction', label: 'Fraktion (Name oder leer)', type: 'text' },
+      { key: 'faction_role', label: 'Rolle in der Fraktion', type: 'text' },
       { key: 'tags', label: 'Tags', type: 'tags' }
     ]
   },
@@ -51,6 +84,28 @@ export const CONTENT_KINDS: KindSpec[] = [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'description', label: 'Beschreibung', type: 'textarea' },
       { key: 'properties', label: 'Eigenschaften', type: 'textarea' },
+      { key: 'tags', label: 'Tags', type: 'tags' }
+    ]
+  },
+  {
+    prop: 'creatures',
+    suggestKind: 'creature',
+    label: 'Kreaturen',
+    titleKey: 'name',
+    fields: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'description', label: 'Beschreibung', type: 'textarea' },
+      { key: 'habitat', label: 'Lebensraum (Region/Ortstyp)', type: 'text' },
+      {
+        key: 'threat_level',
+        label: 'Gefahrenstufe',
+        type: 'select',
+        options: [
+          { value: 'low', label: 'low — harmlos' },
+          { value: 'medium', label: 'medium — gefährlich' },
+          { value: 'high', label: 'high — tödlich' }
+        ]
+      },
       { key: 'tags', label: 'Tags', type: 'tags' }
     ]
   },
@@ -91,6 +146,10 @@ export const CONTENT_KINDS: KindSpec[] = [
 /** Build an empty record for a given kind's fields. */
 export function emptyPiece(spec: KindSpec): Record<string, unknown> {
   const o: Record<string, unknown> = {};
-  for (const f of spec.fields) o[f.key] = f.type === 'tags' ? [] : '';
+  for (const f of spec.fields) {
+    if (f.type === 'tags') o[f.key] = [];
+    else if (f.type === 'select') o[f.key] = f.options?.[0]?.value ?? '';
+    else o[f.key] = '';
+  }
   return o;
 }

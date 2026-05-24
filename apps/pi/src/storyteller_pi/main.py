@@ -266,14 +266,35 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     # --- optional spoken intro at start ---
-    # Two separately-toggleable parts (both default ON, persisted in
-    # data/settings.json):
-    #   intro_enabled         — short greeting ("Hi, ich bin Jarvis …")
-    #   intro_commands_enabled — list of in-story voice commands
-    # Both are cached, so this is offline-safe and tokens-free.
+    # Three sequential cues (each cached, offline-safe, no tokens):
+    #   welcome              — short "Willkommen beim Geschichtenerzähler"
+    #                          ALWAYS plays so the player hears the device
+    #                          is alive after boot.
+    #   intro_enabled        — Jarvis greeting + "Sag Hey Jarvis …"
+    #   intro_commands_enabled — list of in-story voice commands; the
+    #                          final sentence is the wake-hint, so the
+    #                          player knows the device is now idle.
     if speak and not text_mode:
         from storyteller_hardware.runtime import load_settings
 
+        # Bake any voice prompts whose i18n text changed since the
+        # cache was last built (per-prompt staleness — only the
+        # touched ones cost TTS time). Wrapped so a temporarily
+        # unreachable TTS endpoint at boot doesn't block the loop:
+        # missing prompts still live-fallback at play time when
+        # cfg.voice_prompts.allow_live_fallback is on.
+        if cfg.voice_prompts.enabled:
+            try:
+                built = prompts.build()
+                if built:
+                    log.info("voice prompts re-baked: %s",
+                             ", ".join(built))
+            except Exception as exc:
+                log.warning("voice-prompt bake at startup failed (%r); "
+                            "missing prompts will be live-synth'd on "
+                            "first play.", exc)
+
+        prompts.play("welcome", backend)
         _st = load_settings(cfg)
         if _st.get("intro_enabled", True):
             prompts.play("intro", backend)

@@ -68,7 +68,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "Geschichte beenden speichert und führt zurück "
                            "zur Welt-Auswahl. "
                            "Beenden, Schluss oder Ausschalten fährt das "
-                           "Gerät komplett herunter.",
+                           "Gerät komplett herunter. "
+                           "Ich höre jetzt nicht mehr aktiv zu — sag "
+                           "Hey Jarvis, um mich zu wecken.",
         "start_question": "Möchtest du loslegen?",
         "start_question_repeat": "Ich habe das nicht verstanden — "
                                   "bitte sag Ja oder Nein.",
@@ -163,7 +165,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "world. Menu or System opens the settings. "
                            "End story saves and returns to the world "
                            "menu. Shut down or Goodbye powers the "
-                           "device off.",
+                           "device off. "
+                           "I'm no longer actively listening now — say "
+                           "Hey Jarvis to wake me.",
         "start_question": "Would you like to get started?",
         "start_question_repeat": "I didn't catch that — please say "
                                   "yes or no.",

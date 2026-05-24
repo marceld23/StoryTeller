@@ -44,6 +44,15 @@ class VoicePromptCache:
                 or m.get("model") != self.cfg.models.tts
                 or m.get("texts") != self.prompts)
 
+    def _manifest_data(self) -> dict:
+        """Full manifest dict (voice / model / texts), or {} on miss."""
+        if not self._manifest.exists():
+            return {}
+        try:
+            return json.loads(self._manifest.read_text()) or {}
+        except Exception:
+            return {}
+
     def build(self, force: bool = False) -> list[str]:
         """Renders missing announcements (or all on force/change) via TTS.
 
@@ -63,14 +72,24 @@ class VoicePromptCache:
 
         from .tts import get_tts
 
-        rebuild = force or self._stale()
+        # Per-prompt staleness: re-synth ONLY the entries whose text
+        # changed since the cached manifest was written, or whose WAV
+        # is missing. Voice / model swaps invalidate everything.
+        manifest = self._manifest_data()
+        cached_texts: dict = manifest.get("texts") or {}
+        full_rebuild = (force
+                        or not self._manifest.exists()
+                        or manifest.get("voice") != self._voice()
+                        or manifest.get("model") != self.cfg.models.tts)
         tts = get_tts(self.cfg)
         target_sr = 16000
         lead_silence_s = 0.3
         built: list[str] = []
         for pid, text in self.prompts.items():
             wav = self._wav(pid)
-            if wav.exists() and not rebuild:
+            stale = (full_rebuild or not wav.exists()
+                     or cached_texts.get(pid) != text)
+            if not stale:
                 continue
             audio, sr = tts.synthesize(text)
             audio = np.asarray(audio, dtype=np.float32)
