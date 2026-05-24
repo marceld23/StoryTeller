@@ -27,6 +27,97 @@ def _match_keyword(text: str, keywords: dict[str, list[str]]) -> str | None:
     return None
 
 
+def classify_world_choice(cfg: Config, said: str,
+                          worlds: list[dict]) -> str:
+    """Map a spoken phrase to one of the world ids, "load", or "unknown".
+
+    Shared classifier used by:
+      * the voice menu (VoiceMenu._classify_llm calls through to this), and
+      * the start-question shortcut in the Pi voice loop, so a player who
+        answers the boot greeting with "Ja, ich will die Scify-Welt
+        spielen" can skip mode_question + menu and jump straight in.
+
+    `worlds` is the same dict shape the voice menu builds — id, name,
+    display_name, genre, desc. Fails soft to "unknown" on any error
+    (LLM down, malformed JSON, …) so the caller can fall back to the
+    normal flow.
+    """
+    try:
+        from storyteller_core.oai import chat_extras, get_chat_client
+
+        ids = [w["id"] for w in worlds]
+        catalog = "\n".join(
+            f'- id="{w["id"]}" name="{w["name"]}" '
+            f'short="{w["display_name"]}" genre="{w["genre"]}": '
+            f'{w["desc"]}' for w in worlds)
+        # NAME-FIRST: prior wording was too genre-friendly and could
+        # pick a popular sci-fi world when the player clearly named a
+        # different one ("Justus Scify" -> "Sternenfahrt"). Now: match
+        # the spoken phrase against id / name / short / phonetic
+        # variants first; genre is only the last resort when nothing
+        # else fits.
+        sys = (
+            "Map the user's spoken menu choice to exactly one option.\n"
+            "Options are: the world ids below, 'load' (resume a saved "
+            "game), or 'unknown'.\n\n"
+            "MATCHING RULES (strict order — stop at the first that "
+            "fires):\n"
+            "1. NAME MATCH: if the user's phrase clearly contains the "
+            "short name, the full name, the id (with spaces/hyphens "
+            "ignored), or a recognisable phonetic variant of any "
+            "world, return THAT world's id. Treat STT artefacts "
+            "liberally (Justus / Justice / Jüstus, Scify / Sci-Fi / "
+            "Sai-Fai, Sternenfahrt / Sternfahrt are all valid "
+            "matches if they refer to one of the listed worlds).\n"
+            "2. LOAD: if the user wants to resume / load / continue / "
+            "weiter / spielstand a saved game, return 'load'.\n"
+            "3. GENRE FALLBACK: only if NO name match plausibly "
+            "applies, and the user clearly described a genre or "
+            "vibe ('something in space', 'eine Fantasy-Welt'), pick "
+            "the best-matching world by genre.\n"
+            "4. Otherwise return 'unknown'.\n\n"
+            "Do NOT prefer a popular genre over an explicit name. "
+            "If the user said a name, the matching world wins even "
+            "if another world has a more dominant genre.\n\n"
+            f"Answer JSON only: {{\"choice\": \"<one of: "
+            f"{', '.join(ids)}, load, unknown>\"}}\n\n"
+            f"WORLDS:\n{catalog}")
+        r = get_chat_client(cfg, "story").chat.completions.create(
+            model=cfg.models.story_llm,
+            messages=[{"role": "system", "content": sys},
+                      {"role": "user", "content": said}],
+            response_format={"type": "json_object"},
+            **chat_extras(cfg, "story"),
+        )
+        choice = json.loads(r.choices[0].message.content or "{}") \
+            .get("choice", "unknown").strip()
+        log.info("[WorldClassify] said=%r -> choice=%r", said, choice)
+        if choice in ids or choice in ("load", "unknown"):
+            return choice
+    except Exception as exc:
+        log.warning("classify_world_choice failed: %r", exc)
+    return "unknown"
+
+
+def load_world_catalog(cfg: Config) -> list[dict]:
+    """Build the same dict list VoiceMenu uses — id / name / display_name
+    / genre / desc — for every world the registry knows. Used by both
+    the menu UI and the start-question shortcut."""
+    from storyteller_core.worlds.registry import all_world_ids, load_world
+
+    out: list[dict] = []
+    for wid in all_world_ids(cfg):
+        try:
+            w = load_world(cfg, wid)
+            disp = (getattr(w, "display_name", "") or w.name).strip()
+            out.append({"id": w.id, "name": w.name, "display_name": disp,
+                        "genre": w.genre,
+                        "desc": (w.description or "")[:160]})
+        except Exception:
+            continue
+    return out
+
+
 class VoiceMenu:
     def __init__(self, cfg: Config, backend, prompts, stt, leds=None,
                  ww=None, speak: bool = True):
@@ -45,22 +136,10 @@ class VoiceMenu:
 
     # --- world catalog (id, name, display_name, genre, short description) ---
     def _worlds(self) -> list[dict]:
-        from storyteller_core.worlds.registry import all_world_ids, load_world
-
-        out = []
-        for wid in all_world_ids(self.cfg):
-            try:
-                w = load_world(self.cfg, wid)
-                # `display_name` is the short, easy-to-pronounce form used in
-                # the spoken menu (and what the player would actually say);
-                # `name` is the full prose title for the LLM classifier.
-                disp = (getattr(w, "display_name", "") or w.name).strip()
-                out.append({"id": w.id, "name": w.name, "display_name": disp,
-                            "genre": w.genre,
-                            "desc": (w.description or "")[:160]})
-            except Exception:
-                continue
-        return out
+        # Thin wrapper for back-compat — the actual loader is the
+        # shared module-level `load_world_catalog`, also used by the
+        # start-question shortcut in the Pi voice loop.
+        return load_world_catalog(self.cfg)
 
     def _play_world_pick(self, world_id: str, worlds: list[dict]) -> None:
         """Confirm the player's pick aloud. Uses the baked `world_<id>`
@@ -138,64 +217,10 @@ class VoiceMenu:
             log.info("[Menu/Du] (Stille)")
         return said
 
-    # --- LLM intent classification ---
+    # --- LLM intent classification (delegates to shared classifier) ---
     def _classify_llm(self, said: str, worlds: list[dict]) -> str:
         """Returns a world id, 'load', or 'unknown'. Fails soft -> 'unknown'."""
-        try:
-            from storyteller_core.oai import chat_extras, get_chat_client
-
-            ids = [w["id"] for w in worlds]
-            catalog = "\n".join(
-                f'- id="{w["id"]}" name="{w["name"]}" '
-                f'short="{w["display_name"]}" genre="{w["genre"]}": '
-                f'{w["desc"]}' for w in worlds)
-            # NAME-FIRST: prior wording was too genre-friendly and could
-            # pick a popular sci-fi world when the player clearly named a
-            # different one ("Justus Scify" -> "Sternenfahrt"). Now: match
-            # the spoken phrase against id / name / short / phonetic
-            # variants first; genre is only the last resort when nothing
-            # else fits.
-            sys = (
-                "Map the user's spoken menu choice to exactly one option.\n"
-                "Options are: the world ids below, 'load' (resume a saved "
-                "game), or 'unknown'.\n\n"
-                "MATCHING RULES (strict order — stop at the first that "
-                "fires):\n"
-                "1. NAME MATCH: if the user's phrase clearly contains the "
-                "short name, the full name, the id (with spaces/hyphens "
-                "ignored), or a recognisable phonetic variant of any "
-                "world, return THAT world's id. Treat STT artefacts "
-                "liberally (Justus / Justice / Jüstus, Scify / Sci-Fi / "
-                "Sai-Fai, Sternenfahrt / Sternfahrt are all valid "
-                "matches if they refer to one of the listed worlds).\n"
-                "2. LOAD: if the user wants to resume / load / continue / "
-                "weiter / spielstand a saved game, return 'load'.\n"
-                "3. GENRE FALLBACK: only if NO name match plausibly "
-                "applies, and the user clearly described a genre or "
-                "vibe ('something in space', 'eine Fantasy-Welt'), pick "
-                "the best-matching world by genre.\n"
-                "4. Otherwise return 'unknown'.\n\n"
-                "Do NOT prefer a popular genre over an explicit name. "
-                "If the user said a name, the matching world wins even "
-                "if another world has a more dominant genre.\n\n"
-                f"Answer JSON only: {{\"choice\": \"<one of: "
-                f"{', '.join(ids)}, load, unknown>\"}}\n\n"
-                f"WORLDS:\n{catalog}")
-            r = get_chat_client(self.cfg, "story").chat.completions.create(
-                model=self.cfg.models.story_llm,
-                messages=[{"role": "system", "content": sys},
-                          {"role": "user", "content": said}],
-                response_format={"type": "json_object"},
-                **chat_extras(self.cfg, "story"),
-            )
-            choice = json.loads(r.choices[0].message.content or "{}") \
-                .get("choice", "unknown").strip()
-            log.info("[Menu/LLM] said=%r -> choice=%r", said, choice)
-            if choice in ids or choice in ("load", "unknown"):
-                return choice
-        except Exception as exc:
-            log.warning("classify_llm failed: %r", exc)
-        return "unknown"
+        return classify_world_choice(self.cfg, said, worlds)
 
     def run(self) -> dict:
         worlds = self._worlds()

@@ -22,8 +22,12 @@ into the story, following a dramatic arc.
    until you say the wake word.
 3. Say **"Hey Jarvis"**. The system answers: *"Would you like to get
    started?"* — answer *yes* to continue, *no* (or stay silent) to drop
-   back into idle.
+   back into idle. **Shortcut:** if you also name a world in the yes
+   answer (*"Ja, ich will die Scify-Welt spielen"*, *"Yes, Starfaring
+   please"*), the Pi skips the mode question and the world menu and
+   jumps straight into that world.
 4. *"Would you like to play an existing world, or create a new one?"*
+   (only asked when step 3's answer didn't already pick a world)
    * **Existing** → the world menu opens (*"Which world…?"*): answer
      naturally, e.g. *"something in space"* → Starfaring, *"dragons
      and magic"* → Everwood. (Recognition is LLM-based, so free
@@ -129,8 +133,11 @@ The browser-based player UI mirrors the same features as voice and CLI:
 3. The LED shows *think* and a per-world ambience plays while the system
    works; then the narrator answers (LED *speak*).
 4. **Follow-up:** right after the narrator finishes you may answer
-   **directly without the wake word**. If you stay silent it goes idle and
-   briefly reminds you to say *"Hey Jarvis"* to wake it again.
+   **directly without the wake word**. The mic stays open across several
+   silent rounds (default ~18 s, configurable via
+   `capture.silent_follow_patience`) so you have time to think between
+   turns; only after the patience is exhausted does the system slip back
+   to wake-word mode and briefly remind you to say *"Hey Jarvis"*.
 
 Tips: ask short questions ("Who is Suri?") — you get a brief answer without
 advancing the plot. The narrator keeps to a macro arc and dynamically

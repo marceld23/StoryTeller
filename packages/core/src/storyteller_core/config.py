@@ -137,6 +137,12 @@ class CaptureCfg(BaseModel):
     # also more ambient noise). Defaults match the historical hardcoded values.
     voiced_multiplier: float = 3.0   # how far above ambient noise counts as speech
     silence_floor_rms: float = 300.0 # minimum RMS in quiet rooms (prevents over-sensitivity)
+    # How many *silent* follow-up listen cycles the Pi voice loop tries
+    # before falling back to wake-word mode (and announcing wake_hint).
+    # Each silent round takes ~start_timeout_s seconds, so default 3
+    # gives the player ~18 s to think before the system goes back to
+    # idle. Set to 1 for the legacy single-shot behaviour.
+    silent_follow_patience: int = 3
 
 
 class GeneralCfg(BaseModel):

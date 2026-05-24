@@ -325,21 +325,25 @@ def cmd_run(args: argparse.Namespace) -> int:
         backend.record_until_silence(wav)
         return stt.transcribe(wav).strip()
 
-    def _await_start_yes() -> bool:
-        """Block on wake-word, then ask the start question. Returns True
-        once the player confirms; loops on no / unclear / silence."""
+    def _await_start_yes() -> tuple[bool, str]:
+        """Block on wake-word, then ask the start question. Returns
+        ``(True, answer_text)`` once the player confirms (with the FULL
+        transcribed answer so callers can mine extra intent — e.g. a
+        world name baked into the yes), else loops on no / unclear /
+        silence and returns ``(False, "")`` only when the wake-word
+        listener exits."""
         while True:
             leds.idle()
             if not ww.listen_blocking():
                 # Wake-word listener exited (e.g. shutdown) — give up.
-                return False
+                return (False, "")
             if speak:
                 prompts.play("start_question", backend)
             answer = _record_answer()
             rp(f"[cyan][Du][/cyan] {answer}")
             verdict = _yesno(answer)
             if verdict == "yes":
-                return True
+                return (True, answer)
             if verdict == "no":
                 # Sofort still — kein Bestätigungston, zurück in Idle.
                 continue
@@ -349,7 +353,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             answer = _record_answer()
             rp(f"[cyan][Du][/cyan] {answer}")
             if _yesno(answer) == "yes":
-                return True
+                return (True, answer)
             # Bei zweitem Miss zurück in Idle (Wake-Word-Wait).
 
     def _ask_play_mode() -> str:
@@ -578,27 +582,48 @@ def cmd_run(args: argparse.Namespace) -> int:
         elif text_mode or ww is None:
             world = load_world(cfg, "sternenfahrt")
         else:
-            if not _await_start_yes():
+            yes, yes_answer = _await_start_yes()
+            if not yes:
                 rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
                 return "shutdown"
-            mode = _ask_play_mode()
-            if mode == "create":
-                # Voice-mode world generation. _design_world_interactively
-                # runs the interview, calls generate_world under the
-                # neutral wait-sound, and asks "start now or back to
-                # menu". On None we fall through to the regular menu so
-                # the just-saved world (if any) can be picked there.
-                world = _design_world_interactively()
-                if world is None:
+            # Shortcut: if the yes-answer ALSO named an existing world
+            # ("Ja, ich will die Scify-Welt spielen") we skip both the
+            # mode question and the world menu and jump straight in.
+            # Classifier returns the world id, "load", or "unknown";
+            # only a concrete world id triggers the shortcut.
+            from storyteller_hardware.menu.voice_menu import (
+                classify_world_choice,
+                load_world_catalog,
+            )
+            catalog = load_world_catalog(cfg)
+            catalog_ids = {w["id"] for w in catalog}
+            world = None
+            if yes_answer.strip() and catalog:
+                pick = classify_world_choice(cfg, yes_answer, catalog)
+                if pick in catalog_ids:
+                    log.info("start-yes shortcut: %r -> world %r",
+                             yes_answer, pick)
+                    world = load_world(cfg, pick)
+            if world is None:
+                mode = _ask_play_mode()
+                if mode == "create":
+                    # Voice-mode world generation.
+                    # _design_world_interactively runs the interview,
+                    # calls generate_world under the neutral wait-
+                    # sound, and asks "start now or back to menu". On
+                    # None we fall through to the regular menu so the
+                    # just-saved world (if any) can be picked there.
+                    world = _design_world_interactively()
+                    if world is None:
+                        return "next_story"
+                elif mode == "existing":
+                    sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww,
+                                    speak).run()
+                    wid = sel.get("world_id") or "sternenfahrt"
+                    world = load_world(cfg, wid)
+                else:
+                    # unclear after retry → back to wake-word idle
                     return "next_story"
-            elif mode == "existing":
-                sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww,
-                                speak).run()
-                wid = sel.get("world_id") or "sternenfahrt"
-                world = load_world(cfg, wid)
-            else:
-                # unclear after retry → back to wake-word idle
-                return "next_story"
         rp(f"[bold]Welt:[/bold] {world.name}")
 
         # Play the in-story command briefing now that a story is actually
@@ -892,10 +917,16 @@ def cmd_run(args: argparse.Namespace) -> int:
                      speak=speak)
             return None
 
-        # follow-up: after the narrator speaks, listen once WITHOUT the wake word
+        # follow-up: after the narrator speaks, listen WITHOUT the wake
+        # word. Stay in follow-up mode across `silent_follow_patience`
+        # silent rounds (~6 s each) before falling back to wake-word
+        # mode + the audible wake_hint. The old behaviour (drop straight
+        # to wake-word after a single silent follow-up) was nagging the
+        # player with a hint every time they paused to think.
         follow_enabled = bool(ww) and cfg.wakeword.follow_up
         # A barge-in always leads straight to listening (even if follow-up is off).
         pending_follow = follow_enabled or opening_interrupted
+        silent_follow_count = 0            # consecutive silent follow-up rounds
         hinted = False                     # wake_hint announced ONCE per idle
         cap_pause_announced = False        # daily-cap pause prompt: once per idle
         try:
@@ -931,6 +962,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     if rc == "end_story":
                         return "next_story"
                     pending_follow = follow_enabled
+                    silent_follow_count = 0  # player just interacted
                     continue
                 try:
                     if text_mode:
@@ -949,6 +981,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                             rp("[dim]… sprich direkt weiter …[/dim]")
                         elif not ww:
                             input("[Enter zum Sprechen, Strg+C beendet] ")
+                        # Snapshot whether we entered this iter as a
+                        # follow-up listen — silent-retry logic below
+                        # needs to know which branch we came from
+                        # (record_until_silence is destructive of
+                        # pending_follow either way).
+                        was_follow = bool(ww and pending_follow)
                         pending_follow = False
                         leds.listen()
                         with tempfile.NamedTemporaryFile(suffix=".wav",
@@ -959,7 +997,22 @@ def cmd_run(args: argparse.Namespace) -> int:
                     rp(f"[cyan][Du][/cyan] {said}")
                     low = said.lower()
                     if not said:
+                        # Empty STT during a follow-up listen → don't
+                        # immediately fall back to wake-word + hint
+                        # (that was nagging the player every time they
+                        # paused). Stay in follow-up for up to
+                        # `silent_follow_patience` silent rounds before
+                        # giving up. text_mode doesn't have follow-up,
+                        # and wake-word silence already handles itself
+                        # via listen_blocking().
+                        if was_follow:
+                            silent_follow_count += 1
+                            if silent_follow_count < cfg.capture.silent_follow_patience:
+                                pending_follow = True  # try follow-up again
+                            else:
+                                silent_follow_count = 0  # reset for wake-mode
                         continue
+                    silent_follow_count = 0
                     toks = [t.strip(",.!?;:") for t in low.split()]
                     # ----- voice command: "Vermerken: …" -----
                     # If the player STARTS the utterance with a note keyword,
