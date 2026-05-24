@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Convenience wrapper for tools/switch-models.py — runs it via the
+# project's virtualenv so --rebuild (which imports storyteller_core /
+# storyteller_voice) works without any extra setup.
+#
+# Examples:
+#   tools/switch-models                  # show status
+#   tools/switch-models local            # activate local variant
+#   tools/switch-models openai --rebuild # activate OpenAI + re-render prompts
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec .venv/bin/python tools/switch-models.py "$@"
