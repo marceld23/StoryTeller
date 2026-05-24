@@ -17,6 +17,25 @@
   let capPaused = $state(false);
   let noteInput = $state('');
   let showNote = $state(false);
+  // Loading-state surface for the start sequence: createSession's
+  // engine.opening() can block ~25–60 s on a fresh world, and even on
+  // resume the TTS synthesis of the last narration takes another
+  // 5–10 s before audio arrives. Without an explicit indicator the
+  // voice page looks frozen after the player hits "Beginnen".
+  let starting = $state(false);
+  let startStatus = $state('');
+  let startElapsed = $state(0);
+  let startTick: number | undefined = undefined;
+  let openingHeard = $state(false);
+  let log = $state('');                       // debug / autoplay-fallback note
+  let pendingAudio: HTMLAudioElement | null = $state(null);
+
+  function playPending() {
+    if (!pendingAudio) return;
+    pendingAudio.play().then(
+      () => { log = ''; pendingAudio = null; },
+      (e) => { log = `Konnte nicht abspielen: ${e?.message || e}`; });
+  }
 
   let ws: WebSocket | null = null;
   let mediaRecorder: MediaRecorder | null = null;
@@ -69,28 +88,62 @@
     _checkMicAvailable();
   });
 
+  function _setStartStatus(label: string) {
+    // Same loading session — only update the label; the counter keeps
+    // ticking across phases so the player sees one continuous timer
+    // instead of three confusing restarts.
+    starting = true;
+    startStatus = label;
+    if (startTick === undefined) {
+      startElapsed = 0;
+      startTick = window.setInterval(() => (startElapsed += 1), 1000);
+    }
+  }
+  function _stopCounter() {
+    starting = false;
+    startStatus = '';
+    if (startTick !== undefined) {
+      window.clearInterval(startTick);
+      startTick = undefined;
+    }
+  }
+
   async function start() {
-    if (!chosenWorld) return;
+    if (!chosenWorld || starting) return;
     error = '';
     lines = [];
+    openingHeard = false;
     if (!_checkMicAvailable()) {
       error = secureContextHint;
       return;
     }
     try {
+      _setStartStatus('Mikrofon-Zugriff…');
       // mic permission up front
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+      _setStartStatus('Eröffnung wird vorbereitet (kann ~30 s dauern)…');
       const sess = await createSession(chosenWorld);
       threadId = sess.thread_id;
 
+      _setStartStatus('Verbindung wird hergestellt…');
       ws = openVoiceSocket(threadId, chosenWorld);
-      ws.onopen = () => (connected = true);
-      ws.onclose = () => (connected = false);
-      ws.onerror = () => (error = 'WebSocket-Fehler');
+      ws.onopen = () => {
+        connected = true;
+        _setStartStatus('Erzähler liest die Eröffnung vor…');
+      };
+      ws.onclose = () => {
+        connected = false;
+        if (!openingHeard) _stopCounter();
+      };
+      ws.onerror = () => {
+        error = 'WebSocket-Fehler';
+        _stopCounter();
+      };
       ws.onmessage = (ev) => handleMessage(ev);
     } catch (e) {
       error = `Mikrofon/Verbindung: ${e}`;
+      _stopCounter();
     }
   }
 
@@ -125,6 +178,10 @@
         else if (msg.type === 'narration') {
           thinking = false; stopWaitSound();
           lines.push({ who: 'narrator', text: msg.text });
+          // First narration after start = opening arrived → loading
+          // indicator can step down. Subsequent narrations don't
+          // touch the loading flag.
+          if (!openingHeard) { openingHeard = true; _stopCounter(); }
         } else if (msg.type === 'audio_done') { thinking = false; stopWaitSound(); }
         else if (msg.type === 'daily_cap_exceeded') {
           thinking = false; stopWaitSound();
@@ -158,7 +215,15 @@
       };
       audio.onpause = () => (playing = false);
       audio.onplay = () => (playing = true);
-      audio.play().catch(() => {});
+      // Surface autoplay-blocked errors so the player can see why
+      // there's no sound — browsers gate autoplay after long async
+      // delays (~30 s opening = lost gesture context). Show a one-tap
+      // "Audio abspielen" prompt as a fallback.
+      audio.play().catch((e) => {
+        log = `Audio blockiert (Browser-Autoplay): ${e?.message || e}. `
+            + 'Tippe auf "Eröffnung abspielen".';
+        pendingAudio = audio;
+      });
     }
   }
 
@@ -242,18 +307,38 @@
       {#if worlds.length === 0}
         <p>Lade Welten…</p>
       {:else}
-        <select bind:value={chosenWorld}>
+        <select bind:value={chosenWorld} disabled={starting}>
           <option value="">– bitte wählen –</option>
           {#each worlds as w (w.id)}
             <option value={w.id}>{w.name} ({w.genre})</option>
           {/each}
         </select>
-        <button onclick={start} disabled={!chosenWorld || !micAvailable}>
-          Beginnen (Mikrofon)
+        <button onclick={start} disabled={!chosenWorld || !micAvailable || starting}>
+          {starting ? `…lädt (${startElapsed}s)` : 'Beginnen (Mikrofon)'}
         </button>
+        {#if starting}
+          <div class="loading">
+            <span class="spinner"></span>
+            <span>{startStatus} <strong>{startElapsed}s</strong></span>
+          </div>
+        {/if}
       {/if}
     </section>
   {:else}
+    {#if starting}
+      <div class="loading inline">
+        <span class="spinner"></span>
+        <span>{startStatus} <strong>{startElapsed}s</strong></span>
+      </div>
+    {/if}
+    {#if log}
+      <div class="autoplay-fallback">
+        <span>{log}</span>
+        {#if pendingAudio}
+          <button onclick={playPending}>▶ Eröffnung abspielen</button>
+        {/if}
+      </div>
+    {/if}
     {#if capPaused}
       <p class="banner cap">
         ⛔ Tagesbudget erreicht. Spielstand ist gespeichert.
@@ -364,6 +449,34 @@
     margin: 0.6rem 0; color: var(--fg);
   }
   .mic-warn p { margin: 0.3rem 0 0; font-size: 0.9rem; line-height: 1.45; }
+  .loading {
+    display: flex; align-items: center; gap: 0.55rem;
+    background: var(--surface);
+    border-left: 3px solid #6fc3df;
+    padding: 0.55rem 0.8rem; border-radius: 4px;
+    margin: 0.7rem 0; color: var(--fg);
+  }
+  .loading.inline { font-size: 0.92rem; }
+  .loading strong { color: #6fc3df; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.18);
+    border-top-color: #6fc3df; border-radius: 50%;
+    animation: spin 0.9s linear infinite; flex: 0 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .autoplay-fallback {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    background: rgba(255, 200, 0, 0.10);
+    border-left: 3px solid #d4a200;
+    padding: 0.55rem 0.8rem; border-radius: 4px;
+    margin: 0.5rem 0; color: var(--fg); font-size: 0.92rem;
+  }
+  .autoplay-fallback button {
+    background: #6fc3df; color: #10131a; border: none;
+    padding: 0.35rem 0.85rem; border-radius: 4px;
+    cursor: pointer; font-weight: 600;
+  }
   .banner {
     background: var(--surface-2); color: var(--fg);
     border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem;

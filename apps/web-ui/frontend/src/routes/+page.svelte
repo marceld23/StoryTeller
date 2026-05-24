@@ -229,7 +229,10 @@
           </button>
         {/if}
         {#if starting}
-          <p class="hint small">Der Erzähler bereitet die Eröffnung vor — kann ein paar Sekunden dauern.</p>
+          <div class="loading">
+            <span class="spinner"></span>
+            <span>Der Erzähler bereitet die Eröffnung vor… <strong>{startingElapsed}s</strong></span>
+          </div>
         {/if}
       {/if}
       <p class="hint">
@@ -256,7 +259,9 @@
         <div class={'line ' + line.who}>{line.text}</div>
       {/each}
       {#if thinking}
-        <div class="line system">…erzählt nach…</div>
+        <div class="line system">
+          <span class="spinner spinner-inline"></span> …erzählt nach…
+        </div>
       {/if}
     </section>
 
@@ -323,6 +328,25 @@
   .banner.cap { border-left-color: #c25450; }
   .hint { color: var(--muted); font-size: 0.9rem; }
   .hint.small { font-size: 0.85rem; }
+  .loading {
+    display: flex; align-items: center; gap: 0.55rem;
+    background: var(--surface);
+    border-left: 3px solid #6fc3df;
+    padding: 0.55rem 0.8rem; border-radius: 4px;
+    margin: 0.7rem 0; color: var(--fg); font-size: 0.95rem;
+  }
+  .loading strong { color: #6fc3df; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(127,127,127,0.18);
+    border-top-color: #6fc3df; border-radius: 50%;
+    animation: spin 0.9s linear infinite; flex: 0 0 auto;
+  }
+  .spinner.spinner-inline {
+    width: 10px; height: 10px; border-width: 2px;
+    vertical-align: middle; margin-right: 0.3rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .note-box {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
