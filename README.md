@@ -286,6 +286,33 @@ viewable in the admin UI (`/transcripts`).
 
 ---
 
+## How this project came to be
+
+I had my *"bam, AI is real"* moment in 2023. So I built a python
+storyteller bot on a Raspberry Pi with a ReSpeaker mic, hid it
+inside a dummy book, and let it loose on my son's Harry-Potter
+themed birthday party. The "magical book" played a ghost trapped
+inside, dropping plot hooks and silly side-quests for the kids
+all afternoon. Under the hood: gpt-3.5-turbo with tool calls. The
+kids were the experience; the model was just the engine.
+
+A year later it was a Star-Wars-themed birthday, and the same
+hardware became a *"rebel field radio"* the kids could call into
+to talk to "headquarters" and pick up mission updates. Same north
+star: the experience of the kids comes first; the tech disappears.
+
+In 2026 I rewrote the whole thing from scratch with Claude Opus 4.7
+as my pair-programmer. The new system is what you see in this repo:
+a proper LangGraph engine, multi-step world generation, per-role
+LLM endpoints, a structured admin UI, voice + text + Pi-as-
+appliance. At my side throughout: my son **Justus (10)** — tireless
+tester, ruthless feedback-giver, "feature wisher" and "world
+builder". Many of the rough edges that got smoothed out here got
+caught because Justus said *"das ist doof"* at exactly the right
+moment.
+
+---
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how the system is built (engine, apps, data)
