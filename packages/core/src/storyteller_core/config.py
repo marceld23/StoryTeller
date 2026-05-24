@@ -59,6 +59,21 @@ class ModelsCfg(BaseModel):
     # change); a mild 0.2-0.4 noticeably reduces repeated openers/phrases.
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
+    # Per-role reasoning effort for gpt-5.x / o-series. Allowed values:
+    # "none" | "low" | "medium" | "high" | "xhigh" | "" (empty = inherit).
+    # OpenAI docs: gpt-5.4 defaults to "none" (= no chain-of-thought), so
+    # the narrator stays fast unless we opt in; the planner and the world
+    # generator benefit noticeably from "medium" thinking on long briefs
+    # (canon-preservation, JSON-schema adherence over 9 serial calls).
+    # On the gpt-5.5 series the default is "medium" — setting "none" here
+    # explicitly turns reasoning OFF for that role.
+    # Locally hosted servers (Ollama/vLLM with qwen3 etc.) silently ignore
+    # the parameter, so a non-"none" value is safe to leave configured.
+    story_reasoning_effort: str = "low"
+    planner_reasoning_effort: str = "medium"
+    gen_reasoning_effort: str = "medium"
+    # gate inherits planner's effort when left empty (mirrors gate_llm).
+    gate_reasoning_effort: str = ""
     # Per-purpose OpenAI-compatible endpoints (empty = OpenAI). Lets each
     # call type point at a self-hosted server independently. Moderation
     # always uses the default OpenAI endpoint.
@@ -81,6 +96,22 @@ class ModelsCfg(BaseModel):
     @property
     def gate(self) -> str:
         return self.gate_llm or self.planner_llm or self.story_llm
+
+    def reasoning_effort_for(self, role: str) -> str:
+        """Resolve the reasoning effort for a chat role. Empty string falls
+        through to the next role in the same chain that gate_llm/gen_llm
+        already use: gate → planner → story. Unknown roles return ""."""
+        if role == "story":
+            return (self.story_reasoning_effort or "").strip().lower()
+        if role == "planner":
+            return ((self.planner_reasoning_effort or "").strip().lower()
+                    or self.reasoning_effort_for("story"))
+        if role == "gen":
+            return (self.gen_reasoning_effort or "").strip().lower()
+        if role == "gate":
+            return ((self.gate_reasoning_effort or "").strip().lower()
+                    or self.reasoning_effort_for("planner"))
+        return ""
 
 
 class STTCfg(BaseModel):

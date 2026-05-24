@@ -214,7 +214,12 @@ latency-tuned (30 s, 5 retries). Models (all configurable, with admin
 overrides in `data/models.json`): `story_llm` (narrator), `planner_llm`
 (architect + summariser; default = story_llm), `gen_llm` (world/content
 generation; default the larger model), `stt`, `tts`, `embedding`,
-`moderation`; **temperature per role** (narrator/planner/gen).
+`moderation`; **temperature per role** (narrator/planner/gen), plus
+**reasoning effort per role** (`story_reasoning_effort` / `planner_…`
+/ `gen_…` / `gate_…`; values `none|low|medium|high|xhigh|""`; defaults
+`low` for the narrator, `medium` for planner + world gen, gate
+inherits from planner). The kwarg is only forwarded when set to a
+non-`none` value, so older models + local servers stay untouched.
 
 **Custom endpoints:** each purpose has an optional `<purpose>_endpoint`
 (`base_url` + `api_key`, empty = OpenAI), so any call type can point at a

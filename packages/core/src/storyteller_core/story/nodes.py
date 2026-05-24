@@ -28,7 +28,7 @@ from ..i18n import (
     VOICE_SAMPLE_LABEL,
     norm,
 )
-from ..oai import get_chat_client
+from ..oai import get_chat_client, reasoning_kwargs
 from .blueprint import BlueprintTracker
 from .cost import CostTracker
 from .dynamics import INTEGRATION_RULE, StoryDynamics
@@ -76,6 +76,7 @@ def _repair_language(text: str, locale: str, cfg: Config) -> str:
             temperature=0.3,
             messages=[{"role": "system", "content": REPAIR_LANGUAGE_SYS[locale]},
                       {"role": "user", "content": text}],
+            **reasoning_kwargs(cfg, "story"),
         )
         CostLedger(cfg).record_chat_usage(
             role="story", model=cfg.models.story_llm, usage=r.usage)
@@ -521,6 +522,7 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         kw["frequency_penalty"] = cfg.models.frequency_penalty
     if cfg.models.presence_penalty:
         kw["presence_penalty"] = cfg.models.presence_penalty
+    kw.update(reasoning_kwargs(cfg, "story"))
     if use_tools:
         kw["tools"] = TOOLS
 
@@ -801,6 +803,7 @@ def _fold_into_synopsis(
                 {"role": "system", "content": SUMMARIZER_SYS[locale]},
                 {"role": "user", "content": user_msg},
             ],
+            **reasoning_kwargs(cfg, "planner"),
         )
         CostLedger(cfg).record_chat_usage(
             role="planner", model=cfg.models.planner, usage=resp.usage)

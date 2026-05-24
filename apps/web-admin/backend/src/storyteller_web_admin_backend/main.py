@@ -689,7 +689,7 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
     Runs in FastAPI's threadpool (sync def), so a slow gen model blocks one
     worker, not the event loop — fine for a single-user admin tool.
     """
-    from storyteller_core.oai import get_chat_client
+    from storyteller_core.oai import get_chat_client, reasoning_kwargs
 
     cfg = _cfg()
     if world_id not in all_world_ids(cfg):
@@ -715,6 +715,7 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
                       {"role": "user", "content": payload.prompt or
                        f"Schlage einen passenden {kind}-Eintrag vor."}],
             response_format={"type": "json_object"},
+            **reasoning_kwargs(cfg, "gen"),
         )
         data = json.loads(r.choices[0].message.content or "{}")
     except Exception as exc:

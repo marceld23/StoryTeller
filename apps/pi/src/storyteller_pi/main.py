@@ -57,7 +57,7 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
     try:
         import json
 
-        from storyteller_core.oai import get_chat_client
+        from storyteller_core.oai import get_chat_client, reasoning_kwargs
 
         ids = [o[0] for o in options]
         cat = "\n".join(f"- {i}: {d}" for i, d in options)
@@ -70,7 +70,8 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
             model=cfg.models.story_llm,
             messages=[{"role": "system", "content": sysmsg},
                       {"role": "user", "content": said}],
-            response_format={"type": "json_object"})
+            response_format={"type": "json_object"},
+            **reasoning_kwargs(cfg, "story"))
         c = (json.loads(r.choices[0].message.content or "{}")
              .get("choice", "unknown").strip())
         return c if c in ids else "unknown"

@@ -35,7 +35,7 @@ import re
 from collections.abc import Callable
 
 from ..config import Config
-from ..oai import get_chat_client
+from ..oai import get_chat_client, reasoning_kwargs
 from .schema import Beat, Blueprint, World
 
 _log = logging.getLogger("storyteller.gen")
@@ -236,6 +236,7 @@ def _llm_json(cfg: Config, system: str, user: str) -> dict:
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": user}],
         response_format={"type": "json_object"},
+        **reasoning_kwargs(cfg, "gen"),
     )
     ledger.record_chat_usage(role="gen", model=cfg.models.gen, usage=r.usage)
     return json.loads(r.choices[0].message.content or "{}")
@@ -350,12 +351,24 @@ def _generate_list(cfg: Config, kind: str, skeleton: dict, prompt: str,
         "You expand ONE list of an existing world. Return JSON ONLY:\n"
         '{"' + kind + '":' + spec["shape"] + "}\n"
         + spec["instruction"].format(count=spec["count"]) +
+        "\n\nCANON RULE: The user's brief in the world data below "
+        "(DESCRIPTION and ORIGINAL PROMPT) may already mention specific "
+        "entries for this list BY NAME (proper nouns, named places / "
+        "characters / items / factions / terms / events). You MUST "
+        "include every one of those named entries in your output "
+        "verbatim — same spelling, same name. Flesh them out with the "
+        "description / fields the schema requires; do not rename, "
+        "translate, or 'improve' them. Then fill the remaining slots "
+        "up to the requested count with new entries that fit the world "
+        "tone. If the user's brief already provides more named entries "
+        "than the requested count, return ALL of them (the count is a "
+        "lower bound when canon is rich)."
         "\nSame language as the world data. Vary every entry — no near-"
         "duplicates. Output the list ONLY, no commentary."
     )
     user = _world_context(skeleton, prompt) + (
         f"\n\nNow generate the '{kind}' list described in the system "
-        "prompt."
+        "prompt. Preserve any user-named entries first, then fill."
     )
     try:
         data = _llm_json(cfg, sys, user)

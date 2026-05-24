@@ -84,6 +84,15 @@ default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`,
 - *Parameter:* `llm_temperature` (narrator), `planner_temperature`,
   `gen_temperature`, **`gate_temperature`** (default `0.3`),
   `frequency_penalty`, `presence_penalty`.
+- *Reasoning-Effort* (per Rolle): controls the chain-of-thought budget
+  for gpt-5.x / o-series models. Allowed values: `none`, `low`,
+  `medium`, `high`, `xhigh`, `""` (empty). Defaults: `story=low`,
+  `planner=medium`, `gen=medium`, `gate=""` (inherits from planner →
+  story). `none` explicitly turns reasoning OFF — useful on gpt-5.5+
+  (where the model otherwise defaults to medium) or to suppress
+  reasoning cost on a specific role. Local OpenAI-compatible servers
+  (Ollama/vLLM with qwen3) silently ignore the parameter, so a non-
+  `none` value is safe to leave configured.
 - *Eigene OpenAI-kompatible Endpoints:* a `base_url` + `api_key` row per
   purpose (story / planner / gen / **gate** / stt / tts / embedding).
   Empty = OpenAI. An empty `gate_endpoint` falls back to `planner_endpoint`

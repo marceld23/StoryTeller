@@ -102,7 +102,7 @@ class VoiceMenu:
     def _classify_llm(self, said: str, worlds: list[dict]) -> str:
         """Returns a world id, 'load', or 'unknown'. Fails soft -> 'unknown'."""
         try:
-            from storyteller_core.oai import get_chat_client
+            from storyteller_core.oai import get_chat_client, reasoning_kwargs
 
             ids = [w["id"] for w in worlds]
             catalog = "\n".join(
@@ -124,6 +124,7 @@ class VoiceMenu:
                 messages=[{"role": "system", "content": sys},
                           {"role": "user", "content": said}],
                 response_format={"type": "json_object"},
+                **reasoning_kwargs(self.cfg, "story"),
             )
             choice = json.loads(r.choices[0].message.content or "{}") \
                 .get("choice", "unknown").strip()

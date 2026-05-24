@@ -62,7 +62,7 @@ class StoryEngine:
         bug reports are debuggable from the recorded session.
         """
         from ..i18n import RECAP_INTRO, RECAP_SYS, norm
-        from ..oai import get_chat_client
+        from ..oai import get_chat_client, reasoning_kwargs
 
         st = self.state()
         mem = st.get("memory") or []
@@ -85,6 +85,7 @@ class StoryEngine:
                 temperature=self.ctx.cfg.models.llm_temperature,
                 messages=[{"role": "system", "content": RECAP_SYS[locale]},
                           {"role": "user", "content": ctx_txt}],
+                **reasoning_kwargs(self.ctx.cfg, "story"),
             )
             from .ledger import CostLedger
             CostLedger(self.ctx.cfg).record_chat_usage(

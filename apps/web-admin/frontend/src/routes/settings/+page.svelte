@@ -22,10 +22,17 @@
   const NAMES = ['story_llm', 'planner_llm', 'gen_llm', 'stt', 'tts', 'tts_voice', 'embedding'];
   const NUMS = ['llm_temperature', 'planner_temperature', 'gen_temperature',
                 'frequency_penalty', 'presence_penalty'];
+  // Per-role reasoning effort dropdowns. Empty string = inherit (planner/gate)
+  // or model-default (story/gen). "none" explicitly disables reasoning even
+  // on models where it would otherwise be on (e.g. gpt-5.5+).
+  const EFFORTS = ['story_reasoning_effort', 'planner_reasoning_effort',
+                   'gen_reasoning_effort', 'gate_reasoning_effort'];
+  const EFFORT_VALUES = ['', 'none', 'low', 'medium', 'high', 'xhigh'];
   const PURPOSES = ['story', 'planner', 'gen', 'stt', 'tts', 'embedding'];
   // Initialised up-front so the template can render before onMount seeds them.
   let names: Record<string, string> = $state(Object.fromEntries(NAMES.map((k) => [k, ''])));
   let nums: Record<string, string> = $state(Object.fromEntries(NUMS.map((k) => [k, ''])));
+  let efforts: Record<string, string> = $state(Object.fromEntries(EFFORTS.map((k) => [k, ''])));
   let eps: Record<string, { base_url: string; api_key: string }> = $state(
     Object.fromEntries(PURPOSES.map((p) => [p, { base_url: '', api_key: '' }]))
   );
@@ -35,6 +42,7 @@
   function seed(ov: Record<string, unknown>) {
     for (const k of NAMES) names[k] = String(ov[k] ?? '');
     for (const k of NUMS) nums[k] = String(ov[k] ?? (defaults[k] ?? ''));
+    for (const k of EFFORTS) efforts[k] = String(ov[k] ?? (defaults[k] ?? ''));
     for (const p of PURPOSES) {
       const e = (ov[`${p}_endpoint`] ?? {}) as { base_url?: string; api_key?: string };
       eps[p] = { base_url: String(e.base_url ?? ''), api_key: String(e.api_key ?? '') };
@@ -48,6 +56,10 @@
       const n = parseFloat(nums[k]);
       if (Number.isFinite(n)) o[k] = n;
     }
+    // Effort keys are always written (incl. empty/"none") so the overlay can
+    // *override* a baked-in default — otherwise the user couldn't dial back
+    // from "medium" to "none" without resetting the whole file.
+    for (const k of EFFORTS) o[k] = efforts[k];
     for (const p of PURPOSES) {
       const e = eps[p];
       if (e.base_url.trim()) {
@@ -140,6 +152,27 @@
       {#each NUMS as k (k)}
         <label>{k}
           <input type="number" step="0.05" bind:value={nums[k]} placeholder={def(k)} />
+        </label>
+      {/each}
+    </div>
+
+    <h4>Reasoning-Effort <small>(gpt-5.x — leer = config-default, "none" = aus)</small></h4>
+    <p class="hint">
+      Steuert „Thinking" pro Rolle. <code>none</code> = kein
+      Chain-of-Thought (schnell, billig). <code>low/medium/high/xhigh</code>
+      lassen das Modell vorher überlegen — bessere Long-Context-Treue (Canon,
+      JSON-Schema) gegen Output-Tokens und Latenz. <code>gate</code> leer ⇒
+      erbt vom Planner. Lokale OpenAI-kompatible Server (Ollama/vLLM)
+      ignorieren das Feld stillschweigend.
+    </p>
+    <div class="grid">
+      {#each EFFORTS as k (k)}
+        <label>{k}
+          <select bind:value={efforts[k]}>
+            {#each EFFORT_VALUES as v (v)}
+              <option value={v}>{v === '' ? '(default)' : v}</option>
+            {/each}
+          </select>
         </label>
       {/each}
     </div>

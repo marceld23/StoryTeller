@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..config import Config
-from ..oai import get_chat_client
+from ..oai import get_chat_client, reasoning_kwargs
 from .cost import DailyCapExceeded
 from .ledger import CostLedger
 
@@ -125,6 +125,7 @@ class WorldDesignInterview:
                 model=self.cfg.models.gen,
                 temperature=0.7,
                 messages=messages,
+                **reasoning_kwargs(self.cfg, "gen"),
             )
             ledger.record_chat_usage(
                 role="gen", model=self.cfg.models.gen, usage=r.usage)

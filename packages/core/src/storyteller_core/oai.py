@@ -14,6 +14,24 @@ from openai import OpenAI
 
 from .config import Config, Endpoint
 
+_VALID_EFFORTS = {"low", "medium", "high", "xhigh"}
+
+
+def reasoning_kwargs(cfg: Config, role: str) -> dict:
+    """Build the ``reasoning_effort`` kwarg for ``chat.completions.create``
+    based on the role's configured effort.
+
+    Returns ``{"reasoning_effort": "<value>"}`` for valid non-"none"
+    settings, else ``{}``. "none" / "" / unknown values produce no kwarg
+    so older models and OpenAI-compatible local servers (Ollama, vLLM)
+    that don't know the field stay untouched. The single source of
+    truth for the per-role default lives in ``ModelsCfg``.
+    """
+    e = cfg.models.reasoning_effort_for(role)
+    if e in _VALID_EFFORTS:
+        return {"reasoning_effort": e}
+    return {}
+
 
 @lru_cache
 def _make(api_key: str, base_url: str, timeout: float, max_retries: int) -> OpenAI:

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from ..config import Config
 from ..i18n import GATE_SYS, norm
-from ..oai import get_chat_client
+from ..oai import get_chat_client, reasoning_kwargs
 
 log = logging.getLogger("storyteller.curator")
 
@@ -119,6 +119,7 @@ class Curator:
                 messages=[{"role": "system", "content": GATE_SYS[loc]},
                           {"role": "user", "content": user_msg}],
                 response_format={"type": "json_object"},
+                **reasoning_kwargs(self.cfg, "gate"),
             )
             if self.cost is not None:
                 _usd = self.cost.record_chat(resp.usage, role="gate")

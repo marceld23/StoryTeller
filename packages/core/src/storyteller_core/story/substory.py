@@ -17,7 +17,7 @@ import json
 from pydantic import BaseModel, Field
 
 from ..config import Config
-from ..oai import get_chat_client
+from ..oai import get_chat_client, reasoning_kwargs
 from ..worlds.schema import Beat
 from .dynamics import INTEGRATION_RULE
 
@@ -153,6 +153,7 @@ class SubstoryPlanner:
                 messages=[{"role": "system", "content": _PLANNER_SYS},
                           {"role": "user", "content": user}],
                 response_format={"type": "json_object"},
+                **reasoning_kwargs(self.cfg, "planner"),
             )
             if self.cost is not None:
                 _usd = self.cost.record_chat(resp.usage, role="planner")
