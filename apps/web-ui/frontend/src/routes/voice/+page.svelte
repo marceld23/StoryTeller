@@ -25,15 +25,6 @@
   let audio: HTMLAudioElement | null = null;
   let waitAudio: HTMLAudioElement | null = null;
 
-  onMount(async () => {
-    try {
-      worlds = await listWorlds();
-      if (worlds.length === 1) chosenWorld = worlds[0].id;
-    } catch (e) {
-      error = String(e);
-    }
-  });
-
   onDestroy(() => cleanup());
 
   function cleanup() {
@@ -42,10 +33,50 @@
     stream?.getTracks().forEach((t) => t.stop());
   }
 
+  // Browsers expose `navigator.mediaDevices.getUserMedia` ONLY in secure
+  // contexts (HTTPS) or when the page is served from localhost. Plain
+  // http://<lan-ip>:8090 is intentionally blocked by the browser. We
+  // detect that up front and show an actionable error message instead
+  // of the cryptic "Cannot read properties of undefined" TypeError.
+  let micAvailable = $state(true);
+  let secureContextHint = $state('');
+
+  function _checkMicAvailable(): boolean {
+    const ok =
+      typeof navigator !== 'undefined' &&
+      !!navigator.mediaDevices &&
+      typeof navigator.mediaDevices.getUserMedia === 'function';
+    if (!ok) {
+      micAvailable = false;
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      secureContextHint =
+        host && host !== 'localhost' && host !== '127.0.0.1'
+          ? `Der Browser blockiert das Mikrofon, weil die Seite über http://${host} (nicht sicher) geladen ist. ` +
+            'Sprachmodus funktioniert nur über HTTPS oder über http://localhost. ' +
+            'Lösung: Öffne die Seite direkt auf dem Pi (http://localhost:8090/voice) oder richte einen HTTPS-Reverse-Proxy ein.'
+          : 'Dieser Browser bietet keinen Mikrofonzugriff. Bitte einen aktuellen Chrome / Firefox / Safari verwenden.';
+    }
+    return ok;
+  }
+
+  onMount(async () => {
+    try {
+      worlds = await listWorlds();
+      if (worlds.length === 1) chosenWorld = worlds[0].id;
+    } catch (e) {
+      error = String(e);
+    }
+    _checkMicAvailable();
+  });
+
   async function start() {
     if (!chosenWorld) return;
     error = '';
     lines = [];
+    if (!_checkMicAvailable()) {
+      error = secureContextHint;
+      return;
+    }
     try {
       // mic permission up front
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -198,6 +229,13 @@
 
   {#if error}<p class="error">{error}</p>{/if}
 
+  {#if !micAvailable}
+    <div class="mic-warn">
+      <strong>Mikrofon-Zugriff blockiert.</strong>
+      <p>{secureContextHint}</p>
+    </div>
+  {/if}
+
   {#if !threadId}
     <section class="picker">
       <h2>Welt wählen</h2>
@@ -210,7 +248,9 @@
             <option value={w.id}>{w.name} ({w.genre})</option>
           {/each}
         </select>
-        <button onclick={start} disabled={!chosenWorld}>Beginnen (Mikrofon)</button>
+        <button onclick={start} disabled={!chosenWorld || !micAvailable}>
+          Beginnen (Mikrofon)
+        </button>
       {/if}
     </section>
   {:else}
@@ -317,6 +357,13 @@
     background: #e07a7a; color: #fff; border: none; border-radius: 6px; cursor: pointer;
   }
   .error { color: #e07a7a; }
+  .mic-warn {
+    background: rgba(220, 50, 50, 0.10);
+    border-left: 3px solid #c25450;
+    padding: 0.6rem 0.8rem; border-radius: 4px;
+    margin: 0.6rem 0; color: var(--fg);
+  }
+  .mic-warn p { margin: 0.3rem 0 0; font-size: 0.9rem; line-height: 1.45; }
   .banner {
     background: var(--surface-2); color: var(--fg);
     border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem;

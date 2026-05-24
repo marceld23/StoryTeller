@@ -13,6 +13,9 @@
   let connected: boolean = $state(false);
   let status: 'idle' | 'connected' | 'reconnecting' | 'closed' = $state('idle');
   let error: string = $state('');
+  let starting: boolean = $state(false);   // true while createSession is in flight
+  let startingElapsed: number = $state(0);
+  let startingTick: number | undefined = undefined;
   let capPaused: boolean = $state(false);  // daily cost cap reached
   let noteInput: string = $state('');
   let showNote: boolean = $state(false);
@@ -136,9 +139,15 @@
   }
 
   async function startSession(resume: boolean) {
-    if (!chosenWorld) return;
+    if (!chosenWorld || starting) return;
     error = ''; lines = []; thinking = false; closing = false; attempts = 0;
     capPaused = false;
+    // The /api/sessions POST runs engine.opening() server-side, which is
+    // a real LLM call (10–60 s for a fresh world). Show a loading state
+    // with a counter so the player doesn't think nothing happened.
+    starting = true;
+    startingElapsed = 0;
+    startingTick = window.setInterval(() => (startingElapsed += 1), 1000);
     try {
       if (resume && savedThread(chosenWorld)) {
         // Resume: reuse the thread; the server replays the last narration.
@@ -152,6 +161,12 @@
       connect();
     } catch (e) {
       error = String(e);
+    } finally {
+      starting = false;
+      if (startingTick !== undefined) {
+        window.clearInterval(startingTick);
+        startingTick = undefined;
+      }
     }
   }
 
@@ -202,12 +217,19 @@
           {/each}
         </select>
         {#if resumable}
-          <button onclick={() => startSession(true)}>Fortsetzen</button>
-          <button class="ghost" onclick={() => startSession(false)}>Neu beginnen</button>
-        {:else}
-          <button onclick={() => startSession(false)} disabled={!chosenWorld}>
-            Geschichte beginnen
+          <button onclick={() => startSession(true)} disabled={starting}>
+            {starting ? `…lade… (${startingElapsed}s)` : 'Fortsetzen'}
           </button>
+          <button class="ghost" onclick={() => startSession(false)} disabled={starting}>
+            {starting ? '…' : 'Neu beginnen'}
+          </button>
+        {:else}
+          <button onclick={() => startSession(false)} disabled={!chosenWorld || starting}>
+            {starting ? `…lade Geschichte… (${startingElapsed}s)` : 'Geschichte beginnen'}
+          </button>
+        {/if}
+        {#if starting}
+          <p class="hint small">Der Erzähler bereitet die Eröffnung vor — kann ein paar Sekunden dauern.</p>
         {/if}
       {/if}
       <p class="hint">
@@ -300,6 +322,7 @@
   }
   .banner.cap { border-left-color: #c25450; }
   .hint { color: var(--muted); font-size: 0.9rem; }
+  .hint.small { font-size: 0.85rem; }
   .note-box {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
