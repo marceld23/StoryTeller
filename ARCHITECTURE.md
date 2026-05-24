@@ -17,7 +17,7 @@ ways to interact with it are separate apps:
 |---|---|---|
 | Pi voice appliance | `storyteller-pi run` | ReSpeaker + wake word + LED ring + ALSA |
 | PC text REPL | `storyteller-cli chat` | keyboard, no audio |
-| Browser play | `storyteller-web-ui` (`:8090`) | text or hold-to-talk voice (WebSocket) |
+| Browser play | `storyteller-web-ui` (`:8090`) | text or tap-to-talk voice (WebSocket) |
 | Admin | `storyteller-web-admin` (`:8080`) | world editor, generation, transcripts, settings |
 
 All four share the same `storyteller_core` engine and worlds; only the I/O
@@ -165,7 +165,7 @@ as static files (built with `@sveltejs/adapter-static`, SPA fallback). A
 catch-all route returns the asset if present, else `index.html` — so client
 deep links work. One process, one port, no Node at runtime.
 
-- **web-ui** (`:8090`, [main.py](apps/web-ui/backend/src/storyteller_web_ui_backend/main.py)) — REST: `/api/worlds`, `/api/sessions`, session state/undo; WebSocket: `/ws/play/{thread}` (text) and `/ws/voice/{thread}` (browser `MediaRecorder` → server STT → `engine.turn` → server TTS → WAV frame back). Frontend: world picker with resume, text chat with auto-reconnect, `/voice` hold-to-talk.
+- **web-ui** (`:8090`, [main.py](apps/web-ui/backend/src/storyteller_web_ui_backend/main.py)) — REST: `/api/worlds`, `/api/sessions`, session state/undo; WebSocket: `/ws/play/{thread}` (text) and `/ws/voice/{thread}` (browser `MediaRecorder` → server STT → `engine.turn` → server TTS → WAV frame back). Frontend: world picker with resume, text chat with auto-reconnect, `/voice` tap-to-talk (click or spacebar to start/stop).
 - **web-admin** (`:8080`, [main.py](apps/web-admin/backend/src/storyteller_web_admin_backend/main.py)) — REST JSON for worlds (CRUD), settings (models/audio/moderation overrides), async jobs (world **generation** + RAG **reindex** via an in-process [JobRegistry](apps/web-admin/backend/src/storyteller_web_admin_backend/jobs.py)), per-piece LLM **suggest**, **transcripts**. Frontend: structured world editor, generation with job polling, transcript viewer, settings.
 
 **Security** (both): an HTTP middleware gates `/api/*` (except `/api/health`)

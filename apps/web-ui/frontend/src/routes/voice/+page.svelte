@@ -261,6 +261,28 @@
     recording = false;
   }
 
+  // Tap-to-toggle replaces the older hold-to-talk: one click starts the
+  // recording, the next stops + sends. Long lore-heavy answers were
+  // awkward to hold for; rim-edge slips on touch also ended takes
+  // prematurely. Disabled gating is the same as before (need an open
+  // socket, no thinking phase, no daily-cap pause).
+  function toggleRec() {
+    if (!connected || thinking || capPaused) return;
+    if (recording) stopRec(); else startRec();
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    // Spacebar toggles recording when no input/textarea is focused.
+    // Lets desktop players keep their hands on the keyboard.
+    if (e.code !== 'Space') return;
+    const t = e.target as HTMLElement | null;
+    const tag = t?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+    if (!threadId) return;
+    e.preventDefault();
+    toggleRec();
+  }
+
   function sendNote() {
     const text = noteInput.trim();
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -282,6 +304,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <main>
   <header>
@@ -374,14 +398,11 @@
       <button
         class="ptt"
         class:rec={recording}
-        onmousedown={startRec}
-        onmouseup={stopRec}
-        onmouseleave={stopRec}
-        ontouchstart={startRec}
-        ontouchend={stopRec}
+        onclick={toggleRec}
         disabled={!connected || thinking || capPaused}
+        title="Leertaste startet/stoppt die Aufnahme"
       >
-        {recording ? '● Aufnahme – loslassen zum Senden' : '🎤 Halten zum Sprechen'}
+        {recording ? '● Stopp & senden' : '🎤 Aufnahme starten'}
       </button>
       {#if playing}
         <button class="stop" onclick={stopPlayback}>⏹ Stopp</button>

@@ -11,7 +11,7 @@ your choices, your questions, your hints all bend where it goes next.
 
 Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
 ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
-(text or hold-to-talk voice). Built on a LangGraph story engine that talks
+(text or tap-to-talk voice). Built on a LangGraph story engine that talks
 to **any OpenAI-compatible endpoint** — the OpenAI API by default, or
 self-hosted backends like Ollama / vLLM / llama.cpp (LLM + embeddings),
 faster-whisper (STT), and Piper (Wyoming/TCP) or XTTS v2 for TTS. Endpoints
@@ -84,8 +84,10 @@ Open the **player UI** at <http://localhost:8090> and the **admin UI** at
 <http://localhost:8080>. The SPA talks to the backend on its own origin, so
 the same build works via `localhost`, the Pi's IP, or a hostname.
 
-- **Player**: pick a world, play by text, or `/voice` for hold-to-talk
-  (browser `MediaRecorder` → WS `/ws/voice/{thread_id}` → server STT/TTS).
+- **Player**: pick a world, play by text, or `/voice` for tap-to-talk —
+  click or spacebar starts the recording, the next click/spacebar stops
+  and sends (browser `MediaRecorder` → WS `/ws/voice/{thread_id}` →
+  server STT/TTS).
 - **Admin**: structured world editor (core fields, tone sliders, blueprint,
   content lists with ✨ per-piece LLM suggest, random tables), world
   generation (async job + polling), RAG reindex, transcripts viewer, and

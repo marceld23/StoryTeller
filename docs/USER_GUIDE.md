@@ -10,7 +10,8 @@ into the story, following a dramatic arc.
   (or it autostarts via systemd).
 - **PC / text:** `uv run --package storyteller-cli storyteller-cli chat`.
 - **Browser:** open the player UI at `http://<host>:8090` (play backend
-  running); pick a world, then play by text or hold-to-talk.
+  running); pick a world, then play by text or tap-to-talk voice
+  (click or spacebar to start/stop the recording).
 
 ## Boot sequence (Pi / voice)
 

@@ -42,7 +42,7 @@ uv run --package storyteller-web-ui-backend    storyteller-web-ui     # play  ->
 uv run --package storyteller-web-admin-backend  storyteller-web-admin  # admin -> :8080
 ```
 
-Open <http://localhost:8090> (play: text or hold-to-talk voice) and
+Open <http://localhost:8090> (play: text or tap-to-talk voice) and
 <http://localhost:8080> (admin: world editor, generation, transcripts,
 settings). **Frontend dev** with hot reload: `cd apps/web-ui/frontend &&
 yarn dev` (talks to the running backend via `VITE_BACKEND`).
