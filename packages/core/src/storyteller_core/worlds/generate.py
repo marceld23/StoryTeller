@@ -242,11 +242,14 @@ def _llm_json(cfg: Config, system: str, user: str) -> dict:
 
 
 def _world_context(skeleton: dict, prompt: str) -> str:
-    """Compact context anchor for every per-list call — keeps lists
-    consistent with the established world flavour."""
+    """Full context anchor passed to every per-list and blueprint call.
+    The user's original prompt is the primary source of flavour; the
+    skeleton fields nail down established names + tone. No truncation:
+    the prompt cap (web.max_prompt_chars, default 100k) is enforced at
+    the entry point, and modern LLMs comfortably take that per step."""
     name = skeleton.get("name", "")
     genre = skeleton.get("genre", "")
-    desc = (skeleton.get("description") or "")[:800]
+    desc = skeleton.get("description") or ""
     mood = skeleton.get("mood", "")
     ambience = skeleton.get("ambience", "")
     magic = skeleton.get("magic_physics", "")
@@ -258,7 +261,7 @@ def _world_context(skeleton: dict, prompt: str) -> str:
         f"MOOD: {mood}\n"
         f"AMBIENCE: {ambience}\n"
         f"PHYSICS/MAGIC: {magic}\n"
-        f"ORIGINAL PROMPT: {prompt[:300]}"
+        f"ORIGINAL PROMPT: {prompt}"
     )
 
 
