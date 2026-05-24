@@ -77,7 +77,7 @@
         <label>
           <span>{f.label}</span>
           {#if f.type === 'textarea'}
-            <textarea bind:value={item[f.key]} rows="3"></textarea>
+            <textarea bind:value={item[f.key]} rows="5"></textarea>
           {:else if f.type === 'tags'}
             <input
               value={tagsToStr(item[f.key])}
@@ -105,5 +105,7 @@
   label { display: block; margin: 0.4rem 0; }
   label span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
   label input, label textarea { width: 100%; box-sizing: border-box; }
+  label textarea { min-height: 5em; line-height: 1.5; resize: vertical;
+                   font-family: inherit; }
   .error { color: #c25450; }
 </style>

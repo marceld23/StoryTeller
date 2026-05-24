@@ -26,10 +26,16 @@ import time
 
 from rich import print as rp
 from storyteller_core.config import load_config
-from storyteller_core.i18n import CMD_KEYWORDS, RESTORE_DIRECTIVE, norm
+from storyteller_core.i18n import (
+    CMD_KEYWORDS,
+    NOTE_PROMPTS,
+    RESTORE_DIRECTIVE,
+    norm,
+)
 from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
 from storyteller_core.story.ledger import CostLedger
+from storyteller_core.story.user_notes import create_user_note
 from storyteller_core.worlds.registry import load_world
 
 log = logging.getLogger("storyteller.pi")
@@ -566,6 +572,44 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if not said:
                     continue
                 toks = [t.strip(",.!?;:") for t in low.split()]
+                # ----- voice command: "Vermerken: …" -----
+                # If the player STARTS the utterance with a note keyword,
+                # we strip it and persist the rest as a UserNote (player-
+                # introduced world fact). The note also lands in RAG so
+                # the narrator can use it from the very next turn.
+                if toks and toks[0] in cmd_kw["note"]:
+                    rest = said.split(None, 1)[1].lstrip(":,. ") \
+                        if len(said.split(None, 1)) > 1 else ""
+                    np = NOTE_PROMPTS[norm(cfg.general.locale)]
+                    if not rest.strip():
+                        empty_msg = np["empty"]
+                        _say(cfg, world, backend, tts, fx, leds,
+                             (lambda m=empty_msg: m), speak=speak)
+                    else:
+                        try:
+                            note = create_user_note(
+                                cfg, world.id, norm(cfg.general.locale),
+                                rest, thread_id=engine.thread_id,
+                                rag=engine.ctx.rag)
+                            kind_label = np["kind_label"].get(
+                                note.kind, note.kind)
+                            confirm = np["saved"].format(
+                                name=note.name, kind=kind_label)
+                            log.info("user-note saved: %s (%s)",
+                                     note.name, note.kind)
+                            _say(cfg, world, backend, tts, fx, leds,
+                                 (lambda c=confirm: c), speak=speak)
+                        except DailyCapExceeded:
+                            if speak:
+                                prompts.play("daily_cap_pause", backend)
+                        except Exception as exc:
+                            log.warning("user-note failed: %r", exc)
+                            short_msg = np["saved_short"]
+                            _say(cfg, world, backend, tts, fx, leds,
+                                 (lambda m=short_msg: m),
+                                 speak=speak)
+                    pending_follow = follow_enabled
+                    continue
                 if toks and len(toks) <= 3 and any(
                         t in cmd_kw["menu"] for t in toks):
                     if _sysmenu() == "quit":

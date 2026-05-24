@@ -1,5 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { getWorld, listWaitSounds, putWorld, reindexWorld, waitForJob, type Job } from '$lib/api';
   import ContentList from '$lib/ContentList.svelte';
   import { CONTENT_KINDS } from '$lib/worldFields';
@@ -15,6 +17,94 @@
   let reindexing = $state(false);
   // Files available as wait-sound (filenames in data/wait_sounds/).
   let waitSounds: string[] = $state([]);
+
+  // ----- Tab state (URL-persistent: ?tab=orte) -----
+  type TabId = 'grundlagen' | 'ton' | 'orte' | 'personen' | 'items' | 'lore' | 'zufall' | 'notizen';
+  const TAB_IDS: TabId[] = ['grundlagen', 'ton', 'orte', 'personen', 'items', 'lore', 'zufall', 'notizen'];
+  let tab: TabId = $state('grundlagen');
+
+  // User notes (Phase A/B): notes the player added via "Vermerken: …"
+  // voice command. The admin reviews them here and promotes the
+  // valuable ones to the canonical world (places / persons / items /
+  // fragments). The list is loaded lazily when the Notizen tab opens.
+  type Note = {
+    id: string; ts: string; world_id: string; locale: string;
+    kind: string; name: string; description: string; tags: string[];
+    raw_text: string; thread_id: string | null; promoted: boolean;
+  };
+  let notes: Note[] = $state([]);
+  let notesLoading = $state(false);
+  let notesError = $state('');
+  let notesPromoted = $state(false); // toggle: show promoted history
+
+  async function loadNotes() {
+    notesLoading = true;
+    notesError = '';
+    try {
+      const url = `/api/worlds/${page.params.id}/user_notes?promoted=${notesPromoted}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      notes = j.notes ?? [];
+    } catch (e) {
+      notesError = String(e);
+    } finally {
+      notesLoading = false;
+    }
+  }
+
+  async function promoteNote(n: Note) {
+    if (!confirm(`"${n.name}" als ${n.kind} in die Welt übernehmen?`)) return;
+    notesError = '';
+    try {
+      const r = await fetch(
+        `/api/worlds/${page.params.id}/user_notes/${n.id}/promote`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: n.kind, name: n.name,
+                                  description: n.description,
+                                  tags: n.tags }) });
+      const j = await r.json();
+      if (!j.ok) { notesError = JSON.stringify(j); return; }
+      status = `Notiz "${n.name}" in die Welt übernommen (${n.kind}).`;
+      // Refresh world (new entry now in places/persons/...).
+      world = normalize(await getWorld(page.params.id));
+      await loadNotes();
+    } catch (e) { notesError = String(e); }
+  }
+
+  async function discardNote(n: Note) {
+    if (!confirm(`Notiz "${n.name}" verwerfen?`)) return;
+    notesError = '';
+    try {
+      const r = await fetch(
+        `/api/worlds/${page.params.id}/user_notes/${n.id}`,
+        { method: 'DELETE' });
+      const j = await r.json();
+      if (!j.ok) { notesError = JSON.stringify(j); return; }
+      await loadNotes();
+    } catch (e) { notesError = String(e); }
+  }
+
+  $effect(() => {
+    if (tab === 'notizen' && !notesLoading) loadNotes();
+  });
+
+  onMount(() => {
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('tab');
+    if (t && (TAB_IDS as string[]).includes(t)) tab = t as TabId;
+  });
+
+  function setTab(t: TabId) {
+    tab = t;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    goto(url.pathname + url.search, { replaceState: true, noScroll: true });
+  }
+
+  // helpers to find a content-list spec by prop name (CONTENT_KINDS order is fixed)
+  function spec(prop: string) {
+    return CONTENT_KINDS.find((k) => k.prop === prop)!;
+  }
 
   $effect(() => {
     const id = page.params.id;
@@ -146,110 +236,228 @@
     <textarea class="raw" bind:value={raw} rows="40"></textarea>
     <div class="toolbar"><button onclick={applyRaw}>JSON übernehmen</button></div>
   {:else}
-    <!-- Core scalar fields -->
-    <section>
-      <h3>Kern</h3>
-      <div class="grid">
-        <label><span>Name</span><input bind:value={world.name} /></label>
-        <label><span>Genre</span><input bind:value={world.genre} /></label>
-        <label><span>Spielerrolle</span><input bind:value={world.player_role} /></label>
-        <label><span>Komplexität</span>
-          <select bind:value={world.complexity}>
-            <option value="simple">simple</option>
-            <option value="standard">standard</option>
-            <option value="rich">rich</option>
-          </select>
-        </label>
-        <label><span>Zielgruppe</span><input bind:value={world.audience} /></label>
-        <label>
-          <span>Wartesound</span>
-          <select bind:value={world.wait_sound}>
-            <option value="">— kein —</option>
-            {#each waitSounds as f (f)}
-              <option value={f}>{f}</option>
-            {/each}
-            {#if world.wait_sound && !waitSounds.includes(world.wait_sound)}
-              <option value={world.wait_sound}>{world.wait_sound} (fehlt)</option>
-            {/if}
-          </select>
-        </label>
-      </div>
-      <label><span>Beschreibung</span><textarea bind:value={world.description} rows="3"></textarea></label>
-      <label><span>Ausgangssituation</span><textarea bind:value={world.starting_situation} rows="2"></textarea></label>
-      <label><span>Erzählstil</span><input bind:value={world.narration_style} /></label>
-      <label><span>Stil-Anker (voice_sample)</span><textarea bind:value={world.voice_sample} rows="2"></textarea></label>
-      <div class="grid">
-        <label><span>Stimmung</span><input bind:value={world.mood} /></label>
-        <label><span>Ambiente</span><input bind:value={world.ambience} /></label>
-      </div>
-      <label><span>Physik/Magie</span><textarea bind:value={world.magic_physics} rows="2"></textarea></label>
-      <label><span>Story-Patterns (komma)</span>
-        <input value={patternsStr()} oninput={(e) => setPatterns((e.target as HTMLInputElement).value)} />
-      </label>
-    </section>
+    <!-- Tab bar (horizontal pill nav). -->
+    <nav class="tabs" aria-label="Welt-Editor Sektionen">
+      <button class:active={tab === 'grundlagen'} onclick={() => setTab('grundlagen')}>Grundlagen</button>
+      <button class:active={tab === 'ton'} onclick={() => setTab('ton')}>Ton &amp; Bogen
+        <span class="count">{(world.blueprint.beats ?? []).length}</span></button>
+      <button class:active={tab === 'orte'} onclick={() => setTab('orte')}>Orte
+        <span class="count">{world.places.length}</span></button>
+      <button class:active={tab === 'personen'} onclick={() => setTab('personen')}>Personen
+        <span class="count">{world.persons.length}</span></button>
+      <button class:active={tab === 'items'} onclick={() => setTab('items')}>Gegenstände
+        <span class="count">{world.items.length}</span></button>
+      <button class:active={tab === 'lore'} onclick={() => setTab('lore')}>Lore
+        <span class="count">{world.glossary.length + world.history.length + world.fragments.length}</span></button>
+      <button class:active={tab === 'zufall'} onclick={() => setTab('zufall')}>Zufallslisten
+        <span class="count">{world.random_tables.length}</span></button>
+      <button class:active={tab === 'notizen'} onclick={() => setTab('notizen')}>Notizen
+        {#if notes.filter((n) => !n.promoted).length > 0}
+          <span class="count">{notes.filter((n) => !n.promoted).length}</span>
+        {/if}
+      </button>
+    </nav>
 
-    <!-- Tone -->
-    <section>
-      <h3>Ton</h3>
-      <div class="grid">
-        {#each ['darkness', 'humor', 'romance', 'action', 'horror'] as k (k)}
-          <label><span>{k}</span>
-            <input type="number" min="0" max="5" bind:value={world.tone[k]} />
+    {#if tab === 'grundlagen'}
+      <section>
+        <h3>Kern</h3>
+        <div class="grid">
+          <label><span>Name</span><input bind:value={world.name} /></label>
+          <label><span>Genre</span><input bind:value={world.genre} /></label>
+          <label><span>Spielerrolle</span><input bind:value={world.player_role} /></label>
+          <label><span>Komplexität</span>
+            <select bind:value={world.complexity}>
+              <option value="simple">simple</option>
+              <option value="standard">standard</option>
+              <option value="rich">rich</option>
+            </select>
           </label>
-        {/each}
-        <label><span>pacing</span>
-          <select bind:value={world.tone.pacing}>
-            <option value="slow">slow</option>
-            <option value="medium">medium</option>
-            <option value="fast">fast</option>
-          </select>
-        </label>
-      </div>
-      <label><span>Notizen</span><input bind:value={world.tone.notes} /></label>
-    </section>
-
-    <!-- Blueprint -->
-    <section>
-      <h3>Spannungsbogen (Blueprint)</h3>
-      <label><span>Prämisse</span><textarea bind:value={world.blueprint.premise} rows="2"></textarea></label>
-      <label><span>Eskalationsregel</span><textarea bind:value={world.blueprint.escalation_rule} rows="2"></textarea></label>
-      <h4>Beats <button onclick={addBeat}>+ Beat</button></h4>
-      {#each world.blueprint.beats as b, i (i)}
-        <div class="row">
-          <input placeholder="Name" bind:value={b.name} />
-          <input placeholder="Ziel" bind:value={b.goal} />
-          <input type="number" min="0" max="10" bind:value={b.tension} title="Spannung 0-10" />
-          <button class="danger" onclick={() => rmBeat(i)}>×</button>
+          <label><span>Zielgruppe</span><input bind:value={world.audience} /></label>
+          <label>
+            <span>Wartesound</span>
+            <select bind:value={world.wait_sound}>
+              <option value="">— kein —</option>
+              {#each waitSounds as f (f)}
+                <option value={f}>{f}</option>
+              {/each}
+              {#if world.wait_sound && !waitSounds.includes(world.wait_sound)}
+                <option value={world.wait_sound}>{world.wait_sound} (fehlt)</option>
+              {/if}
+            </select>
+          </label>
         </div>
-      {/each}
-    </section>
+        <label><span>Beschreibung (bis zu mehrere Absätze)</span>
+          <textarea class="big" bind:value={world.description} rows="18"></textarea>
+        </label>
+        <label><span>Ausgangssituation</span>
+          <textarea class="big" bind:value={world.starting_situation} rows="6"></textarea>
+        </label>
+        <label><span>Erzählstil</span>
+          <textarea bind:value={world.narration_style} rows="3"></textarea>
+        </label>
+        <label><span>Stil-Anker (voice_sample) — 1–2 Beispielsätze im Welt-Ton</span>
+          <textarea bind:value={world.voice_sample} rows="4"></textarea>
+        </label>
+        <div class="grid">
+          <label><span>Stimmung</span><textarea bind:value={world.mood} rows="2"></textarea></label>
+          <label><span>Ambiente</span><textarea bind:value={world.ambience} rows="2"></textarea></label>
+        </div>
+        <label><span>Physik/Magie</span>
+          <textarea bind:value={world.magic_physics} rows="5"></textarea>
+        </label>
+        <label><span>Story-Patterns (komma)</span>
+          <input value={patternsStr()} oninput={(e) => setPatterns((e.target as HTMLInputElement).value)} />
+        </label>
+      </section>
+    {/if}
 
-    <!-- Content lists -->
-    {#each CONTENT_KINDS as spec (spec.prop)}
-      <ContentList {spec} bind:items={world[spec.prop]} worldId={page.params.id} />
-    {/each}
+    {#if tab === 'ton'}
+      <section>
+        <h3>Ton</h3>
+        <div class="grid">
+          {#each ['darkness', 'humor', 'romance', 'action', 'horror'] as k (k)}
+            <label><span>{k}</span>
+              <input type="number" min="0" max="5" bind:value={world.tone[k]} />
+            </label>
+          {/each}
+          <label><span>pacing</span>
+            <select bind:value={world.tone.pacing}>
+              <option value="slow">slow</option>
+              <option value="medium">medium</option>
+              <option value="fast">fast</option>
+            </select>
+          </label>
+        </div>
+        <label><span>Notizen</span><input bind:value={world.tone.notes} /></label>
+      </section>
 
-    <!-- Random tables -->
-    <section>
-      <h3>Zufallslisten <button onclick={addTable}>+ Liste</button></h3>
-      {#each world.random_tables as t, ti (ti)}
-        <div class="card">
+      <section>
+        <h3>Spannungsbogen (Blueprint)</h3>
+        <label><span>Prämisse</span>
+          <textarea bind:value={world.blueprint.premise} rows="4"></textarea>
+        </label>
+        <label><span>Eskalationsregel</span>
+          <textarea bind:value={world.blueprint.escalation_rule} rows="3"></textarea>
+        </label>
+        <h4>Beats <button onclick={addBeat}>+ Beat</button></h4>
+        {#each world.blueprint.beats as b, i (i)}
           <div class="row">
-            <input placeholder="Name" bind:value={t.name} />
-            <input placeholder="Beschreibung" bind:value={t.description} />
-            <button class="danger" onclick={() => rmTable(ti)}>Liste löschen</button>
+            <input placeholder="Name" bind:value={b.name} />
+            <input placeholder="Ziel" bind:value={b.goal} />
+            <input type="number" min="0" max="10" bind:value={b.tension} title="Spannung 0-10" />
+            <button class="danger" onclick={() => rmBeat(i)}>×</button>
           </div>
-          {#each t.entries ?? [] as e, ei (ei)}
-            <div class="row indent">
-              <input type="number" min="1" bind:value={e.weight} title="Gewicht" style="width:70px" />
-              <input placeholder="Text" bind:value={e.text} />
-              <button class="danger" onclick={() => rmEntry(t, ei)}>×</button>
+        {/each}
+      </section>
+    {/if}
+
+    {#if tab === 'orte'}
+      <ContentList spec={spec('places')} bind:items={world.places} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'personen'}
+      <ContentList spec={spec('persons')} bind:items={world.persons} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'items'}
+      <ContentList spec={spec('items')} bind:items={world.items} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'lore'}
+      <ContentList spec={spec('glossary')} bind:items={world.glossary} worldId={page.params.id} />
+      <ContentList spec={spec('history')} bind:items={world.history} worldId={page.params.id} />
+      <ContentList spec={spec('fragments')} bind:items={world.fragments} worldId={page.params.id} />
+    {/if}
+
+    {#if tab === 'notizen'}
+      <section>
+        <h3>Notizen aus dem Spiel
+          <span class="count">{notes.filter((n) => !n.promoted).length} offen</span></h3>
+        <p class="hint">
+          Vermerke, die Spieler:innen mit dem Sprachbefehl
+          „Vermerken: …" gesetzt haben. Sie sind im RAG-Index dieser Welt
+          aktiv (also im Spiel verfügbar) — hier kannst du wertvolle
+          Einträge dauerhaft in die Welt aufnehmen oder verwerfen.
+        </p>
+        <div class="toolbar">
+          <label class="inline">
+            <input type="checkbox" bind:checked={notesPromoted} onchange={loadNotes} />
+            Bereits übernommene anzeigen
+          </label>
+          <button onclick={loadNotes} disabled={notesLoading}>
+            {notesLoading ? 'Lade…' : 'Aktualisieren'}
+          </button>
+        </div>
+        {#if notesError}<p class="error">{notesError}</p>{/if}
+        {#if notes.length === 0}
+          <p class="muted">{notesLoading ? 'Lade…' : 'Keine Notizen.'}</p>
+        {:else}
+          {#each notes as n (n.id)}
+            <div class="card" class:promoted={n.promoted}>
+              <div class="card-head row">
+                <strong>{n.name}</strong>
+                <span class="kind-pill">{n.kind}</span>
+                {#if n.promoted}<span class="kind-pill ok">übernommen</span>{/if}
+                <span class="grow"></span>
+                <small class="muted">{n.ts}</small>
+              </div>
+              <div class="grid">
+                <label><span>Art</span>
+                  <select bind:value={n.kind}>
+                    <option value="person">Person</option>
+                    <option value="place">Ort</option>
+                    <option value="item">Gegenstand</option>
+                    <option value="fact">Welt-Fakt</option>
+                  </select>
+                </label>
+                <label><span>Name</span><input bind:value={n.name} /></label>
+              </div>
+              <label><span>Beschreibung</span>
+                <textarea bind:value={n.description} rows="4"></textarea>
+              </label>
+              <label><span>Tags (komma)</span>
+                <input value={(n.tags ?? []).join(', ')}
+                  oninput={(e) => (n.tags = (e.target as HTMLInputElement).value.split(',').map((s) => s.trim()).filter(Boolean))} />
+              </label>
+              {#if n.raw_text && n.raw_text !== n.description}
+                <p class="muted small">Originaler Sprachbefehl: „{n.raw_text}"</p>
+              {/if}
+              <div class="row">
+                {#if !n.promoted}
+                  <button onclick={() => promoteNote(n)}>In Welt aufnehmen</button>
+                  <button class="danger" onclick={() => discardNote(n)}>Verwerfen</button>
+                {:else}
+                  <button class="danger" onclick={() => discardNote(n)}>Aus RAG entfernen</button>
+                {/if}
+              </div>
             </div>
           {/each}
-          <button onclick={() => addEntry(t)}>+ Eintrag</button>
-        </div>
-      {/each}
-    </section>
+        {/if}
+      </section>
+    {/if}
+
+    {#if tab === 'zufall'}
+      <section>
+        <h3>Zufallslisten <button onclick={addTable}>+ Liste</button></h3>
+        {#each world.random_tables as t, ti (ti)}
+          <div class="card">
+            <div class="row">
+              <input placeholder="Name" bind:value={t.name} />
+              <input placeholder="Beschreibung" bind:value={t.description} />
+              <button class="danger" onclick={() => rmTable(ti)}>Liste löschen</button>
+            </div>
+            {#each t.entries ?? [] as e, ei (ei)}
+              <div class="row indent">
+                <input type="number" min="1" bind:value={e.weight} title="Gewicht" style="width:70px" />
+                <input placeholder="Text" bind:value={e.text} />
+                <button class="danger" onclick={() => rmEntry(t, ei)}>×</button>
+              </div>
+            {/each}
+            <button onclick={() => addEntry(t)}>+ Eintrag</button>
+          </div>
+        {/each}
+      </section>
+    {/if}
 
     <div class="toolbar"><button onclick={save}>Speichern</button></div>
   {/if}
@@ -264,6 +472,8 @@
   label { display: block; margin: 0.4rem 0; }
   label span { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
   label input, label textarea, label select { width: 100%; box-sizing: border-box; }
+  label textarea { min-height: 4.5em; line-height: 1.5; resize: vertical; }
+  label textarea.big { min-height: 12em; }
   .row { display: flex; gap: 0.4rem; align-items: center; margin: 0.3rem 0; }
   .row.indent { margin-left: 1.2rem; }
   .row input { flex: 1; }
@@ -274,4 +484,43 @@
   .hint { color: var(--muted); font-size: 0.9rem; }
   code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
   a { color: var(--link); text-decoration: none; }
+
+  /* Tab nav */
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 0.3rem;
+    border-bottom: 1px solid var(--border);
+    margin: 0.5rem 0 1rem;
+  }
+  .tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent; border-bottom: none;
+    border-radius: 4px 4px 0 0; padding: 0.4rem 0.8rem;
+    font-size: 0.95rem; cursor: pointer;
+  }
+  .tabs button:hover { color: inherit; background: var(--surface); }
+  .tabs button.active {
+    color: inherit; background: var(--surface);
+    border-color: var(--border); position: relative; top: 1px;
+  }
+  .tabs .count {
+    background: rgba(127,127,127,0.25); color: var(--muted);
+    border-radius: 999px; padding: 0 0.45rem; font-size: 0.75rem;
+    margin-left: 0.35rem;
+  }
+  .tabs button.active .count { color: inherit; }
+
+  /* Notizen tab */
+  .kind-pill {
+    background: rgba(127,127,127,0.25); color: var(--muted);
+    border-radius: 999px; padding: 0 0.5rem; font-size: 0.75rem;
+    margin-left: 0.4rem;
+  }
+  .kind-pill.ok { background: rgba(74,158,79,0.30); color: #4a9e4f; }
+  .card.promoted { opacity: 0.7; }
+  .card-head { align-items: center; }
+  .grow { flex: 1; }
+  .muted { color: var(--muted); }
+  .muted.small { font-size: 0.85rem; }
+  label.inline { display: flex; align-items: center; gap: 0.4rem; }
+  label.inline input[type=checkbox] { width: auto; }
 </style>

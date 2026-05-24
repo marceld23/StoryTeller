@@ -401,12 +401,38 @@ CMD_KEYWORDS = {
         "save": ("speicher",),
         "load": ("lade", "spielstand"),
         "menu": ("system", "systemmenü", "systemmenu", "menü", "menu"),
+        "note": ("vermerken", "vermerk", "notiz", "merke", "merken"),
     },
     "en": {
         "quit": ("quit", "stop", "exit", "goodbye", "that's all"),
         "save": ("save",),
         "load": ("load", "resume"),
         "menu": ("system", "system menu", "menu"),
+        "note": ("note", "take note", "remember as world"),
+    },
+}
+
+
+# Phrases / templates for runtime user-note creation. Rendered via live
+# TTS (not cached) because the player's content is dynamic.
+NOTE_PROMPTS = {
+    "de": {
+        "saved": "Vermerk gespeichert: {name} als {kind}.",
+        "saved_short": "Vermerk gespeichert.",
+        "empty": "Was soll ich vermerken? Bitte sag den Inhalt noch einmal.",
+        "kind_label": {
+            "person": "Person", "place": "Ort", "item": "Gegenstand",
+            "fact": "Welt-Fakt",
+        },
+    },
+    "en": {
+        "saved": "Note saved: {name} as {kind}.",
+        "saved_short": "Note saved.",
+        "empty": "What should I note down? Please say the content again.",
+        "kind_label": {
+            "person": "person", "place": "place", "item": "item",
+            "fact": "world fact",
+        },
     },
 }
 

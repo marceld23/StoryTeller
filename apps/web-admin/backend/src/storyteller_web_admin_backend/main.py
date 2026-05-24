@@ -403,6 +403,183 @@ def put_cost_config(payload: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
+# User notes (player-introduced world facts) + KnownFacts promotion
+# --------------------------------------------------------------------------
+
+class PromotePayload(BaseModel):
+    """Editable fields used when an admin promotes a user note to the
+    canonical world."""
+    kind: str | None = None
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] = []
+
+
+def _promote_to_world(cfg, world_id: str, kind: str, name: str,
+                       description: str, tags: list[str]) -> dict:
+    """Insert a new entry into `world.<bucket>` matching `kind` and
+    persist the world. Returns the new entry as dict."""
+    from storyteller_core.worlds.registry import load_world as _load
+    from storyteller_core.worlds.registry import save_world as _save
+    from storyteller_core.worlds.schema import (
+        Fragment,
+        Item,
+        Person,
+        Place,
+    )
+
+    world = _load(cfg, world_id)
+    if kind == "person":
+        entry = Person(name=name, role="", description=description,
+                       relations="", tags=tags)
+        world.persons = [*world.persons, entry]
+    elif kind == "place":
+        entry = Place(name=name, description=description, tags=tags)
+        world.places = [*world.places, entry]
+    elif kind == "item":
+        entry = Item(name=name, description=description,
+                     properties="", tags=tags)
+        world.items = [*world.items, entry]
+    else:  # fact -> store as fragment, the most flexible authored slot
+        kind = "fact"
+        entry = Fragment(title=name, text=description, tags=tags)
+        world.fragments = [*world.fragments, entry]
+    _save(cfg, world)
+    return entry.model_dump()
+
+
+@app.get("/api/worlds/{world_id}/user_notes")
+def list_user_notes(world_id: str, promoted: bool | None = None) -> dict:
+    from storyteller_core.story.user_notes import UserNoteStore
+
+    cfg = _cfg()
+    store = UserNoteStore(cfg, world_id)
+    return {"world_id": world_id,
+            "notes": [n.model_dump() for n in store.list(promoted=promoted)]}
+
+
+@app.post("/api/worlds/{world_id}/user_notes/{note_id}/promote")
+def promote_user_note(world_id: str, note_id: str,
+                       payload: PromotePayload) -> dict:
+    from storyteller_core.story.rag import RAG
+    from storyteller_core.story.user_notes import UserNoteStore
+
+    cfg = _cfg()
+    store = UserNoteStore(cfg, world_id)
+    note = store.get(note_id)
+    if note is None:
+        raise HTTPException(404, "unknown note")
+    kind = (payload.kind or note.kind or "fact").lower()
+    name = (payload.name or note.name).strip()
+    description = (payload.description or note.description).strip()
+    tags = payload.tags or note.tags
+    if not name:
+        raise HTTPException(422, "name is required")
+    # 1) write the entry into world.json
+    entry = _promote_to_world(cfg, world_id, kind, name, description, tags)
+    # 2) replace the user-note RAG row with a canonical one (same content
+    #    pattern as index_world). Falls back gracefully if RAG isn't open.
+    try:
+        rag = RAG(cfg)
+        rag.remove_facts_by_content(world_id, note.locale,
+                                     note.rag_fact_type(),
+                                     note.as_rag_text())
+        if kind == "person":
+            text = f"PERSON {name} (): {description} "
+        elif kind == "place":
+            text = f"ORT {name}: {description}"
+        elif kind == "item":
+            text = f"GEGENSTAND {name}: {description} "
+        else:
+            text = f"{name}: {description}"
+        rag.index_single_fact(world_id, note.locale, kind, text)
+    except Exception as exc:
+        log.warning("user-note promote RAG update failed: %r", exc)
+    # 3) flip the note's promoted flag (kept for audit trail)
+    store.mark_promoted(note_id)
+    return {"ok": True, "note_id": note_id, "kind": kind,
+            "world_entry": entry}
+
+
+@app.delete("/api/worlds/{world_id}/user_notes/{note_id}")
+def delete_user_note(world_id: str, note_id: str) -> dict:
+    from storyteller_core.story.rag import RAG
+    from storyteller_core.story.user_notes import UserNoteStore
+
+    cfg = _cfg()
+    store = UserNoteStore(cfg, world_id)
+    note = store.get(note_id)
+    if note is None:
+        raise HTTPException(404, "unknown note")
+    # Pull the RAG row first so retrieval stops finding it immediately.
+    try:
+        RAG(cfg).remove_facts_by_content(
+            world_id, note.locale, note.rag_fact_type(),
+            note.as_rag_text())
+    except Exception as exc:
+        log.warning("user-note delete RAG remove failed: %r", exc)
+    store.delete(note_id)
+    return {"ok": True, "note_id": note_id}
+
+
+@app.get("/api/saves/{thread_id}/promotable")
+def saves_promotable(thread_id: str) -> dict:
+    """Return per-thread `KnownFacts` (player-fact tool calls) so the
+    admin can promote them to the world."""
+    from storyteller_core.story.graph import get_compiled
+
+    snap = get_compiled().get_state({"configurable": {"thread_id": thread_id}})
+    values = dict(snap.values) if snap and snap.values else {}
+    known = values.get("known_facts") or []
+    char_state = values.get("char_state") or {}
+    return {
+        "thread_id": thread_id,
+        "known_facts": known,
+        "char_state": char_state,
+    }
+
+
+class PromoteKnownPayload(BaseModel):
+    world_id: str
+    kind: str             # person | place | item | fact
+    name: str
+    description: str = ""
+    tags: list[str] = []
+
+
+@app.post("/api/saves/{thread_id}/promote_known_fact")
+def saves_promote_known_fact(thread_id: str,
+                              payload: PromoteKnownPayload) -> dict:
+    """Promote a (kind, name, description) tuple from a thread's known
+    facts directly into the canonical world. RAG also picks up the new
+    row so the next turn can retrieve it."""
+    from storyteller_core.story.rag import RAG
+
+    cfg = _cfg()
+    kind = (payload.kind or "fact").lower()
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(422, "name is required")
+    entry = _promote_to_world(cfg, payload.world_id, kind, name,
+                              payload.description, payload.tags)
+    try:
+        from storyteller_core.i18n import norm
+        locale = norm(cfg.general.locale)
+        if kind == "person":
+            text = f"PERSON {name} (): {payload.description} "
+        elif kind == "place":
+            text = f"ORT {name}: {payload.description}"
+        elif kind == "item":
+            text = f"GEGENSTAND {name}: {payload.description} "
+        else:
+            text = f"{name}: {payload.description}"
+        RAG(cfg).index_single_fact(payload.world_id, locale, kind, text)
+    except Exception as exc:
+        log.warning("known-fact promote RAG update failed: %r", exc)
+    return {"ok": True, "thread_id": thread_id, "world_entry": entry}
+
+
+# --------------------------------------------------------------------------
 # Jobs + async-only endpoints (stubs)
 # --------------------------------------------------------------------------
 

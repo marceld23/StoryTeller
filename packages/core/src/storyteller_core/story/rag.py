@@ -128,6 +128,38 @@ class WorldRAG:
         db.commit()
         return len(items)
 
+    def index_single_fact(self, world_id: str, locale: str,
+                          fact_type: str, text: str) -> None:
+        """Append ONE fact to the per-world RAG index. Used by the user-
+        note system at runtime so player-introduced facts immediately show
+        up in retrieval — both for the rest of the current session and for
+        future sessions of the same world."""
+        from sqlite_vec import serialize_float32
+
+        wid = self._key(world_id, locale)
+        emb = self._embed([text])[0]
+        db = self._conn()
+        db.execute(
+            "INSERT INTO world_facts(world_id, embedding, fact_type,"
+            " content) VALUES (?,?,?,?)",
+            (wid, serialize_float32(emb), fact_type, text),
+        )
+        db.commit()
+
+    def remove_facts_by_content(self, world_id: str, locale: str,
+                                 fact_type: str, text: str) -> int:
+        """Delete every fact with this exact content/type for this world.
+        Used when an admin demotes a user-note or replaces it with a
+        canonical world entry. Returns the number of rows removed."""
+        wid = self._key(world_id, locale)
+        cur = self._conn().execute(
+            "DELETE FROM world_facts WHERE world_id = ? "
+            "AND fact_type = ? AND content = ?",
+            (wid, fact_type, text),
+        )
+        self._conn().commit()
+        return cur.rowcount or 0
+
     def retrieve(self, world_id: str, query: str, k: int | None = None,
                  fact_type: str | None = None,
                  locale: str = "de") -> list[dict]:
