@@ -44,7 +44,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from storyteller_core.config import ROOT, load_config
-from storyteller_core.worlds.registry import all_world_ids, load_world, save_world
+from storyteller_core.worlds.registry import (
+    all_world_ids,
+    is_valid_world_id,
+    load_world,
+    save_world,
+    world_exists,
+)
+from storyteller_core.worlds.registry import (
+    copy_world as core_copy_world,
+)
+from storyteller_core.worlds.registry import (
+    delete_world as core_delete_world,
+)
+from storyteller_core.worlds.registry import (
+    rename_world as core_rename_world,
+)
 from storyteller_core.worlds.schema import World
 
 from .jobs import JobRegistry
@@ -201,14 +216,65 @@ def delete_world(world_id: str) -> dict:
     cfg = _cfg()
     if world_id not in all_world_ids(cfg):
         raise HTTPException(404, "unknown world")
-    # Delete both locale variants if present.
-    deleted: list[str] = []
-    for fn in (f"{world_id}.json", f"{world_id}.de.json", f"{world_id}.en.json"):
-        p = ROOT / "data" / "worlds" / fn
-        if p.exists():
-            p.unlink()
-            deleted.append(fn)
-    return {"ok": True, "deleted": deleted}
+    # core_delete_world cleans up the JSON files, the RAG partition AND
+    # the matching pi-<id>* checkpoints in one shot — keeps the three
+    # storage layers in sync (a plain file unlink left orphan
+    # embeddings + saves before).
+    report = core_delete_world(cfg, world_id)
+    return {"ok": True, **report}
+
+
+class WorldRenameOrCopyPayload(BaseModel):
+    new_id: str
+    new_name: str = ""
+
+
+@app.post("/api/worlds/{world_id}/copy")
+def copy_world_endpoint(world_id: str,
+                        payload: WorldRenameOrCopyPayload) -> dict:
+    """Duplicate an existing world under a new id (and optional new
+    name). The copy gets fresh RAG indexing; saved games stay attached
+    to the source."""
+    cfg = _cfg()
+    if world_id not in all_world_ids(cfg):
+        raise HTTPException(404, "unknown world")
+    new_id = (payload.new_id or "").strip()
+    if not is_valid_world_id(new_id):
+        raise HTTPException(422, f"invalid new_id: {new_id!r} "
+                                 "(lowercase, starts with letter, "
+                                 "[a-z0-9_])")
+    if world_exists(cfg, new_id):
+        raise HTTPException(409, f"world id already in use: {new_id!r}")
+    try:
+        new = core_copy_world(cfg, world_id, new_id,
+                              new_name=(payload.new_name or "").strip() or None)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "world_id": new.id, "name": new.name}
+
+
+@app.post("/api/worlds/{world_id}/rename")
+def rename_world_endpoint(world_id: str,
+                          payload: WorldRenameOrCopyPayload) -> dict:
+    """Rename an existing world id (and optionally its display name).
+    Saved games for the source migrate to the new id; the RAG partition
+    is moved in-place to avoid a costly re-index."""
+    cfg = _cfg()
+    if world_id not in all_world_ids(cfg):
+        raise HTTPException(404, "unknown world")
+    new_id = (payload.new_id or "").strip()
+    if not is_valid_world_id(new_id):
+        raise HTTPException(422, f"invalid new_id: {new_id!r} "
+                                 "(lowercase, starts with letter, "
+                                 "[a-z0-9_])")
+    if new_id != world_id and world_exists(cfg, new_id):
+        raise HTTPException(409, f"world id already in use: {new_id!r}")
+    try:
+        new = core_rename_world(cfg, world_id, new_id,
+                                new_name=(payload.new_name or "").strip() or None)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"ok": True, "world_id": new.id, "name": new.name}
 
 
 # --------------------------------------------------------------------------

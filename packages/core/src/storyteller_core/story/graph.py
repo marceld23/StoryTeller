@@ -169,6 +169,84 @@ def delete_thread(thread_id: str, db_path: Path | None = None) -> dict:
     return out
 
 
+def delete_threads_matching(prefix: str,
+                             db_path: Path | None = None) -> dict:
+    """Delete every thread whose thread_id starts with `prefix` (incl. the
+    bare `pi-<world>` and the `pi-<world>-<ts>` --new variants). Used by
+    worlds.registry.delete_world so spielständer for the removed world
+    are cleaned up at the same time. Returns aggregate row counts."""
+    import logging
+
+    log = logging.getLogger("storyteller.maintenance")
+    out = {"checkpoints_deleted": 0, "writes_deleted": 0, "prefix": prefix}
+    from ..config import ROOT
+
+    path = db_path or (ROOT / "data" / "checkpoints.db")
+    if not Path(path).exists():
+        return out
+    try:
+        conn = sqlite3.connect(str(path), timeout=5)
+        conn.execute("PRAGMA busy_timeout=5000")
+        like = prefix + "%"
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if "checkpoints" in tables:
+            cur = conn.execute(
+                "DELETE FROM checkpoints WHERE thread_id LIKE ?", (like,))
+            out["checkpoints_deleted"] = cur.rowcount
+        if "writes" in tables:
+            cur = conn.execute(
+                "DELETE FROM writes WHERE thread_id LIKE ?", (like,))
+            out["writes_deleted"] = cur.rowcount
+        conn.commit()
+        conn.close()
+        log.info("delete_threads_matching: %s", out)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("threads delete failed: %r", exc)
+    return out
+
+
+def migrate_thread_prefix(old_prefix: str, new_prefix: str,
+                           db_path: Path | None = None) -> dict:
+    """Repoint every thread_id starting with `old_prefix` to start with
+    `new_prefix` instead — used by worlds.registry.rename_world so
+    saved games survive a world rename (the Pi voice loop uses
+    `pi-<world_id>` as thread_id, optionally with a `-<ts>` suffix
+    for --new sessions). Returns aggregate row counts."""
+    import logging
+
+    log = logging.getLogger("storyteller.maintenance")
+    out = {"checkpoints_updated": 0, "writes_updated": 0,
+           "old_prefix": old_prefix, "new_prefix": new_prefix}
+    from ..config import ROOT
+
+    path = db_path or (ROOT / "data" / "checkpoints.db")
+    if not Path(path).exists():
+        return out
+    try:
+        conn = sqlite3.connect(str(path), timeout=5)
+        conn.execute("PRAGMA busy_timeout=5000")
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        # SQLite replace + substr to rewrite the prefix portion only.
+        plen = len(old_prefix)
+        for tname, key in (("checkpoints", "checkpoints_updated"),
+                           ("writes", "writes_updated")):
+            if tname not in tables:
+                continue
+            cur = conn.execute(
+                f"UPDATE {tname} SET thread_id = ? || substr(thread_id, ?) "
+                f"WHERE thread_id LIKE ?",
+                (new_prefix, plen + 1, old_prefix + "%"))
+            out[key] = cur.rowcount
+        conn.commit()
+        conn.close()
+        log.info("migrate_thread_prefix: %s", out)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("thread migration failed: %r", exc)
+    return out
+
+
 def list_threads(db_path: Path | None = None) -> list[dict]:
     """Inventory of saved sessions: [{thread_id, checkpoints, last_narration}].
 

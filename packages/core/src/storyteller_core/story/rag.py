@@ -199,6 +199,44 @@ class WorldRAG:
         )
         db.commit()
 
+    def purge_world(self, world_id: str) -> int:
+        """Delete ALL facts for this world across every locale partition.
+        Called from worlds.registry.delete_world to keep the RAG DB
+        consistent with the JSON file — otherwise the embeddings for
+        the deleted world stay as orphan rows forever (and could even
+        leak into RAG hits for a future world re-created under the
+        same id). Returns the number of rows removed."""
+        from ..i18n import LOCALES
+
+        db = self._conn()
+        total = 0
+        for locale in LOCALES:
+            cur = db.execute(
+                "DELETE FROM world_facts WHERE world_id = ?",
+                (self._key(world_id, locale),))
+            total += cur.rowcount or 0
+        db.commit()
+        return total
+
+    def move_world(self, old_id: str, new_id: str) -> int:
+        """Repoint every fact's partition key from old_id to new_id
+        across every locale partition. Called from
+        worlds.registry.rename_world so the indexed embeddings move
+        with the renamed world (instead of being re-indexed from
+        scratch on first retrieval, which costs an OpenAI call for
+        every fact). Returns the number of rows touched."""
+        from ..i18n import LOCALES
+
+        db = self._conn()
+        total = 0
+        for locale in LOCALES:
+            cur = db.execute(
+                "UPDATE world_facts SET world_id = ? WHERE world_id = ?",
+                (self._key(new_id, locale), self._key(old_id, locale)))
+            total += cur.rowcount or 0
+        db.commit()
+        return total
+
     def remove_facts_by_content(self, world_id: str, locale: str,
                                  fact_type: str, text: str) -> int:
         """Delete every fact with this exact content/type for this world.
