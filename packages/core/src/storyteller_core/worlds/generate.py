@@ -218,7 +218,18 @@ def _p(progress: ProgressFn | None, msg: str) -> None:
 
 
 def _llm_json(cfg: Config, system: str, user: str) -> dict:
-    """One LLM call, JSON object response, no streaming. Raises on bad JSON."""
+    """One LLM call, JSON object response, no streaming. Raises on bad JSON.
+
+    Checks the daily cost cap BEFORE the call (so an exhausted budget
+    aborts world generation cleanly) and logs the actual usage to the
+    cost ledger afterwards. World generation is one of the cost-heaviest
+    operations the admin can trigger — multiple calls per world — so
+    both checks matter even though no per-session tracker is involved.
+    """
+    from ..story.ledger import CostLedger
+
+    ledger = CostLedger(cfg)
+    ledger.assert_under_cap()
     r = get_chat_client(cfg, "gen").chat.completions.create(
         model=cfg.models.gen,
         temperature=cfg.models.gen_temperature,
@@ -226,6 +237,7 @@ def _llm_json(cfg: Config, system: str, user: str) -> dict:
                   {"role": "user", "content": user}],
         response_format={"type": "json_object"},
     )
+    ledger.record_chat_usage(role="gen", model=cfg.models.gen, usage=r.usage)
     return json.loads(r.choices[0].message.content or "{}")
 
 

@@ -330,6 +330,79 @@ def put_moderation(payload: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Cost (daily cap, ledger, resets)
+# --------------------------------------------------------------------------
+
+def _cost_overlay_path() -> Path:
+    """Admin-editable subset of [cost] (caps, prices). Loaded by
+    `load_config` as part of the data overlay — same pattern as
+    moderation.json and models.json."""
+    return ROOT / "data" / "cost.json"
+
+
+@app.get("/api/cost/summary")
+def cost_summary(days: int = 7) -> dict:
+    from storyteller_core.story.ledger import CostLedger
+    cfg = _cfg()
+    return CostLedger(cfg).summary(days=int(days))
+
+
+@app.get("/api/cost/sessions")
+def cost_sessions(date: str | None = None) -> dict:
+    from storyteller_core.story.ledger import CostLedger
+    cfg = _cfg()
+    return {"date": date, "sessions": CostLedger(cfg).sessions_for(date)}
+
+
+@app.post("/api/cost/reset/daily")
+def cost_reset_daily(payload: dict | None = None) -> dict:
+    from storyteller_core.story.ledger import CostLedger
+    cfg = _cfg()
+    date = (payload or {}).get("date") if isinstance(payload, dict) else None
+    d = CostLedger(cfg).reset_daily(date)
+    return {"ok": True, "date": d}
+
+
+@app.post("/api/cost/reset/session/{thread_id}")
+def cost_reset_session(thread_id: str) -> dict:
+    from storyteller_core.story.ledger import CostLedger
+    cfg = _cfg()
+    CostLedger(cfg).reset_session(thread_id)
+    return {"ok": True, "thread_id": thread_id}
+
+
+@app.get("/api/cost/config")
+def get_cost_config() -> dict:
+    cfg = _cfg()
+    return {
+        "enforce": cfg.cost.enforce,
+        "daily_cap_usd": cfg.cost.daily_cap_usd,
+        "warn_threshold_pct": cfg.cost.warn_threshold_pct,
+        "usd_per_1m_input": cfg.cost.usd_per_1m_input,
+        "usd_per_1m_output": cfg.cost.usd_per_1m_output,
+        "usd_per_1m_embedding": cfg.cost.usd_per_1m_embedding,
+        "usd_per_1m_tts_chars": cfg.cost.usd_per_1m_tts_chars,
+        "usd_per_minute_stt": cfg.cost.usd_per_minute_stt,
+        "overrides": _read_json(_cost_overlay_path(), {}),
+    }
+
+
+@app.put("/api/cost/config")
+def put_cost_config(payload: dict) -> dict:
+    """Persist an overlay of [cost] values to `data/cost.json`. Only the
+    keys present in `payload` are written; the rest stay at their
+    config.toml defaults."""
+    allowed = {
+        "enforce", "daily_cap_usd", "warn_threshold_pct",
+        "usd_per_1m_input", "usd_per_1m_output", "usd_per_1m_embedding",
+        "usd_per_1m_tts_chars", "usd_per_minute_stt",
+    }
+    clean = {k: v for k, v in (payload or {}).items() if k in allowed}
+    _write_json(_cost_overlay_path(), clean)
+    return {"ok": True, "stored": clean}
+
+
+# --------------------------------------------------------------------------
 # Jobs + async-only endpoints (stubs)
 # --------------------------------------------------------------------------
 

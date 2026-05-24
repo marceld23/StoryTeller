@@ -5,9 +5,20 @@
 
   let theme = $state('dark');
   let { children } = $props();
+  let cost = $state<{ today_usd: number; cap_daily_usd: number; pct: number; over_cap: boolean; approaching: boolean } | null>(null);
+
+  async function refreshCost() {
+    try {
+      const r = await fetch('/api/cost/summary?days=1');
+      if (r.ok) cost = await r.json();
+    } catch { /* ignore */ }
+  }
 
   onMount(() => {
     theme = document.documentElement.dataset.theme || 'dark';
+    refreshCost();
+    const id = setInterval(refreshCost, 30000);
+    return () => clearInterval(id);
   });
 
   function toggle() {
@@ -22,8 +33,14 @@
   <a href="/generate" class:active={page.url.pathname.startsWith('/generate')}>Generieren</a>
   <a href="/transcripts" class:active={page.url.pathname.startsWith('/transcript')}>Verläufe</a>
   <a href="/saves" class:active={page.url.pathname.startsWith('/saves')}>Spielstände</a>
+  <a href="/cost" class:active={page.url.pathname.startsWith('/cost')}>Kosten</a>
   <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Einstellungen</a>
   <span class="grow"></span>
+  {#if cost && cost.cap_daily_usd > 0}
+    <a class="cost-pill" class:over={cost.over_cap} class:warn={cost.approaching && !cost.over_cap} href="/cost" title="Tagesbudget">
+      {cost.today_usd.toFixed(2)} / {cost.cap_daily_usd.toFixed(2)} USD
+    </a>
+  {/if}
   <button class="nav-theme" onclick={toggle} title="Hell/Dunkel umschalten" aria-label="Theme">
     {theme === 'light' ? '🌙' : '☀️'}
   </button>
@@ -45,6 +62,14 @@
     background: transparent; color: var(--nav-fg); border: 1px solid var(--nav-muted);
     padding: 0.1rem 0.4rem; font-size: 1rem; border-radius: 4px; cursor: pointer;
   }
+  nav .cost-pill {
+    color: var(--nav-fg); background: rgba(255,255,255,0.10);
+    border: 1px solid var(--nav-muted); border-radius: 999px;
+    padding: 0.15rem 0.6rem; font-size: 0.85rem; text-decoration: none;
+    margin-right: 0.5rem;
+  }
+  nav .cost-pill.warn { background: rgba(255, 200, 0, 0.20); border-color: #d4a200; }
+  nav .cost-pill.over { background: rgba(220, 50, 50, 0.25); border-color: #c25450; color: #fff; }
   main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
   :global(button) {
     background: #4a90e2; color: #fff; border: none;

@@ -42,9 +42,13 @@ class Curator:
     matches the algorithmic-only Phase-1 behaviour.
     """
 
-    def __init__(self, cfg: Config, cost=None):
+    def __init__(self, cfg: Config, cost=None, *, ledger=None,
+                 thread_id: str | None = None, world_id: str | None = None):
         self.cfg = cfg
         self.cost = cost
+        self.ledger = ledger
+        self.thread_id = thread_id
+        self.world_id = world_id
 
     def gate(
         self,
@@ -117,7 +121,15 @@ class Curator:
                 response_format={"type": "json_object"},
             )
             if self.cost is not None:
-                self.cost.record_chat(resp.usage)
+                _usd = self.cost.record_chat(resp.usage, role="gate")
+                if self.ledger is not None and resp.usage is not None:
+                    self.ledger.record(
+                        kind="chat", usd=_usd,
+                        thread_id=self.thread_id, world_id=self.world_id,
+                        model=self.cfg.models.gate,
+                        chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
+                        chat_out=getattr(resp.usage,
+                                         "completion_tokens", 0) or 0)
             data = json.loads(resp.choices[0].message.content or "{}")
             return NarrationGate(
                 scene_intent=str(data.get("scene_intent", "")).strip()[:300],

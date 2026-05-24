@@ -38,6 +38,12 @@ class StoryEngine:
         return cfg
 
     def turn(self, user_text: str) -> str:
+        # Daily cost cap is a HARD pause: we refuse the next turn so the
+        # story state on disk stays consistent (player can resume after a
+        # reset). Raised exception is `DailyCapExceeded`; the main loop
+        # catches it and plays the pause announcement, then idles.
+        from .ledger import CostLedger
+        CostLedger(self.ctx.cfg).assert_under_cap()
         graph = get_compiled()
         result = graph.invoke({"user_text": user_text}, config=self._config())
         return (result.get("response") or "").strip()
@@ -80,6 +86,11 @@ class StoryEngine:
                 messages=[{"role": "system", "content": RECAP_SYS[locale]},
                           {"role": "user", "content": ctx_txt}],
             )
+            from .ledger import CostLedger
+            CostLedger(self.ctx.cfg).record_chat_usage(
+                role="story", model=self.ctx.cfg.models.story_llm,
+                usage=r.usage, thread_id=self.thread_id,
+                world_id=getattr(self.ctx.world, "id", None))
             text = (r.choices[0].message.content or "").strip()
             if text:
                 spoken = RECAP_INTRO[locale] + text

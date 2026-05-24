@@ -92,9 +92,13 @@ _PLANNER_SYS = (
 class SubstoryPlanner:
     """The "think-and-plan step" for a new substory (its own LLM call)."""
 
-    def __init__(self, cfg: Config, cost=None):
+    def __init__(self, cfg: Config, cost=None, *, ledger=None,
+                 thread_id: str | None = None, world_id: str | None = None):
         self.cfg = cfg
         self.cost = cost
+        self.ledger = ledger
+        self.thread_id = thread_id
+        self.world_id = world_id
 
     def plan_next(self, world, rag, macro_guidance: str, known_summary: str,
                   recent: str, previous_summary: str = "",
@@ -151,7 +155,15 @@ class SubstoryPlanner:
                 response_format={"type": "json_object"},
             )
             if self.cost is not None:
-                self.cost.record_chat(resp.usage)
+                _usd = self.cost.record_chat(resp.usage, role="planner")
+                if self.ledger is not None and resp.usage is not None:
+                    self.ledger.record(
+                        kind="chat", usd=_usd,
+                        thread_id=self.thread_id, world_id=self.world_id,
+                        model=self.cfg.models.planner,
+                        chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
+                        chat_out=getattr(resp.usage,
+                                         "completion_tokens", 0) or 0)
             data = json.loads(resp.choices[0].message.content or "{}")
             beats = [Beat(name=b.get("name", f"Beat {i+1}"),
                           goal=b.get("goal", ""),

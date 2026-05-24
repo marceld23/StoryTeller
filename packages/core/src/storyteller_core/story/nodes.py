@@ -33,6 +33,7 @@ from .blueprint import BlueprintTracker
 from .cost import CostTracker
 from .dynamics import INTEGRATION_RULE, StoryDynamics
 from .knowledge import KnownFacts
+from .ledger import CostLedger
 from .moderation import Moderator
 from .patterns import world_tone_line as _tone_line
 from .state import EngineContext
@@ -76,6 +77,8 @@ def _repair_language(text: str, locale: str, cfg: Config) -> str:
             messages=[{"role": "system", "content": REPAIR_LANGUAGE_SYS[locale]},
                       {"role": "user", "content": text}],
         )
+        CostLedger(cfg).record_chat_usage(
+            role="story", model=cfg.models.story_llm, usage=r.usage)
         out = (r.choices[0].message.content or "").strip()
         return out or text
     except Exception as exc:  # pragma: no cover - network
@@ -104,7 +107,6 @@ _TURN_DEFAULTS: dict = {
     "retrieved": [],
     "dyn_hint": None,
     "brief": False,
-    "wrap_up": False,
     "transition": False,
     "response": "",
     "system_prompt": "",
@@ -118,6 +120,13 @@ _TURN_DEFAULTS: dict = {
 # --------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------
+
+def _thread_id(config: RunnableConfig) -> str | None:
+    try:
+        return config["configurable"].get("thread_id")
+    except Exception:
+        return None
+
 
 def _ctx(config: RunnableConfig) -> EngineContext:
     return config["configurable"]["ctx"]
@@ -178,9 +187,11 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
 
     retrieved = [r for r in retrieved_all if _visible(r)]
     facts = "\n".join(f"- [{r['fact_type']}] {r['content']}" for r in retrieved)
-    wrap_up = state.get("wrap_up", False)
-    cap = ("\nWICHTIG: Das Sitzungsbudget ist erschöpft — führe die "
-           "Geschichte jetzt zu einem ruhigen, runden Abschluss." if wrap_up else "")
+    # The legacy "wrap_up" nudge was removed in favour of a hard daily-cap
+    # pause handled at the engine boundary — see `engine.turn` and the
+    # main idle loop. The story now either runs normally or is paused
+    # entirely; there is no in-prompt instruction to wind it down.
+    cap = ""
     dyn_hint = state.get("dyn_hint")
     dyn = (f"\n\nMÖGLICHE STORY-DYNAMIK (optional einweben): {dyn_hint}\n"
            f"{INTEGRATION_RULE}" if dyn_hint else "")
@@ -356,13 +367,10 @@ def fanout(state: dict, config: RunnableConfig) -> dict:
 
 def compute_flags(state: dict, config: RunnableConfig) -> dict:
     ctx = _ctx(config)
-    cfg = ctx.cfg
     locale = _locale(state, ctx)
     user_text = state.get("user_text", "")
-    cost = CostTracker.restore(cfg, state.get("cost") or {})
     return {
         "brief": _is_query(user_text, locale),
-        "wrap_up": cost.over_cap,
     }
 
 
@@ -376,7 +384,9 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
         return {}  # no change
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
-    planner = SubstoryPlanner(cfg, cost)
+    planner = SubstoryPlanner(cfg, cost, ledger=CostLedger(cfg),
+                              thread_id=_thread_id(config),
+                              world_id=getattr(ctx.world, "id", None))
 
     prev_summary = sub_dict.get("closing_summary", "") if sub_dict else ""
     macro_idx = state.get("macro_index", 0)
@@ -433,13 +443,11 @@ def retrieve_rag(state: dict, config: RunnableConfig) -> dict:
 def curate(state: dict, config: RunnableConfig) -> dict:
     """Run the narration "gate" — a small LLM call that decides per turn
     which AUTHORED reveals the narrator may use, and which authored topics
-    must stay hidden today. Skipped when disabled or during wrap_up."""
+    must stay hidden today. Skipped when disabled."""
     ctx = _ctx(config)
     cfg = ctx.cfg
     if not getattr(cfg.story, "narration_gate_enabled", True):
         return {}
-    if state.get("wrap_up"):
-        return {}                # the end-of-session pass holds nothing back
     from .curator import Curator
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
@@ -450,7 +458,9 @@ def curate(state: dict, config: RunnableConfig) -> dict:
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
     recent = _recent(state.get("memory") or [])
     try:
-        gate = Curator(cfg, cost).gate(
+        gate = Curator(cfg, cost, ledger=CostLedger(cfg),
+                       thread_id=_thread_id(config),
+                       world_id=getattr(ctx.world, "id", None)).gate(
             ctx.world, sub_dict, future_beats,
             state.get("retrieved") or [],
             known_summary, recent, state.get("user_text", ""),
@@ -534,7 +544,15 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         }
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
-    cost.record_chat(resp.usage)
+    _usd = cost.record_chat(resp.usage, role="story")
+    if resp.usage is not None:
+        CostLedger(cfg).record(
+            kind="chat", usd=_usd,
+            thread_id=_thread_id(config),
+            world_id=getattr(ctx.world, "id", None),
+            model=cfg.models.story_llm,
+            chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
+            chat_out=getattr(resp.usage, "completion_tokens", 0) or 0)
     cost_snap = cost.snapshot()
 
     msg = resp.choices[0].message
@@ -642,7 +660,9 @@ def replan(state: dict, config: RunnableConfig) -> dict:
     locale = _locale(state, ctx)
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
-    planner = SubstoryPlanner(cfg, cost)
+    planner = SubstoryPlanner(cfg, cost, ledger=CostLedger(cfg),
+                              thread_id=_thread_id(config),
+                              world_id=getattr(ctx.world, "id", None))
 
     sub_dict = state.get("substory") or {}
     prev_summary = sub_dict.get("closing_summary", "")
@@ -782,6 +802,8 @@ def _fold_into_synopsis(
                 {"role": "user", "content": user_msg},
             ],
         )
+        CostLedger(cfg).record_chat_usage(
+            role="planner", model=cfg.models.planner, usage=resp.usage)
         txt = (resp.choices[0].message.content or "").strip()
         if not txt:
             return False, synopsis

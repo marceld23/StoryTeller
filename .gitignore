@@ -57,3 +57,5 @@ data/audio.json
 data/settings.json
 data/models*.json
 data/story.json
+data/cost.json
+data/cost.jsonl

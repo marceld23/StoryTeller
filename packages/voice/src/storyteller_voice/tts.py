@@ -406,14 +406,51 @@ class LocalTTS(TTS):
         raise NotImplementedError("Phase 10: lokales TTS (Pi 5 + AI HAT).")
 
 
+class _TrackingTTS(TTS):
+    """Wraps a real TTS backend and logs character usage to the cost
+    ledger after each call. Local backends (any non-empty tts_endpoint)
+    end up at usd=0 and are skipped by the ledger automatically."""
+
+    def __init__(self, inner: TTS, cfg: Config):
+        self.inner = inner
+        self.cfg = cfg
+
+    def synthesize(self, text: str, instructions: str = ""):
+        result = self.inner.synthesize(text, instructions)
+        self._log(text)
+        return result
+
+    def synthesize_streaming(self, text: str, instructions: str = ""):
+        yield from self.inner.synthesize_streaming(text, instructions)
+        self._log(text)
+
+    def _log(self, text: str) -> None:
+        chars = len(text or "")
+        if chars <= 0:
+            return
+        try:
+            from storyteller_core.story.cost import is_local_role
+            from storyteller_core.story.ledger import CostLedger
+            if is_local_role(self.cfg, "tts"):
+                return
+            usd = chars / 1e6 * self.cfg.cost.usd_per_1m_tts_chars
+            CostLedger(self.cfg).record(
+                kind="tts", usd=usd, model=self.cfg.models.tts,
+                tts_chars=chars)
+        except Exception:
+            pass
+
+
 def get_tts(cfg: Config) -> TTS:
     # Auto-detect from the endpoint scheme so it's admin-configurable and
     # hot-reloaded; OpenAI stays the default for everything else.
     ep = cfg.models.tts_endpoint.base_url or ""
     if cfg.tts.provider == "wyoming" or ep.startswith(("tcp://", "wyoming://")):
-        return WyomingTTS(cfg)
-    if cfg.tts.provider == "xtts" or ep.startswith(
+        inner: TTS = WyomingTTS(cfg)
+    elif cfg.tts.provider == "xtts" or ep.startswith(
             ("xtts://", "xtts+http://", "xtts+https://")):
-        return XttsTTS(cfg)
-    return {"openai": OpenAITTS, "local": LocalTTS}.get(
-        cfg.tts.provider, OpenAITTS)(cfg)
+        inner = XttsTTS(cfg)
+    else:
+        inner = {"openai": OpenAITTS, "local": LocalTTS}.get(
+            cfg.tts.provider, OpenAITTS)(cfg)
+    return _TrackingTTS(inner, cfg)

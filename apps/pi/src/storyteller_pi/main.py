@@ -27,7 +27,9 @@ import time
 from rich import print as rp
 from storyteller_core.config import load_config
 from storyteller_core.i18n import CMD_KEYWORDS, RESTORE_DIRECTIVE, norm
+from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
+from storyteller_core.story.ledger import CostLedger
 from storyteller_core.worlds.registry import load_world
 
 log = logging.getLogger("storyteller.pi")
@@ -503,6 +505,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # A barge-in always leads straight to listening (even if follow-up is off).
     pending_follow = follow_enabled or opening_interrupted
     hinted = False                     # wake_hint announced ONCE per idle
+    cap_pause_announced = False        # daily-cap pause prompt: once per idle
     try:
         while True:
             leds.idle()
@@ -512,6 +515,18 @@ def cmd_run(args: argparse.Namespace) -> int:
             cfg = load_config()
             stt = get_stt(cfg)
             tts = get_tts(cfg)
+            # Daily cost cap: refuse new turns when the day's spend is
+            # exhausted. The previously saved state is untouched — when an
+            # admin resets the cap we pick up exactly where we left off.
+            ledger = CostLedger(cfg)
+            if ledger.is_over_daily_cap():
+                if speak and not cap_pause_announced:
+                    prompts.play("daily_cap_still", backend)
+                    cap_pause_announced = True
+                time.sleep(5)
+                pending_follow = False
+                continue
+            cap_pause_announced = False
             # If a long-press fired since the last iteration (typically:
             # during the previous narration; the button handler also armed
             # `menu_requested` so we get here even if the press happened at
@@ -559,9 +574,23 @@ def cmd_run(args: argparse.Namespace) -> int:
                     continue
                 if any(k in low for k in cmd_kw["quit"]):
                     break
-                reply, interrupted = _say_barge(
-                    lambda s=said: engine.turn(s))
+                try:
+                    reply, interrupted = _say_barge(
+                        lambda s=said: engine.turn(s))
+                except DailyCapExceeded as exc:
+                    log.warning("Daily cost cap reached — pausing story: %r",
+                                exc)
+                    if speak:
+                        prompts.play("daily_cap_pause", backend)
+                    pending_follow = False
+                    continue
                 rp(f"[green][Erzähler][/green] {reply}")
+                # One-shot approach warning when today's spend crosses the
+                # configured percentage of the daily cap.
+                if speak and ledger.is_approaching_daily_cap() \
+                        and not ledger.warned_today():
+                    prompts.play("daily_cap_warning", backend)
+                    ledger.mark_warned_today()
                 # On barge-in: listen right away (no wake word) so the player
                 # can steer; the classify step below decides menu vs. story.
                 pending_follow = True if interrupted else follow_enabled

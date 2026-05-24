@@ -51,6 +51,20 @@ class WorldRAG:
             input=texts,
             dimensions=self.dim,
         )
+        # Account for the embedding call in the cost ledger (skipped
+        # automatically when embedding_endpoint points at a local server).
+        try:
+            from .cost import is_local_role
+            from .ledger import CostLedger
+            usage = getattr(r, "usage", None)
+            if usage is not None and not is_local_role(self.cfg, "embedding"):
+                tok = int(getattr(usage, "prompt_tokens", 0) or 0)
+                usd = tok / 1e6 * self.cfg.cost.usd_per_1m_embedding
+                CostLedger(self.cfg).record(
+                    kind="embed", usd=usd,
+                    model=self.cfg.models.embedding, embed=tok)
+        except Exception:
+            pass
         return [d.embedding for d in r.data]
 
     # --- API ---

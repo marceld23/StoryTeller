@@ -44,7 +44,6 @@ class StoryState(TypedDict, total=False):
     retrieved: list[dict]
     dyn_hint: str | None
     brief: bool
-    wrap_up: bool
     transition: bool
     response: str
     system_prompt: str
@@ -57,7 +56,7 @@ class StoryState(TypedDict, total=False):
 
 
 TURN_SCOPED_KEYS: tuple[str, ...] = (
-    "moderation_ok", "retrieved", "dyn_hint", "brief", "wrap_up",
+    "moderation_ok", "retrieved", "dyn_hint", "brief",
     "transition", "response", "system_prompt", "pending_tool_calls",
     "narrate_iter", "just_completed_substory", "gate",
 )

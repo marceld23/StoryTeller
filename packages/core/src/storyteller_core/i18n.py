@@ -65,6 +65,18 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                       "Einführung wieder umstellen.",
         "intro_on": "Einführung wird künftig wieder abgespielt.",
         "intro_off": "Einführung wird künftig übersprungen.",
+        "daily_cap_pause": "Das Tagesbudget für die Geschichte ist "
+                            "erreicht. Ich speichere deinen Spielstand "
+                            "und mache jetzt Pause. Bitte den Admin, "
+                            "das Tageslimit zurückzusetzen — danach "
+                            "können wir genau hier weitermachen.",
+        "daily_cap_still": "Das Tagesbudget ist immer noch erreicht. "
+                            "Sobald der Admin das Limit zurücksetzt, "
+                            "können wir weitermachen. Bis dahin pausiere "
+                            "ich.",
+        "daily_cap_warning": "Hinweis: das Tagesbudget ist fast "
+                              "aufgebraucht. Nur noch wenige Züge "
+                              "möglich, bevor ich pausieren muss.",
     },
     "en": {
         "welcome": "Welcome to the storyteller.",
@@ -107,6 +119,16 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                       "under Intro.",
         "intro_on": "The intro will be played again from now on.",
         "intro_off": "The intro will be skipped from now on.",
+        "daily_cap_pause": "The daily budget for the story is reached. "
+                            "I'm saving your progress and pausing now. "
+                            "Ask the admin to reset the daily limit — "
+                            "we can pick up right where we left off.",
+        "daily_cap_still": "The daily budget is still reached. As soon "
+                            "as the admin resets the limit, we can "
+                            "continue. Until then I'll stay paused.",
+        "daily_cap_warning": "Heads-up: the daily budget is nearly "
+                              "spent. Only a few more turns before I "
+                              "have to pause.",
     },
 }
 

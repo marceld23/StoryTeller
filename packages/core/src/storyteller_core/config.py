@@ -228,10 +228,30 @@ class StoryCfg(BaseModel):
 
 
 class CostCfg(BaseModel):
+    # Master switch — flips all enforcement off (counters still accumulate
+    # in the ledger). Useful to keep telemetry while temporarily lifting
+    # the cap.
     enforce: bool = True
+    # Per-1M-token unit prices for chat LLM calls (input/output) and
+    # embeddings, plus per-1M-character price for TTS and per-minute price
+    # for STT. Defaults below match OpenAI's gpt-5.x / gpt-4o-mini-* tier;
+    # adjust to whichever endpoint the [models] section actually hits.
     usd_per_1m_input: float = 0.30
     usd_per_1m_output: float = 1.20
     usd_per_1m_embedding: float = 0.02
+    usd_per_1m_tts_chars: float = 15.0
+    usd_per_minute_stt: float = 0.006
+    # Daily hard cap. When reached, the engine refuses new turns: the
+    # ongoing turn (if any) is saved cleanly, the player hears a "limit
+    # reached" announcement, and the next wake-word activation greets
+    # them with the same hint until an admin resets the day.
+    daily_cap_usd: float = 5.0
+    # Warning threshold (percent of daily cap). Fires a one-shot voice
+    # notice on the turn that crosses it.
+    warn_threshold_pct: int = 80
+    # Where the append-only spend ledger lives (one JSON per line +
+    # reset markers). Resolved relative to ROOT just like other paths.
+    ledger_path: str = "data/cost.jsonl"
 
 
 class LoggingCfg(BaseModel):
@@ -360,6 +380,7 @@ def _watch_files(config_path: str | None) -> list[Path]:
         ROOT / "data" / "models.json",
         ROOT / "data" / "audio.json",
         ROOT / "data" / "story.json",
+        ROOT / "data" / "cost.json",
         ROOT / ".env",
     ]
 
@@ -390,6 +411,7 @@ def _build_config(config_path: str | None) -> Config:
                            or cfg.web.admin_token or cfg.web.auth_token)
     _apply_model_overrides(cfg)
     _apply_story_overrides(cfg)
+    _apply_cost_overrides(cfg)
     return cfg
 
 
@@ -440,6 +462,32 @@ def _apply_model_overrides(cfg: Config) -> None:
         cfg.models = ModelsCfg.model_validate(merged)
     except Exception as exc:
         log.warning("model overrides invalid, ignored: %r", exc)
+
+
+def _apply_cost_overrides(cfg: Config) -> None:
+    """Admin-editable overrides for [cost] (data/cost.json): daily cap,
+    warning threshold, unit prices. Same shape as the other overlays —
+    only keys present in the file are replaced, the rest keep their
+    config.toml defaults."""
+    import json
+    import logging
+
+    log = logging.getLogger("storyteller.config")
+    p = ROOT / "data" / "cost.json"
+    if not p.exists():
+        return
+    try:
+        ov = json.loads(p.read_text())
+    except Exception as exc:
+        log.warning("data/cost.json unreadable, ignored: %r", exc)
+        return
+    if not isinstance(ov, dict) or not ov:
+        return
+    try:
+        merged = {**cfg.cost.model_dump(), **ov}
+        cfg.cost = CostCfg.model_validate(merged)
+    except Exception as exc:
+        log.warning("cost overrides invalid, ignored: %r", exc)
 
 
 def _apply_story_overrides(cfg: Config) -> None:
