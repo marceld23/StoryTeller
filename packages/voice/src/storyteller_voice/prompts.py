@@ -57,8 +57,10 @@ class VoicePromptCache:
         2) Prepend 300 ms of silence so any remaining USB-endpoint
            warmup latency cannot truncate the actual speech.
         """
-        from scipy.signal import resample_poly
         from math import gcd
+
+        from scipy.signal import resample_poly
+
         from .tts import get_tts
 
         rebuild = force or self._stale()

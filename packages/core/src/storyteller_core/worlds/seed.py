@@ -34,7 +34,6 @@ from .schema import (
     World,
 )
 
-
 # ---------------- Functional macro-arc (per-locale strings) ----------------
 
 def _functional_beats_de() -> list[Beat]:
