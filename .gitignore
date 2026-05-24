@@ -55,6 +55,5 @@ data/worlds/*
 !data/worlds/immerwald.en.json
 data/audio.json
 data/settings.json
-data/models.json
-data/models_*.json
+data/models*.json
 data/story.json
