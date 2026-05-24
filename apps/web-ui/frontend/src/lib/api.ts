@@ -80,3 +80,44 @@ export function openVoiceSocket(thread_id: string, world_id: string): WebSocket 
   ws.binaryType = 'arraybuffer';
   return ws;
 }
+
+export type GeneratedWorld = { id: string; name: string; genre: string };
+
+/** Player-facing world generation. Blocks 1–3 minutes while the
+ * multi-step pipeline runs server-side; callers should show a spinner. */
+export async function generatePlayerWorld(
+  prompt: string
+): Promise<GeneratedWorld> {
+  const r = await fetch(`${BACKEND}/api/worlds/generate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ prompt })
+  });
+  if (!r.ok) {
+    on401(r);
+    const detail = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(detail.detail || `generate: ${r.status}`);
+  }
+  return r.json();
+}
+
+/** Send a player-introduced world fact ("Vermerken: …") via REST.
+ * The text gets classified + indexed in the per-world JSONL + RAG. */
+export async function sessionNote(
+  thread_id: string, world_id: string, text: string
+): Promise<{ id: string; name: string; kind: string }> {
+  const r = await fetch(
+    `${BACKEND}/api/sessions/${encodeURIComponent(thread_id)}/note?world_id=${encodeURIComponent(world_id)}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text })
+    }
+  );
+  if (!r.ok) {
+    on401(r);
+    const detail = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(detail.detail || `note: ${r.status}`);
+  }
+  return r.json();
+}

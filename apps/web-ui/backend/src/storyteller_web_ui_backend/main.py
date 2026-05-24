@@ -35,8 +35,16 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from storyteller_core.config import ROOT, load_config
+from storyteller_core.i18n import norm
+from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
-from storyteller_core.worlds.registry import all_world_ids, load_world
+from storyteller_core.story.user_notes import create_user_note
+from storyteller_core.worlds.generate import generate_world
+from storyteller_core.worlds.registry import (
+    all_world_ids,
+    load_world,
+    save_world,
+)
 
 log = logging.getLogger("storyteller.web_ui")
 
@@ -200,6 +208,86 @@ def undo_turn(thread_id: str, world_id: str = Query(...)) -> dict:
     return {"narration": text}
 
 
+@app.get("/api/wait_sound", include_in_schema=False)
+def wait_sound():
+    """Serve the neutral wait sound to the browser voice page so the
+    "thinking" window has audible feedback. The same generic_waiting.wav
+    the Pi plays during world generation lives in data/wait_sounds/."""
+    from fastapi.responses import FileResponse
+    p = _CFG.path(f"data/wait_sounds/{_CFG.story.world_gen_wait_sound}")
+    if not p.is_file():
+        raise HTTPException(404, "wait sound not present")
+    return FileResponse(str(p), media_type="audio/wav")
+
+
+# --------------------------------------------------------------------------
+# REST: player-side world generation (text-input parallel to the Pi voice-
+# mode interview). Synchronous: the request blocks 1–3 minutes while the
+# generator runs; the SvelteKit page shows a spinner. The web-ui process
+# is single-process per gunicorn worker, so a single long-running gen is
+# fine; concurrent generation isn't supported.
+# --------------------------------------------------------------------------
+
+class GeneratePayload(BaseModel):
+    prompt: str
+
+
+@app.post("/api/worlds/generate")
+async def generate_player_world(payload: GeneratePayload) -> dict:
+    """Generate a new world from a free-form player prompt. Mirrors the
+    admin endpoint but is player-facing (the player web-ui never had
+    access to /api/worlds/generate on the admin backend)."""
+    prompt = (payload.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "prompt is empty")
+    max_prompt = _CFG.web.max_prompt_chars
+    if len(prompt) > max_prompt:
+        raise HTTPException(
+            413, f"prompt too long (max {max_prompt} chars)")
+    try:
+        world = await asyncio.to_thread(generate_world, _CFG, prompt)
+        await asyncio.to_thread(save_world, _CFG, world)
+        # Index immediately so the RAG retrieves on the first turn.
+        try:
+            from storyteller_core.story.rag import RAG
+            RAG(_CFG).index_world(
+                world, force=True,
+                locale=norm(_CFG.general.locale))
+        except Exception as exc:
+            log.warning("post-gen RAG index failed: %r", exc)
+    except DailyCapExceeded as exc:
+        raise HTTPException(
+            402, f"Tagesbudget erreicht ({exc.usd_today:.2f} / "
+                 f"{exc.cap_usd:.2f} USD)") from exc
+    return {"id": world.id, "name": world.name, "genre": world.genre}
+
+
+class NotePayload(BaseModel):
+    text: str
+
+
+@app.post("/api/sessions/{thread_id}/note")
+async def session_note(thread_id: str, payload: NotePayload,
+                        world_id: str = Query(...)) -> dict:
+    """Player-introduced world fact via REST (alternative to the WS
+    `note` message — useful for HTTP clients / non-WS pages)."""
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(422, "text is empty")
+    engine = _make_engine(world_id, thread_id)
+    try:
+        note = await asyncio.to_thread(
+            create_user_note, _CFG, world_id,
+            norm(_CFG.general.locale), text,
+            thread_id=thread_id, rag=engine.ctx.rag)
+    except DailyCapExceeded as exc:
+        raise HTTPException(
+            402, f"Tagesbudget erreicht ({exc.usd_today:.2f} / "
+                 f"{exc.cap_usd:.2f} USD)") from exc
+    return {"id": note.id, "name": note.name, "kind": note.kind,
+            "description": note.description}
+
+
 # --------------------------------------------------------------------------
 # WebSocket: text play
 # --------------------------------------------------------------------------
@@ -247,6 +335,19 @@ async def ws_play(websocket: WebSocket, thread_id: str,
                 await websocket.send_json({"type": "thinking"})
                 try:
                     reply = await asyncio.to_thread(engine.turn, user_text)
+                except DailyCapExceeded as exc:
+                    await websocket.send_json({
+                        "type": "daily_cap_exceeded",
+                        "usd_today": exc.usd_today,
+                        "cap_usd": exc.cap_usd,
+                        "message": (
+                            "Tagesbudget erreicht "
+                            f"({exc.usd_today:.2f} / "
+                            f"{exc.cap_usd:.2f} USD). "
+                            "Spielstand ist automatisch gespeichert. "
+                            "Bitte später wieder vorbeischauen oder "
+                            "den Admin um einen Reset bitten.")})
+                    continue
                 except Exception as exc:
                     log.exception("engine.turn failed")
                     await websocket.send_json({
@@ -256,6 +357,44 @@ async def ws_play(websocket: WebSocket, thread_id: str,
             elif mtype == "undo":
                 text = await asyncio.to_thread(engine.undo_last)
                 await websocket.send_json({"type": "narration", "text": text})
+            elif mtype == "note":
+                # Player-introduced world fact. Mirror the Pi voice
+                # command "Vermerken: …": extract via gen LLM, store in
+                # the per-world JSONL + RAG. Cap-checked.
+                note_text = (msg.get("text") or "").strip()
+                if not note_text:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "leere Notiz"})
+                    continue
+                try:
+                    note = await asyncio.to_thread(
+                        create_user_note, _CFG, world_id,
+                        norm(_CFG.general.locale), note_text,
+                        thread_id=thread_id,
+                        rag=engine.ctx.rag)
+                    await websocket.send_json({
+                        "type": "note_saved",
+                        "name": note.name, "kind": note.kind,
+                        "description": note.description})
+                except DailyCapExceeded as exc:
+                    await websocket.send_json({
+                        "type": "daily_cap_exceeded",
+                        "usd_today": exc.usd_today,
+                        "cap_usd": exc.cap_usd,
+                        "message": (
+                            "Tagesbudget erreicht — Notiz konnte "
+                            "nicht klassifiziert werden.")})
+                except Exception as exc:
+                    log.warning("note create failed: %r", exc)
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Notiz fehlgeschlagen: {exc!r}"})
+            elif mtype == "end_story":
+                # Soft close: state is auto-checkpointed, client should
+                # navigate back to the world picker.
+                await websocket.send_json({"type": "story_ended"})
+                break
             else:
                 await websocket.send_json({
                     "type": "error", "message": f"unknown type: {mtype}"})
@@ -383,6 +522,18 @@ async def ws_voice(websocket: WebSocket, thread_id: str,
                 await websocket.send_json({"type": "thinking"})
                 try:
                     reply = await asyncio.to_thread(engine.turn, text_in)
+                except DailyCapExceeded as exc:
+                    await websocket.send_json({
+                        "type": "daily_cap_exceeded",
+                        "usd_today": exc.usd_today,
+                        "cap_usd": exc.cap_usd,
+                        "message": (
+                            "Tagesbudget erreicht "
+                            f"({exc.usd_today:.2f} / "
+                            f"{exc.cap_usd:.2f} USD). Spielstand "
+                            "ist gespeichert. Bitte später wieder "
+                            "vorbeischauen.")})
+                    continue
                 except Exception as exc:
                     log.exception("engine.turn failed")
                     await websocket.send_json({"type": "error",

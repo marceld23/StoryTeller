@@ -90,6 +90,32 @@ narrator just spoke) you can say any of:
 | **Geschichte beenden / End story** | Saves the current game (every turn is auto-checkpointed anyway), plays a short confirmation, and drops back to the wake-word idle. Saying *"Hey Jarvis"* afterwards reopens the world menu. |
 | **Beenden / Schluss / Ausschalten / Shutdown** | Powers the device off (`systemctl poweroff` — needs NOPASSWD sudo, see *docs/SETUP_PI.md*). Same as a long-press on the shutdown GPIO button. |
 
+## Text REPL commands (CLI)
+
+In `storyteller-cli chat` you can type these at any time:
+
+| Command | Effect |
+|---|---|
+| `/undo` | Roll back the last turn. |
+| `/state` | Print a JSON snapshot of session state (cost, beat, substory). |
+| `/note <text>` | Add a player-introduced world fact (Vermerken-equivalent). Goes into the per-world JSONL + RAG, classified as person/place/item/fact via a small LLM call. |
+| `/end` | Save (auto) and drop back to the world picker so you can pick another world or run `/create`. Process keeps running. |
+| `/create <prompt>` | Generate a new world from your prompt synchronously (1–3 min). On success the new world is saved and immediately becomes the active session. |
+| `/quit` (or `Ctrl-D`) | Exit the process entirely. |
+
+If the daily cost cap is reached mid-turn, the CLI prints a clear "Tagesbudget erreicht (X.XX / Y.YY USD)" line and returns to the prompt — the story state is already on disk and can be resumed after the admin resets the day.
+
+## Web player UI
+
+The browser-based player UI mirrors the same features as voice and CLI:
+
+* **World picker** (text mode at `/`, voice mode at `/voice`). Saved sessions auto-resume. A link to **"Neue Welt erstellen"** opens `/create`, where a free-form prompt produces a new world (1–3 min synchronous request, browser shows a counting spinner). On success the new world is auto-selected in the picker.
+* **In-game actions** (both text + voice pages):
+  * **"+ Notiz"** — opens a small textarea; the input is sent over WS as `{type: 'note', text}` and the backend wraps `create_user_note` (Vermerken-equivalent).
+  * **"Geschichte beenden"** — sends `{type: 'end_story'}`; the server closes the engine, the client drops back to the world picker. State is auto-saved as usual.
+* **Daily cost cap pause** — when the server raises `DailyCapExceeded`, the WS sends `{type: 'daily_cap_exceeded', message, …}`. Both pages show a red banner with a "Zurück zur Welt-Auswahl" button; player input is disabled until the player navigates back. State on disk is untouched.
+* **Voice page only**: a soft ambient drone (the same `generic_waiting.wav` the Pi uses) loops while the server is thinking, so the player has audible feedback during the LLM wait window.
+
 ## Talking to the narrator (voice loop)
 
 1. Say the wake word **"Hey Jarvis"**. The LED ring shows *listen*.

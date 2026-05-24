@@ -100,6 +100,22 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 ---
 
+## Feature parity across entry points
+
+The same gameplay features are available in all three player-facing
+entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
+(text REPL) and the player web UI at `/` + `/voice`:
+
+| Feature | Pi voice | CLI | Web UI |
+|---|:-:|:-:|:-:|
+| Existing-world selection | ✓ voice menu | ✓ numbered picker | ✓ dropdown |
+| **World generation** from a player brief | ✓ voice interview + "Generieren" | ✓ `/create <prompt>` | ✓ `/create` page (text) |
+| **Vermerken / world notes** (player-introduced facts → RAG) | ✓ "Vermerken: …" | ✓ `/note <text>` | ✓ "+ Notiz" button (text + voice pages) |
+| **Geschichte beenden** → back to world picker | ✓ voice command | ✓ `/end` | ✓ "Geschichte beenden" button |
+| **Daily cost cap** pause + player message | ✓ `daily_cap_pause` prompt | ✓ rich-text cap notice | ✓ red banner + WS `daily_cap_exceeded` |
+| Wait-sound under LLM thinking | ✓ per-world / generic ambient | — (text) | ✓ voice page loops `generic_waiting.wav` |
+| Barge-in / interrupt | ✓ GPIO button long-press | ✓ Ctrl-C | ✓ ⏹ button (voice page) |
+
 ## Raspberry Pi voice loop
 
 `storyteller-pi run` is the full voice appliance. Boot flow:

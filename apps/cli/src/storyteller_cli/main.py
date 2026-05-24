@@ -18,8 +18,12 @@ import sys
 from rich.console import Console
 from rich.panel import Panel
 from storyteller_core.config import load_config
+from storyteller_core.i18n import norm
+from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
-from storyteller_core.worlds.registry import all_world_ids, load_world
+from storyteller_core.story.user_notes import create_user_note
+from storyteller_core.worlds.generate import generate_world
+from storyteller_core.worlds.registry import all_world_ids, load_world, save_world
 
 console = Console()
 
@@ -60,21 +64,66 @@ def _pick_world(cfg, requested: str | None) -> str:
 # commands
 # --------------------------------------------------------------------------
 
-def cmd_chat(args: argparse.Namespace) -> int:
-    cfg = load_config()
-    if args.locale:
-        cfg.general.locale = args.locale
+_CMD_HELP = (
+    "[dim]Befehle: /undo, /state, /note <text>, /end (zurück zur Welt-"
+    "Auswahl), /create <prompt> (neue Welt aus Text), /quit  "
+    "(Strg+C bricht die laufende Erzählung ab)[/dim]"
+)
 
-    world_id = _pick_world(cfg, args.world)
+
+def _cmd_note(cfg, world, thread: str, engine: StoryEngine,
+              rest: str) -> None:
+    text = (rest or "").strip()
+    if not text:
+        console.print("[yellow]Nutzung: /note <Notiz>[/yellow]")
+        return
+    try:
+        rag = getattr(engine.ctx, "rag", None)
+        note = create_user_note(cfg, world.id, norm(cfg.general.locale),
+                                text, thread_id=thread, rag=rag)
+        console.print(f"[green]Vermerk gespeichert:[/green] "
+                      f"{note.name} ({note.kind})")
+    except DailyCapExceeded as exc:
+        console.print(f"[red]Tagesbudget erreicht "
+                      f"({exc.usd_today:.2f} / {exc.cap_usd:.2f} USD). "
+                      f"Notiz nicht gespeichert.[/red]")
+    except Exception as exc:
+        console.print(f"[red]Notiz fehlgeschlagen: {exc!r}[/red]")
+
+
+def _cmd_create(cfg, rest: str) -> str | None:
+    prompt = (rest or "").strip()
+    if not prompt:
+        console.print("[yellow]Nutzung: /create <prompt>[/yellow]")
+        return None
+    console.print("[dim]…Welt wird generiert (1–3 Minuten)…[/dim]")
+    try:
+        world = generate_world(
+            cfg, prompt,
+            progress=lambda m: console.print(f"[dim]  {m}[/dim]"))
+        save_world(cfg, world)
+        console.print(f"[green]Welt erstellt:[/green] {world.name} "
+                      f"([cyan]{world.id}[/cyan])")
+        return world.id
+    except DailyCapExceeded as exc:
+        console.print(f"[red]Tagesbudget erreicht "
+                      f"({exc.usd_today:.2f} / {exc.cap_usd:.2f} USD). "
+                      f"Welt-Generierung abgebrochen.[/red]")
+    except Exception as exc:
+        console.print(f"[red]Welt-Generierung fehlgeschlagen: "
+                      f"{exc!r}[/red]")
+    return None
+
+
+def _play_one_story(cfg, args, world_id: str) -> str:
+    """Run one story. Returns "next" (back to world picker) / "quit"
+    (exit process) / "switch:<wid>" (jump to a freshly created world)."""
     world = load_world(cfg, world_id)
-
     thread = args.thread or f"cli-{world_id}"
     if args.new:
-        # Force a fresh branch: use a new thread id derived from timestamp.
         import time
         thread = f"{thread}-{int(time.time())}"
         console.print(f"[dim]Neue Session: thread_id = {thread}[/dim]")
-
     # Optional RAG
     rag = None
     if not args.no_rag:
@@ -82,31 +131,41 @@ def cmd_chat(args: argparse.Namespace) -> int:
             from storyteller_core.story.rag import WorldRAG
             rag = WorldRAG(cfg)
         except Exception as exc:
-            console.print(f"[yellow]RAG nicht verfügbar ({exc}), weiter ohne.[/yellow]")
-
+            console.print(f"[yellow]RAG nicht verfügbar ({exc}), "
+                          "weiter ohne.[/yellow]")
     engine = StoryEngine(cfg, world, rag=rag, thread_id=thread)
-
-    # If thread is empty (no prior memory), trigger the opening.
+    # First narration / recap.
     snap = engine.state()
     if not snap.get("memory"):
         console.print("[dim]…Eröffnung wird vorbereitet…[/dim]")
-        _print_narration(engine.opening())
+        try:
+            _print_narration(engine.opening())
+        except DailyCapExceeded as exc:
+            console.print(f"[red]Tagesbudget erreicht "
+                          f"({exc.usd_today:.2f} / "
+                          f"{exc.cap_usd:.2f} USD). Bitte später "
+                          "weiterspielen.[/red]")
+            return "next"
     else:
-        console.print("[dim]Vorherige Sitzung fortgesetzt. Letzte Erzählung:[/dim]")
+        console.print("[dim]Vorherige Sitzung fortgesetzt. Letzte "
+                      "Erzählung:[/dim]")
         _print_narration(engine.last_narration())
 
-    console.print("[dim]Befehle: /undo, /state, /quit  "
-                  "(Strg+C bricht die laufende Erzählung ab)[/dim]")
+    console.print(_CMD_HELP)
     while True:
         try:
             line = console.input("[bold green]Du[/bold green] › ").strip()
         except (KeyboardInterrupt, EOFError):
             console.print("\n[dim]bis bald.[/dim]")
-            return 0
+            return "quit"
         if not line:
             continue
         if line in ("/quit", "/exit", "/q"):
-            return 0
+            return "quit"
+        if line == "/end":
+            console.print("[dim]Story beendet. Zurück zur Welt-"
+                          "Auswahl.[/dim]")
+            return "next"
         if line == "/undo":
             console.print("[dim]…rückgängig…[/dim]")
             _print_narration(engine.undo_last())
@@ -123,9 +182,25 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 "synopsis_chars": len(s.get("synopsis") or ""),
             })
             continue
+        if line.startswith("/note"):
+            _cmd_note(cfg, world, thread, engine, line[len("/note"):])
+            continue
+        if line.startswith("/create"):
+            new_id = _cmd_create(cfg, line[len("/create"):])
+            if new_id:
+                return f"switch:{new_id}"
+            continue
         console.print("[dim]…denke nach… (Strg+C bricht ab)[/dim]")
         try:
             reply = engine.turn(line)
+        except DailyCapExceeded as exc:
+            console.print(f"[red]Tagesbudget erreicht "
+                          f"({exc.usd_today:.2f} / "
+                          f"{exc.cap_usd:.2f} USD). Spielstand ist "
+                          "automatisch gespeichert. Bitte später "
+                          "wieder vorbeischauen oder Admin um Reset "
+                          "bitten.[/red]")
+            continue
         except KeyboardInterrupt:
             # Barge-in (text equivalent): drop this turn, back to the prompt.
             console.print("\n[yellow]…abgebrochen.[/yellow]")
@@ -134,6 +209,24 @@ def cmd_chat(args: argparse.Namespace) -> int:
             console.print(f"[red]Fehler: {exc!r}[/red]")
             continue
         _print_narration(reply)
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    cfg = load_config()
+    if args.locale:
+        cfg.general.locale = args.locale
+    world_id = _pick_world(cfg, args.world)
+    while True:
+        rc = _play_one_story(cfg, args, world_id)
+        if rc == "quit":
+            return 0
+        if rc.startswith("switch:"):
+            world_id = rc.split(":", 1)[1]
+            args.new = False        # resume the new world's own thread
+            continue
+        # rc == "next": pick another world
+        world_id = _pick_world(cfg, None)
+        args.new = False
 
 
 def cmd_info(_args: argparse.Namespace) -> int:

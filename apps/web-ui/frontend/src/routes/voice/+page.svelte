@@ -14,11 +14,16 @@
   let playing = $state(false);
   let error = $state('');
 
+  let capPaused = $state(false);
+  let noteInput = $state('');
+  let showNote = $state(false);
+
   let ws: WebSocket | null = null;
   let mediaRecorder: MediaRecorder | null = null;
   let chunks: BlobPart[] = [];
   let stream: MediaStream | null = null;
   let audio: HTMLAudioElement | null = null;
+  let waitAudio: HTMLAudioElement | null = null;
 
   onMount(async () => {
     try {
@@ -58,18 +63,52 @@
     }
   }
 
+  function startWaitSound() {
+    // Phase-4 cosmetic: browser-side wait-sound under the "thinking"
+    // window so the voice player has audible feedback even when no GPIO
+    // ambient is connected. We use the same generic_waiting.wav that
+    // the Pi plays during world generation; it's small (~290 KB).
+    try {
+      if (!waitAudio) {
+        waitAudio = new Audio('/api/wait_sound');
+        waitAudio.loop = true;
+        waitAudio.volume = 0.35;
+      }
+      waitAudio.currentTime = 0;
+      waitAudio.play().catch(() => {});
+    } catch { /* ignore */ }
+  }
+
+  function stopWaitSound() {
+    try {
+      waitAudio?.pause();
+    } catch { /* ignore */ }
+  }
+
   function handleMessage(ev: MessageEvent) {
     if (typeof ev.data === 'string') {
       try {
         const msg = JSON.parse(ev.data);
-        if (msg.type === 'thinking') thinking = true;
+        if (msg.type === 'thinking') { thinking = true; startWaitSound(); }
         else if (msg.type === 'stt') lines.push({ who: 'player', text: msg.text });
         else if (msg.type === 'narration') {
-          thinking = false;
+          thinking = false; stopWaitSound();
           lines.push({ who: 'narrator', text: msg.text });
-        } else if (msg.type === 'audio_done') thinking = false;
-        else if (msg.type === 'error') {
-          thinking = false;
+        } else if (msg.type === 'audio_done') { thinking = false; stopWaitSound(); }
+        else if (msg.type === 'daily_cap_exceeded') {
+          thinking = false; stopWaitSound();
+          capPaused = true;
+          lines.push({ who: 'system', text: msg.message });
+        } else if (msg.type === 'note_saved') {
+          lines.push({
+            who: 'system',
+            text: `Vermerk gespeichert: ${msg.name} (${msg.kind})`
+          });
+        } else if (msg.type === 'story_ended') {
+          ws?.close(); ws = null;
+          threadId = ''; lines = [];
+        } else if (msg.type === 'error') {
+          thinking = false; stopWaitSound();
           error = msg.message;
           lines.push({ who: 'system', text: `Fehler: ${msg.message}` });
         }
@@ -125,6 +164,27 @@
     mediaRecorder?.stop();
     recording = false;
   }
+
+  function sendNote() {
+    const text = noteInput.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'note', text }));
+    noteInput = '';
+    showNote = false;
+  }
+
+  function endStory() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'end_story' }));
+      setTimeout(() => {
+        if (threadId) {
+          ws?.close(); ws = null; threadId = ''; lines = [];
+        }
+      }, 1500);
+    } else {
+      threadId = ''; lines = [];
+    }
+  }
 </script>
 
 <main>
@@ -151,12 +211,36 @@
       {/if}
     </section>
   {:else}
+    {#if capPaused}
+      <p class="banner cap">
+        ⛔ Tagesbudget erreicht. Spielstand ist gespeichert.
+        <button class="link" onclick={endStory}>Zurück zur Welt-Auswahl</button>
+      </p>
+    {/if}
     <section class="chat">
       {#each lines as line, i (i)}
         <div class={'line ' + line.who}>{line.text}</div>
       {/each}
       {#if thinking}<div class="line system">…</div>{/if}
     </section>
+
+    {#if showNote}
+      <section class="note-box">
+        <label>
+          <span class="lbl">Vermerken (wird zur Welt hinzugefügt):</span>
+          <textarea bind:value={noteInput} rows="2"
+                    placeholder="z. B. Otkar ist ein blinder Bibliothekar."></textarea>
+        </label>
+        <div class="row">
+          <button onclick={sendNote} disabled={!noteInput.trim() || capPaused}>
+            Notiz speichern
+          </button>
+          <button class="ghost" onclick={() => { showNote = false; noteInput = ''; }}>
+            Abbrechen
+          </button>
+        </div>
+      </section>
+    {/if}
 
     <footer>
       <button
@@ -167,7 +251,7 @@
         onmouseleave={stopRec}
         ontouchstart={startRec}
         ontouchend={stopRec}
-        disabled={!connected || thinking}
+        disabled={!connected || thinking || capPaused}
       >
         {recording ? '● Aufnahme – loslassen zum Senden' : '🎤 Halten zum Sprechen'}
       </button>
@@ -175,6 +259,12 @@
         <button class="stop" onclick={stopPlayback}>⏹ Stopp</button>
       {/if}
     </footer>
+    <div class="side-actions">
+      <button class="ghost" onclick={() => { showNote = !showNote; }}>
+        {showNote ? 'Notiz schließen' : '+ Notiz'}
+      </button>
+      <button class="ghost" onclick={endStory}>Geschichte beenden</button>
+    </div>
   {/if}
 </main>
 
@@ -204,4 +294,39 @@
     background: #e07a7a; color: #fff; border: none; border-radius: 6px; cursor: pointer;
   }
   .error { color: #e07a7a; }
+  .banner {
+    background: var(--surface-2); color: var(--fg);
+    border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem;
+    border-radius: 4px; margin: 0.5rem 0;
+  }
+  .banner.cap { border-left-color: #c25450; }
+  .link { background: none; border: none; color: var(--link, #6fc3df);
+          cursor: pointer; padding: 0; text-decoration: underline; }
+  .note-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
+  }
+  .note-box .lbl { display: block; font-size: 0.85rem;
+                    color: var(--muted); margin-bottom: 0.2rem; }
+  .note-box textarea {
+    width: 100%; box-sizing: border-box; padding: 0.4rem;
+    background: var(--input-bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 3px;
+    font-family: inherit; font-size: 0.95rem; resize: vertical;
+  }
+  .note-box .row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+  .note-box button {
+    padding: 0.35rem 0.8rem; font-size: 0.9rem;
+    background: #b4d273; color: #10131a; border: none; border-radius: 3px;
+    cursor: pointer;
+  }
+  .note-box button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .note-box .ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+  .side-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem;
+                   justify-content: flex-end; }
+  .side-actions .ghost {
+    padding: 0.3rem 0.8rem; font-size: 0.85rem;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--fg); border-radius: 3px; cursor: pointer;
+  }
 </style>

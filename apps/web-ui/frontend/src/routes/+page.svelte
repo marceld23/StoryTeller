@@ -13,6 +13,9 @@
   let connected: boolean = $state(false);
   let status: 'idle' | 'connected' | 'reconnecting' | 'closed' = $state('idle');
   let error: string = $state('');
+  let capPaused: boolean = $state(false);  // daily cost cap reached
+  let noteInput: string = $state('');
+  let showNote: boolean = $state(false);
   let ws: WebSocket | null = null;
   let closing = false;          // user navigated away -> don't reconnect
   let attempts = 0;             // reconnect backoff counter
@@ -30,7 +33,16 @@
   onMount(async () => {
     try {
       worlds = await listWorlds();
-      if (worlds.length === 1) chosenWorld = worlds[0].id;
+      // Auto-select: a freshly-generated world (set in /create) wins,
+      // otherwise pre-select if there's only one world to pick from.
+      let last: string | null = null;
+      try { last = localStorage.getItem('st-last-world'); } catch { /* ignore */ }
+      if (last && worlds.some((w) => w.id === last)) {
+        chosenWorld = last;
+        try { localStorage.removeItem('st-last-world'); } catch { /* ignore */ }
+      } else if (worlds.length === 1) {
+        chosenWorld = worlds[0].id;
+      }
     } catch (e) {
       error = String(e);
     }
@@ -66,6 +78,22 @@
           if (!(last && last.who === 'narrator' && last.text === msg.text)) {
             lines.push({ who: 'narrator', text: msg.text });
           }
+        } else if (msg.type === 'daily_cap_exceeded') {
+          thinking = false;
+          capPaused = true;
+          lines.push({ who: 'system', text: msg.message });
+        } else if (msg.type === 'note_saved') {
+          lines.push({
+            who: 'system',
+            text: `Vermerk gespeichert: ${msg.name} (${msg.kind})`
+          });
+        } else if (msg.type === 'story_ended') {
+          // Server confirmed story end — drop back to the world picker.
+          closing = true;
+          ws?.close();
+          ws = null;
+          threadId = '';
+          lines = [];
         } else if (msg.type === 'error') {
           thinking = false;
           error = msg.message;
@@ -77,6 +105,32 @@
     };
   }
 
+  function sendNote() {
+    const text = noteInput.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'note', text }));
+    noteInput = '';
+    showNote = false;
+  }
+
+  function endStory() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Connection already down — just drop client state.
+      closing = true;
+      threadId = '';
+      lines = [];
+      return;
+    }
+    ws.send(JSON.stringify({ type: 'end_story' }));
+    // The server replies with {type: 'story_ended'} which the handler
+    // above picks up; if that never comes, give it ~1 s and bail out.
+    setTimeout(() => {
+      if (threadId) {
+        closing = true; ws?.close(); ws = null; threadId = ''; lines = [];
+      }
+    }, 1500);
+  }
+
   function reconnectNow() {
     attempts = 0; closing = false; status = 'reconnecting'; connect();
   }
@@ -84,6 +138,7 @@
   async function startSession(resume: boolean) {
     if (!chosenWorld) return;
     error = ''; lines = []; thinking = false; closing = false; attempts = 0;
+    capPaused = false;
     try {
       if (resume && savedThread(chosenWorld)) {
         // Resume: reuse the thread; the server replays the last narration.
@@ -152,6 +207,10 @@
           </button>
         {/if}
       {/if}
+      <p class="hint">
+        Du willst eine neue Welt aus deinem eigenen Brief generieren?
+        <a class="link" href="/create">Neue Welt erstellen</a>.
+      </p>
     </section>
   {:else}
     {#if status === 'reconnecting'}
@@ -159,6 +218,12 @@
     {:else if status === 'closed'}
       <p class="banner">Verbindung getrennt.
         <button class="link" onclick={reconnectNow}>Neu verbinden</button>
+      </p>
+    {/if}
+    {#if capPaused}
+      <p class="banner cap">
+        ⛔ Tagesbudget erreicht. Spielstand ist gespeichert.
+        <button class="link" onclick={endStory}>Zurück zur Welt-Auswahl</button>
       </p>
     {/if}
     <section class="chat">
@@ -170,18 +235,42 @@
       {/if}
     </section>
 
+    {#if showNote}
+      <section class="note-box">
+        <label>
+          <span class="lbl">Vermerken (wird zur Welt hinzugefügt):</span>
+          <textarea bind:value={noteInput} rows="2"
+                    placeholder="z. B. Otkar ist ein blinder Bibliothekar."></textarea>
+        </label>
+        <div class="row">
+          <button onclick={sendNote} disabled={!noteInput.trim() || capPaused}>
+            Notiz speichern
+          </button>
+          <button class="ghost" onclick={() => { showNote = false; noteInput = ''; }}>
+            Abbrechen
+          </button>
+        </div>
+      </section>
+    {/if}
+
     <footer>
       <textarea
         bind:value={input}
         onkeydown={onKey}
         placeholder="Was tust du?"
-        disabled={!connected || thinking}
+        disabled={!connected || thinking || capPaused}
         rows="2"
       ></textarea>
-      <button onclick={send} disabled={!connected || thinking || !input.trim()}>
+      <button onclick={send} disabled={!connected || thinking || !input.trim() || capPaused}>
         Senden
       </button>
     </footer>
+    <div class="side-actions">
+      <button class="ghost" onclick={() => { showNote = !showNote; }}>
+        {showNote ? 'Notiz schließen' : '+ Notiz'}
+      </button>
+      <button class="ghost" onclick={endStory}>Geschichte beenden</button>
+    </div>
   {/if}
 </main>
 
@@ -197,6 +286,26 @@
   .banner {
     background: var(--surface-2); color: var(--fg);
     border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem; border-radius: 4px;
+  }
+  .banner.cap { border-left-color: #c25450; }
+  .hint { color: var(--muted); font-size: 0.9rem; }
+  .note-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
+  }
+  .note-box .lbl { display: block; font-size: 0.85rem;
+                    color: var(--muted); margin-bottom: 0.2rem; }
+  .note-box textarea {
+    width: 100%; box-sizing: border-box; padding: 0.4rem;
+    background: var(--input-bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 3px;
+    font-family: inherit; font-size: 0.95rem; resize: vertical;
+  }
+  .note-box .row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+  .side-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem;
+                   justify-content: flex-end; }
+  .side-actions .ghost {
+    padding: 0.3rem 0.8rem; font-size: 0.85rem;
   }
   .ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
   .link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; text-decoration: underline; }
