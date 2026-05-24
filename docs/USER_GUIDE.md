@@ -16,18 +16,33 @@ into the story, following a dramatic arc.
 
 1. After power-on you hear a short greeting: *"Hi, I'm Jarvis, your
    storyteller. Say Hey Jarvis when you want to hear a story."*
-2. The Pi then **idles silently** with the LED ring green. Nothing
-   happens until you say the wake word.
-3. Say **"Hey Jarvis"**. The system answers: *"Would you like to start
+2. Then a one-time commands info lists what you can say during play
+   (Note, Menu / System, End story, Shutdown). Both pieces can be
+   toggled off independently in the system menu (*intro on/off* and
+   *commands info on/off*).
+3. The Pi **idles silently** with the LED ring green. Nothing happens
+   until you say the wake word.
+4. Say **"Hey Jarvis"**. The system answers: *"Would you like to start
    a story?"* — answer *yes* to open the world menu, *no* (or stay
    silent) to drop back into idle.
-4. After *yes* you hear the **world menu**: *"Which world…?"* — answer
+5. After *yes* you hear the **world menu**: *"Which world…?"* — answer
    naturally, e.g. *"something in space"* → Starfaring, *"dragons and
    magic"* → Everwood. (Recognition is LLM-based, so free phrasing
    works.) Each world resumes where you last left it; pass `--new` to
    start it over from scratch.
 
-The boot greeting can be toggled off via the system menu (*intro on/off*).
+## Voice commands during a story
+
+After saying **"Hey Jarvis"** (or in the follow-up window after the
+narrator just spoke) you can say any of:
+
+| Say | Effect |
+|-----|--------|
+| anything else | The narrator weaves it into the story. |
+| **Vermerken / Note** — followed by a brief | Adds the brief as a player-introduced fact to this world. Indexed into RAG immediately, so the narrator can pick it up from the very next turn. The admin can later promote it to the canonical world via the *Notizen* tab in the web admin. |
+| **Menü / System / Menu** | Opens the spoken system menu (save, end story, shutdown, undo, reset world, audio output, intro toggle, commands info toggle, close menu). |
+| **Geschichte beenden / End story** | Saves the current game (every turn is auto-checkpointed anyway), plays a short confirmation, and drops back to the wake-word idle. Saying *"Hey Jarvis"* afterwards reopens the world menu. |
+| **Beenden / Schluss / Ausschalten / Shutdown** | Powers the device off (`systemctl poweroff` — needs NOPASSWD sudo, see *docs/SETUP_PI.md*). Same as a long-press on the shutdown GPIO button. |
 
 ## Talking to the narrator (voice loop)
 

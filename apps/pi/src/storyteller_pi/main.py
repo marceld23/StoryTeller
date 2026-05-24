@@ -30,6 +30,7 @@ from storyteller_core.i18n import (
     CMD_KEYWORDS,
     NOTE_PROMPTS,
     RESTORE_DIRECTIVE,
+    matches_end_story,
     norm,
 )
 from storyteller_core.story.cost import DailyCapExceeded
@@ -256,13 +257,20 @@ def cmd_run(args: argparse.Namespace) -> int:
                   "wake-word packages), then restart storyteller.")
         return 1
 
-    # --- optional spoken intro at start (toggle in the system menu -> Intro,
-    # persisted in data/settings.json). Cached/offline-safe. ---
+    # --- optional spoken intro at start ---
+    # Two separately-toggleable parts (both default ON, persisted in
+    # data/settings.json):
+    #   intro_enabled         — short greeting ("Hi, ich bin Jarvis …")
+    #   intro_commands_enabled — list of in-story voice commands
+    # Both are cached, so this is offline-safe and tokens-free.
     if speak and not text_mode:
         from storyteller_hardware.runtime import load_settings
 
-        if load_settings(cfg).get("intro_enabled", True):
+        _st = load_settings(cfg)
+        if _st.get("intro_enabled", True):
             prompts.play("intro", backend)
+        if _st.get("intro_commands_enabled", True):
+            prompts.play("intro_commands", backend)
 
     # --- wake-word gate + yes/no start question ---
     # After the boot greeting the device idles silently until the wake
@@ -321,400 +329,495 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return True
             # Bei zweitem Miss zurück in Idle (Wake-Word-Wait).
 
-    # --- world selection ---
-    wid = args.world
-    if not wid:
-        if text_mode or ww is None:
-            wid = "sternenfahrt"
-        else:
-            if not _await_start_yes():
-                rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
-                return 0
-            sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww, speak).run()
-            wid = sel.get("world_id") or "sternenfahrt"
-    world = load_world(cfg, wid)
-    rp(f"[bold]Welt:[/bold] {world.name}")
+    def _play_one_story() -> str:
+        """Run ONE story session.
 
-    thread = args.thread or f"pi-{world.id}"
-    if args.new:
-        thread = f"{thread}-{int(time.time())}"
-        rp(f"[dim]Neue Sitzung: thread_id = {thread}[/dim]")
+        Returns ``"shutdown"`` (player asked to power the appliance
+        off — outer loop says goodbye + poweroff) or ``"next_story"``
+        (player asked to end the current story / pick a new one —
+        outer loop reruns the world-selection flow). Plain fallthrough
+        of the inner loop (shouldn't happen) also counts as
+        ``"next_story"`` so the device stays usable."""
+        # The inner loop hot-reloads cfg / stt / tts each idle tick so
+        # admin changes pick up live; declare them nonlocal so the
+        # references BEFORE that re-assignment (VoiceMenu, opening _say)
+        # still see the outer cmd_run values instead of "referenced
+        # before assignment".
+        nonlocal cfg, stt, tts
+        # --- world selection ---
+        wid = args.world
+        if not wid:
+            if text_mode or ww is None:
+                wid = "sternenfahrt"
+            else:
+                if not _await_start_yes():
+                    rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
+                    return "shutdown"
+                sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww, speak).run()
+                wid = sel.get("world_id") or "sternenfahrt"
+        world = load_world(cfg, wid)
+        rp(f"[bold]Welt:[/bold] {world.name}")
 
-    engine = _build_engine(cfg, world, use_rag=not args.no_rag,
-                           thread_id=thread)
-    fx = VoiceFX(cfg, world.fx_preset)
+        thread = args.thread or f"pi-{world.id}"
+        if args.new:
+            thread = f"{thread}-{int(time.time())}"
+            rp(f"[dim]Neue Sitzung: thread_id = {thread}[/dim]")
 
-    def _arm() -> threading.Event:
-        """Fresh interrupt event registered with the interrupt-button long-
-        press handler so it can abort the upcoming narration."""
-        ev = threading.Event()
-        _current_interrupt[0] = ev
-        return ev
+        engine = _build_engine(cfg, world, use_rag=not args.no_rag,
+                               thread_id=thread)
+        fx = VoiceFX(cfg, world.fx_preset)
 
-    def _disarm() -> None:
-        _current_interrupt[0] = None
+        def _arm() -> threading.Event:
+            """Fresh interrupt event registered with the interrupt-button long-
+            press handler so it can abort the upcoming narration."""
+            ev = threading.Event()
+            _current_interrupt[0] = ev
+            return ev
 
-    def _say_barge(gen) -> tuple[str, bool]:
-        """Narrate with optional button long-press barge-in. Returns
-        (text, interrupted). On long-press the playback aborts AND
-        `menu_requested` is set so the caller opens the system menu;
-        short-press toggles pause/resume of the active aplay and does
-        NOT set `interrupted`."""
-        ev = _arm()
-        try:
-            text = _say(cfg, world, backend, tts, fx, leds, gen,
-                        speak=speak, interrupt=ev)
-        finally:
-            _disarm()
-        interrupted = ev.is_set()
-        if interrupted:
-            rp("[yellow]… unterbrochen — ich höre …[/yellow]")
-        return text, interrupted
+        def _disarm() -> None:
+            _current_interrupt[0] = None
 
-    def _first_narration() -> str:
-        snap = engine.state()
-        if snap.get("memory"):
-            # resume a SAVED game: short spoken recap (was bisher geschah +
-            # aktuelle Lage). recap() is read-only and falls back to the last
-            # narration if the LLM call fails.
-            return engine.recap() or engine.last_narration() \
-                or engine.turn(RESTORE_DIRECTIVE[loc])
-        return engine.opening()
+        def _say_barge(gen) -> tuple[str, bool]:
+            """Narrate with optional button long-press barge-in. Returns
+            (text, interrupted). On long-press the playback aborts AND
+            `menu_requested` is set so the caller opens the system menu;
+            short-press toggles pause/resume of the active aplay and does
+            NOT set `interrupted`."""
+            ev = _arm()
+            try:
+                text = _say(cfg, world, backend, tts, fx, leds, gen,
+                            speak=speak, interrupt=ev)
+            finally:
+                _disarm()
+            interrupted = ev.is_set()
+            if interrupted:
+                rp("[yellow]… unterbrochen — ich höre …[/yellow]")
+            return text, interrupted
 
-    # Bridge the opening generation with the wait sound (audio mode only).
-    # _say keeps the wait loop alive across BOTH the LLM call and the first
-    # TTS chunk render, so the player hears continuous ambience until the
-    # narrator actually starts speaking — no silent gap.
-    opening_interrupted = False
-    if speak:
-        ev = _arm()
-        try:
-            first = _say(cfg, world, backend, tts, fx, leds,
-                         _first_narration, speak=True, interrupt=ev)
-        finally:
-            _disarm()
-        rp(f"[green][Erzähler][/green] {first}")
-        opening_interrupted = ev.is_set()
-        if opening_interrupted:
-            rp("[yellow]… unterbrochen — ich höre …[/yellow]")
-    else:
-        first = _first_narration()
-        rp(f"[green][Erzähler][/green] {first}")
+        def _first_narration() -> str:
+            snap = engine.state()
+            if snap.get("memory"):
+                # resume a SAVED game: short spoken recap (was bisher geschah +
+                # aktuelle Lage). recap() is read-only and falls back to the last
+                # narration if the LLM call fails.
+                return engine.recap() or engine.last_narration() \
+                    or engine.turn(RESTORE_DIRECTIVE[loc])
+            return engine.opening()
 
-    def _sysmenu() -> str | None:
-        """Spoken system menu, then replay last narration. -> 'quit' | None."""
-        nonlocal backend
+        # Bridge the opening generation with the wait sound (audio mode only).
+        # _say keeps the wait loop alive across BOTH the LLM call and the first
+        # TTS chunk render, so the player hears continuous ambience until the
+        # narrator actually starts speaking — no silent gap.
+        opening_interrupted = False
         if speak:
-            prompts.play("sys_menu", backend)
+            ev = _arm()
+            try:
+                first = _say(cfg, world, backend, tts, fx, leds,
+                             _first_narration, speak=True, interrupt=ev)
+            finally:
+                _disarm()
+            rp(f"[green][Erzähler][/green] {first}")
+            opening_interrupted = ev.is_set()
+            if opening_interrupted:
+                rp("[yellow]… unterbrochen — ich höre …[/yellow]")
         else:
-            rp("[dim]System: quit / undo / audio / intro / close[/dim]")
-        if text_mode:
-            pick = input("System: ").strip()
-        else:
-            leds.listen()
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
-                w = t.name
-            backend.record_until_silence(w)
-            pick = stt.transcribe(w).strip()
-        rp(f"[cyan][Du][/cyan] {pick}")
-        opts = [("save", "speichern / save the game"),
-                ("quit", "beenden / quit the game"),
-                ("undo", "Spielzug zurück / undo the last turn"),
-                ("reset", "Welt zurücksetzen, Spielstand löschen, von vorn "
-                          "beginnen / reset this world (delete progress)"),
-                ("audio", "Audio/Bluetooth umschalten / switch audio output"),
-                ("intro", "Einführung an oder aus / toggle the intro"),
-                ("close", "Menü schließen / close menu and continue")]
-        ch = _classify(cfg, pick, opts)
-        if ch == "unknown":
-            lw = pick.lower()
-            if any(k in lw for k in ("zurücksetz", "zurucksetz", "reset",
-                                     "von vorn", "von vorne", "neu beginn",
-                                     "lösch", "loesch")):
-                ch = "reset"
-            elif any(k in lw for k in ("beend", "quit", "exit", "schluss",
-                                     "aufhör")):
-                ch = "quit"
-            elif any(k in lw for k in ("zurück", "zuruck", "undo",
-                                       "rückgäng", "ruckgang")):
-                ch = "undo"
-            elif any(k in lw for k in ("audio", "bluetooth", "blue tooth")):
-                ch = "audio"
-            elif any(k in lw for k in ("einführ", "einfuehr", "intro",
-                                       "einleitung", "tutorial")):
-                ch = "intro"
-            elif any(k in lw for k in ("speich", "save")):
-                ch = "save"
-            else:
-                ch = "close"
+            first = _first_narration()
+            rp(f"[green][Erzähler][/green] {first}")
 
-        def _confirm(prompt_id: str) -> bool:
-            """Spoken yes/no safety check. Unclear answer counts as NO."""
+        def _sysmenu() -> str | None:
+            """Spoken system menu, then replay last narration. -> 'quit' | None."""
+            nonlocal backend
             if speak:
-                prompts.play(prompt_id, backend)
+                prompts.play("sys_menu", backend)
             else:
-                rp(f"[dim]{prompt_id}: ja/nein?[/dim]")
+                rp("[dim]System: quit / undo / audio / intro / close[/dim]")
             if text_mode:
-                ans = input("ja/nein: ").strip().lower()
+                pick = input("System: ").strip()
             else:
                 leds.listen()
-                with tempfile.NamedTemporaryFile(suffix=".wav",
-                                                 delete=False) as t:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
                     w = t.name
                 backend.record_until_silence(w)
-                ans = stt.transcribe(w).strip().lower()
-            rp(f"[cyan][Du][/cyan] {ans}")
-            return any(k in ans for k in (
-                "ja", "jo", "jap", "klar", "mach", "bestätig", "bestatig",
-                "yes", "yeah", "yep", "sure", "okay", "ok"))
+                pick = stt.transcribe(w).strip()
+            rp(f"[cyan][Du][/cyan] {pick}")
+            opts = [("save", "speichern / save the game"),
+                    ("end_story", "Geschichte beenden, zurück zur "
+                                   "Welt-Auswahl / end the story, back "
+                                   "to the world menu"),
+                    ("shutdown", "ausschalten, Pi herunterfahren / "
+                                  "shut down the device"),
+                    ("undo", "Spielzug zurück / undo the last turn"),
+                    ("reset", "Welt zurücksetzen, Spielstand löschen, von vorn "
+                              "beginnen / reset this world (delete progress)"),
+                    ("audio", "Audio/Bluetooth umschalten / switch audio output"),
+                    ("intro", "Einführung an oder aus / toggle the intro"),
+                    ("commands", "Befehls-Info an oder aus / toggle the "
+                                  "commands info"),
+                    ("close", "Menü schließen / close menu and continue")]
+            ch = _classify(cfg, pick, opts)
+            if ch == "unknown":
+                lw = pick.lower()
+                if any(k in lw for k in ("zurücksetz", "zurucksetz", "reset",
+                                         "von vorn", "von vorne", "neu beginn",
+                                         "lösch", "loesch")):
+                    ch = "reset"
+                elif any(k in lw for k in ("geschichte beenden",
+                                            "geschichte ende",
+                                            "end story", "story over",
+                                            "weltauswahl", "welt auswahl",
+                                            "world menu")):
+                    ch = "end_story"
+                elif any(k in lw for k in ("ausschalten", "ausmachen",
+                                            "herunterfahr", "shutdown",
+                                            "shut down", "power off",
+                                            "poweroff", "tschüss",
+                                            "tschüs", "goodbye")):
+                    ch = "shutdown"
+                elif any(k in lw for k in ("beend", "schluss", "aufhör")):
+                    # Bare "beenden / schluss" without "geschichte" → treat as
+                    # shutdown for backwards compatibility with the old menu.
+                    ch = "shutdown"
+                elif any(k in lw for k in ("zurück", "zuruck", "undo",
+                                           "rückgäng", "ruckgang")):
+                    ch = "undo"
+                elif any(k in lw for k in ("audio", "bluetooth", "blue tooth")):
+                    ch = "audio"
+                elif any(k in lw for k in ("befehl", "kommando", "command",
+                                            "commands")):
+                    ch = "commands"
+                elif any(k in lw for k in ("einführ", "einfuehr", "intro",
+                                           "einleitung", "tutorial")):
+                    ch = "intro"
+                elif any(k in lw for k in ("speich", "save")):
+                    ch = "save"
+                else:
+                    ch = "close"
 
-        if ch == "quit":
-            return "quit"
-        if ch == "audio":
-            from storyteller_hardware.runtime import (
-                load_audio_override,
-                resolve_backend_name,
-                save_audio_override,
-            )
+            def _confirm(prompt_id: str) -> bool:
+                """Spoken yes/no safety check. Unclear answer counts as NO."""
+                if speak:
+                    prompts.play(prompt_id, backend)
+                else:
+                    rp(f"[dim]{prompt_id}: ja/nein?[/dim]")
+                if text_mode:
+                    ans = input("ja/nein: ").strip().lower()
+                else:
+                    leds.listen()
+                    with tempfile.NamedTemporaryFile(suffix=".wav",
+                                                     delete=False) as t:
+                        w = t.name
+                    backend.record_until_silence(w)
+                    ans = stt.transcribe(w).strip().lower()
+                rp(f"[cyan][Du][/cyan] {ans}")
+                return any(k in ans for k in (
+                    "ja", "jo", "jap", "klar", "mach", "bestätig", "bestatig",
+                    "yes", "yeah", "yep", "sure", "okay", "ok"))
 
-            ov = load_audio_override(cfg)
-            if resolve_backend_name(cfg) == "pipewire":
-                ov["backend"] = "auto"
-                amsg = "audio_bt_off"
-            else:
-                ov["backend"] = "pipewire"
-                amsg = "audio_bt_on"
-            save_audio_override(cfg, ov)
-            try:
-                backend = get_backend(cfg)
-                backend.set_volume(cfg.audio.default_volume_pct)
-            except Exception as exc:
-                log.warning("audio switch: %r", exc)
-            prompts.play(amsg, backend) if speak else rp(f"[dim]({amsg})[/dim]")
-        elif ch == "intro":
-            from storyteller_hardware.runtime import (
-                load_settings,
-                save_settings,
-            )
+            if ch == "shutdown":
+                return "shutdown"
+            if ch == "end_story":
+                return "end_story"
+            if ch == "audio":
+                from storyteller_hardware.runtime import (
+                    load_audio_override,
+                    resolve_backend_name,
+                    save_audio_override,
+                )
 
-            st = load_settings(cfg)
-            new = not st.get("intro_enabled", True)
-            st["intro_enabled"] = new
-            save_settings(cfg, st)
-            imsg = "intro_on" if new else "intro_off"
-            prompts.play(imsg, backend) if speak else rp(f"[dim]({imsg})[/dim]")
-        elif ch == "save":
-            # State is checkpointed every turn -> just confirm.
-            prompts.play("saved", backend) if speak \
-                else rp("[dim](gespeichert)[/dim]")
-        elif ch == "undo":
-            if not _confirm("confirm_undo"):
-                prompts.play("cancelled", backend) if speak \
-                    else rp("[dim](abgebrochen)[/dim]")
-                last = engine.last_narration()
+                ov = load_audio_override(cfg)
+                if resolve_backend_name(cfg) == "pipewire":
+                    ov["backend"] = "auto"
+                    amsg = "audio_bt_off"
+                else:
+                    ov["backend"] = "pipewire"
+                    amsg = "audio_bt_on"
+                save_audio_override(cfg, ov)
+                try:
+                    backend = get_backend(cfg)
+                    backend.set_volume(cfg.audio.default_volume_pct)
+                except Exception as exc:
+                    log.warning("audio switch: %r", exc)
+                prompts.play(amsg, backend) if speak else rp(f"[dim]({amsg})[/dim]")
+            elif ch == "commands":
+                from storyteller_hardware.runtime import (
+                    load_settings,
+                    save_settings,
+                )
+
+                st = load_settings(cfg)
+                new = not st.get("intro_commands_enabled", True)
+                st["intro_commands_enabled"] = new
+                save_settings(cfg, st)
+                cmsg = "commands_intro_on" if new else "commands_intro_off"
+                prompts.play(cmsg, backend) if speak \
+                    else rp(f"[dim]({cmsg})[/dim]")
+            elif ch == "intro":
+                from storyteller_hardware.runtime import (
+                    load_settings,
+                    save_settings,
+                )
+
+                st = load_settings(cfg)
+                new = not st.get("intro_enabled", True)
+                st["intro_enabled"] = new
+                save_settings(cfg, st)
+                imsg = "intro_on" if new else "intro_off"
+                prompts.play(imsg, backend) if speak else rp(f"[dim]({imsg})[/dim]")
+            elif ch == "save":
+                # State is checkpointed every turn -> just confirm.
+                prompts.play("saved", backend) if speak \
+                    else rp("[dim](gespeichert)[/dim]")
+            elif ch == "undo":
+                if not _confirm("confirm_undo"):
+                    prompts.play("cancelled", backend) if speak \
+                        else rp("[dim](abgebrochen)[/dim]")
+                    last = engine.last_narration()
+                    if last:
+                        _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                             speak=speak)
+                    return None
+                last = engine.undo_last()
+                prompts.play("undone", backend) if speak \
+                    else rp("[dim](Spielzug zurück)[/dim]")
                 if last:
                     _say(cfg, world, backend, tts, fx, leds, (lambda: last),
                          speak=speak)
                 return None
-            last = engine.undo_last()
-            prompts.play("undone", backend) if speak \
-                else rp("[dim](Spielzug zurück)[/dim]")
+            elif ch == "reset":
+                if not _confirm("confirm_reset"):
+                    prompts.play("cancelled", backend) if speak \
+                        else rp("[dim](abgebrochen)[/dim]")
+                    last = engine.last_narration()
+                    if last:
+                        _say(cfg, world, backend, tts, fx, leds, (lambda: last),
+                             speak=speak)
+                    return None
+                # Wipe this world's saved progress, then start a fresh opening.
+                # Mirror the menu's fresh-start cadence:
+                #   1) world_reset prompt        ("Diese Welt wurde zurückgesetzt.")
+                #   2) world_<wid> prompt        ("Sternenfahrt. Du bist ...")
+                #   3) starting prompt           ("Die Geschichte beginnt.")
+                #   4) generate + speak opening  (LLM call under the wait sound)
+                # Without 2+3 the user just heard "reset" followed by a long
+                # silence (LLM rendering) and then the in-medias-res story —
+                # they couldn't tell the world had been re-introduced.
+                res = engine.reset()
+                log.info("world reset: %s", res)
+                if speak:
+                    prompts.play("world_reset", backend)
+                    prompts.play(f"world_{world.id}", backend)
+                    prompts.play("starting", backend)
+                else:
+                    rp("[dim](Welt zurückgesetzt)[/dim]")
+                # _say handles the wait sound across both LLM and first TTS
+                # chunk — no extra WaitLoop needed here.
+                opening = _say(cfg, world, backend, tts, fx, leds,
+                               engine.opening, speak=speak)
+                if opening:
+                    rp(f"[green][Erzähler][/green] {opening}")
+                return None
+            else:  # close
+                prompts.play("closed", backend) if speak \
+                    else rp("[dim](Menü geschlossen)[/dim]")
+
+            last = engine.last_narration()
             if last:
                 _say(cfg, world, backend, tts, fx, leds, (lambda: last),
                      speak=speak)
             return None
-        elif ch == "reset":
-            if not _confirm("confirm_reset"):
-                prompts.play("cancelled", backend) if speak \
-                    else rp("[dim](abgebrochen)[/dim]")
-                last = engine.last_narration()
-                if last:
-                    _say(cfg, world, backend, tts, fx, leds, (lambda: last),
-                         speak=speak)
-                return None
-            # Wipe this world's saved progress, then start a fresh opening.
-            # Mirror the menu's fresh-start cadence:
-            #   1) world_reset prompt        ("Diese Welt wurde zurückgesetzt.")
-            #   2) world_<wid> prompt        ("Sternenfahrt. Du bist ...")
-            #   3) starting prompt           ("Die Geschichte beginnt.")
-            #   4) generate + speak opening  (LLM call under the wait sound)
-            # Without 2+3 the user just heard "reset" followed by a long
-            # silence (LLM rendering) and then the in-medias-res story —
-            # they couldn't tell the world had been re-introduced.
-            res = engine.reset()
-            log.info("world reset: %s", res)
-            if speak:
-                prompts.play("world_reset", backend)
-                prompts.play(f"world_{world.id}", backend)
-                prompts.play("starting", backend)
-            else:
-                rp("[dim](Welt zurückgesetzt)[/dim]")
-            # _say handles the wait sound across both LLM and first TTS
-            # chunk — no extra WaitLoop needed here.
-            opening = _say(cfg, world, backend, tts, fx, leds,
-                           engine.opening, speak=speak)
-            if opening:
-                rp(f"[green][Erzähler][/green] {opening}")
-            return None
-        else:  # close
-            prompts.play("closed", backend) if speak \
-                else rp("[dim](Menü geschlossen)[/dim]")
 
-        last = engine.last_narration()
-        if last:
-            _say(cfg, world, backend, tts, fx, leds, (lambda: last),
-                 speak=speak)
-        return None
-
-    # follow-up: after the narrator speaks, listen once WITHOUT the wake word
-    follow_enabled = bool(ww) and cfg.wakeword.follow_up
-    # A barge-in always leads straight to listening (even if follow-up is off).
-    pending_follow = follow_enabled or opening_interrupted
-    hinted = False                     # wake_hint announced ONCE per idle
-    cap_pause_announced = False        # daily-cap pause prompt: once per idle
+        # follow-up: after the narrator speaks, listen once WITHOUT the wake word
+        follow_enabled = bool(ww) and cfg.wakeword.follow_up
+        # A barge-in always leads straight to listening (even if follow-up is off).
+        pending_follow = follow_enabled or opening_interrupted
+        hinted = False                     # wake_hint announced ONCE per idle
+        cap_pause_announced = False        # daily-cap pause prompt: once per idle
+        try:
+            while True:
+                leds.idle()
+                # Pick up admin/.env changes to STT/TTS (model + endpoint) without
+                # a restart: rebuild from a fresh config each idle cycle. Cheap —
+                # the underlying OpenAI clients are cached per (key, base_url).
+                cfg = load_config()
+                stt = get_stt(cfg)
+                tts = get_tts(cfg)
+                # Daily cost cap: refuse new turns when the day's spend is
+                # exhausted. The previously saved state is untouched — when an
+                # admin resets the cap we pick up exactly where we left off.
+                ledger = CostLedger(cfg)
+                if ledger.is_over_daily_cap():
+                    if speak and not cap_pause_announced:
+                        prompts.play("daily_cap_still", backend)
+                        cap_pause_announced = True
+                    time.sleep(5)
+                    pending_follow = False
+                    continue
+                cap_pause_announced = False
+                # If a long-press fired since the last iteration (typically:
+                # during the previous narration; the button handler also armed
+                # `menu_requested` so we get here even if the press happened at
+                # idle) open the spoken system menu directly.
+                if menu_requested.is_set():
+                    menu_requested.clear()
+                    rc = _sysmenu()
+                    if rc == "shutdown":
+                        return "shutdown"
+                    if rc == "end_story":
+                        return "next_story"
+                    pending_follow = follow_enabled
+                    continue
+                try:
+                    if text_mode:
+                        said = input("Du: ").strip()
+                    else:
+                        if ww and not pending_follow:
+                            if speak and not hinted:
+                                prompts.play("wake_hint", backend)
+                                hinted = True
+                            rp("[dim]… warte auf Wake-Word …[/dim]")
+                            if not ww.listen_blocking():
+                                time.sleep(2)
+                                continue
+                            hinted = False
+                        elif ww and pending_follow:
+                            rp("[dim]… sprich direkt weiter …[/dim]")
+                        elif not ww:
+                            input("[Enter zum Sprechen, Strg+C beendet] ")
+                        pending_follow = False
+                        leds.listen()
+                        with tempfile.NamedTemporaryFile(suffix=".wav",
+                                                         delete=False) as t:
+                            wav = t.name
+                        backend.record_until_silence(wav)
+                        said = stt.transcribe(wav).strip()
+                    rp(f"[cyan][Du][/cyan] {said}")
+                    low = said.lower()
+                    if not said:
+                        continue
+                    toks = [t.strip(",.!?;:") for t in low.split()]
+                    # ----- voice command: "Vermerken: …" -----
+                    # If the player STARTS the utterance with a note keyword,
+                    # we strip it and persist the rest as a UserNote (player-
+                    # introduced world fact). The note also lands in RAG so
+                    # the narrator can use it from the very next turn.
+                    if toks and toks[0] in cmd_kw["note"]:
+                        rest = said.split(None, 1)[1].lstrip(":,. ") \
+                            if len(said.split(None, 1)) > 1 else ""
+                        np = NOTE_PROMPTS[norm(cfg.general.locale)]
+                        if not rest.strip():
+                            empty_msg = np["empty"]
+                            _say(cfg, world, backend, tts, fx, leds,
+                                 (lambda m=empty_msg: m), speak=speak)
+                        else:
+                            try:
+                                note = create_user_note(
+                                    cfg, world.id, norm(cfg.general.locale),
+                                    rest, thread_id=engine.thread_id,
+                                    rag=engine.ctx.rag)
+                                kind_label = np["kind_label"].get(
+                                    note.kind, note.kind)
+                                confirm = np["saved"].format(
+                                    name=note.name, kind=kind_label)
+                                log.info("user-note saved: %s (%s)",
+                                         note.name, note.kind)
+                                _say(cfg, world, backend, tts, fx, leds,
+                                     (lambda c=confirm: c), speak=speak)
+                            except DailyCapExceeded:
+                                if speak:
+                                    prompts.play("daily_cap_pause", backend)
+                            except Exception as exc:
+                                log.warning("user-note failed: %r", exc)
+                                short_msg = np["saved_short"]
+                                _say(cfg, world, backend, tts, fx, leds,
+                                     (lambda m=short_msg: m),
+                                     speak=speak)
+                        pending_follow = follow_enabled
+                        continue
+                    if toks and len(toks) <= 3 and any(
+                            t in cmd_kw["menu"] for t in toks):
+                        rc = _sysmenu()
+                        if rc == "shutdown":
+                            return "shutdown"
+                        if rc == "end_story":
+                            return "next_story"
+                        pending_follow = follow_enabled
+                        continue
+                    # "Geschichte beenden" / "end story" — save (auto-saved
+                    # every turn anyway) + back to the wake-word idle / world
+                    # menu. Does NOT power the device off.
+                    if matches_end_story(low, norm(cfg.general.locale)):
+                        if speak:
+                            try:
+                                prompts.play("story_ended", backend)
+                            except Exception:
+                                pass
+                        log.info("end-story command: returning to world menu")
+                        return "next_story"
+                    # Shutdown keywords: "schluss" / "ausschalten" / "beenden"
+                    # as a SHORT (1–3 token) utterance. Mid-sentence
+                    # occurrences are ignored so a long player input that
+                    # happens to contain "beenden" can't kill the device.
+                    if toks and len(toks) <= 3 and any(
+                            t in cmd_kw["shutdown"] for t in toks):
+                        log.info("shutdown command received")
+                        return "shutdown"
+                    try:
+                        reply, interrupted = _say_barge(
+                            lambda s=said: engine.turn(s))
+                    except DailyCapExceeded as exc:
+                        log.warning("Daily cost cap reached — pausing story: %r",
+                                    exc)
+                        if speak:
+                            prompts.play("daily_cap_pause", backend)
+                        pending_follow = False
+                        continue
+                    rp(f"[green][Erzähler][/green] {reply}")
+                    # One-shot approach warning when today's spend crosses the
+                    # configured percentage of the daily cap.
+                    if speak and ledger.is_approaching_daily_cap() \
+                            and not ledger.warned_today():
+                        prompts.play("daily_cap_warning", backend)
+                        ledger.mark_warned_today()
+                    # On barge-in: listen right away (no wake word) so the player
+                    # can steer; the classify step below decides menu vs. story.
+                    pending_follow = True if interrupted else follow_enabled
+                except Exception as exc:
+                    log.warning("Zug-Fehler (Loop läuft weiter): %r", exc)
+                    try:
+                        leds.error()
+                        if speak:
+                            prompts.play("error_retry", backend)
+                    except Exception:
+                        pass
+                    time.sleep(1.0)
+                    continue
+        except KeyboardInterrupt:
+            print()
+            return "shutdown"
+        return "next_story"
     try:
         while True:
-            leds.idle()
-            # Pick up admin/.env changes to STT/TTS (model + endpoint) without
-            # a restart: rebuild from a fresh config each idle cycle. Cheap —
-            # the underlying OpenAI clients are cached per (key, base_url).
-            cfg = load_config()
-            stt = get_stt(cfg)
-            tts = get_tts(cfg)
-            # Daily cost cap: refuse new turns when the day's spend is
-            # exhausted. The previously saved state is untouched — when an
-            # admin resets the cap we pick up exactly where we left off.
-            ledger = CostLedger(cfg)
-            if ledger.is_over_daily_cap():
-                if speak and not cap_pause_announced:
-                    prompts.play("daily_cap_still", backend)
-                    cap_pause_announced = True
-                time.sleep(5)
-                pending_follow = False
-                continue
-            cap_pause_announced = False
-            # If a long-press fired since the last iteration (typically:
-            # during the previous narration; the button handler also armed
-            # `menu_requested` so we get here even if the press happened at
-            # idle) open the spoken system menu directly.
-            if menu_requested.is_set():
-                menu_requested.clear()
-                if _sysmenu() == "quit":
-                    break
-                pending_follow = follow_enabled
-                continue
-            try:
-                if text_mode:
-                    said = input("Du: ").strip()
-                else:
-                    if ww and not pending_follow:
-                        if speak and not hinted:
-                            prompts.play("wake_hint", backend)
-                            hinted = True
-                        rp("[dim]… warte auf Wake-Word …[/dim]")
-                        if not ww.listen_blocking():
-                            time.sleep(2)
-                            continue
-                        hinted = False
-                    elif ww and pending_follow:
-                        rp("[dim]… sprich direkt weiter …[/dim]")
-                    elif not ww:
-                        input("[Enter zum Sprechen, Strg+C beendet] ")
-                    pending_follow = False
-                    leds.listen()
-                    with tempfile.NamedTemporaryFile(suffix=".wav",
-                                                     delete=False) as t:
-                        wav = t.name
-                    backend.record_until_silence(wav)
-                    said = stt.transcribe(wav).strip()
-                rp(f"[cyan][Du][/cyan] {said}")
-                low = said.lower()
-                if not said:
-                    continue
-                toks = [t.strip(",.!?;:") for t in low.split()]
-                # ----- voice command: "Vermerken: …" -----
-                # If the player STARTS the utterance with a note keyword,
-                # we strip it and persist the rest as a UserNote (player-
-                # introduced world fact). The note also lands in RAG so
-                # the narrator can use it from the very next turn.
-                if toks and toks[0] in cmd_kw["note"]:
-                    rest = said.split(None, 1)[1].lstrip(":,. ") \
-                        if len(said.split(None, 1)) > 1 else ""
-                    np = NOTE_PROMPTS[norm(cfg.general.locale)]
-                    if not rest.strip():
-                        empty_msg = np["empty"]
-                        _say(cfg, world, backend, tts, fx, leds,
-                             (lambda m=empty_msg: m), speak=speak)
-                    else:
-                        try:
-                            note = create_user_note(
-                                cfg, world.id, norm(cfg.general.locale),
-                                rest, thread_id=engine.thread_id,
-                                rag=engine.ctx.rag)
-                            kind_label = np["kind_label"].get(
-                                note.kind, note.kind)
-                            confirm = np["saved"].format(
-                                name=note.name, kind=kind_label)
-                            log.info("user-note saved: %s (%s)",
-                                     note.name, note.kind)
-                            _say(cfg, world, backend, tts, fx, leds,
-                                 (lambda c=confirm: c), speak=speak)
-                        except DailyCapExceeded:
-                            if speak:
-                                prompts.play("daily_cap_pause", backend)
-                        except Exception as exc:
-                            log.warning("user-note failed: %r", exc)
-                            short_msg = np["saved_short"]
-                            _say(cfg, world, backend, tts, fx, leds,
-                                 (lambda m=short_msg: m),
-                                 speak=speak)
-                    pending_follow = follow_enabled
-                    continue
-                if toks and len(toks) <= 3 and any(
-                        t in cmd_kw["menu"] for t in toks):
-                    if _sysmenu() == "quit":
-                        break
-                    pending_follow = follow_enabled
-                    continue
-                if any(k in low for k in cmd_kw["quit"]):
-                    break
+            rc = _play_one_story()
+            if rc == "shutdown":
+                if speak:
+                    try:
+                        prompts.play("goodbye", backend)
+                    except Exception:
+                        pass
+                import subprocess
                 try:
-                    reply, interrupted = _say_barge(
-                        lambda s=said: engine.turn(s))
-                except DailyCapExceeded as exc:
-                    log.warning("Daily cost cap reached — pausing story: %r",
-                                exc)
-                    if speak:
-                        prompts.play("daily_cap_pause", backend)
-                    pending_follow = False
-                    continue
-                rp(f"[green][Erzähler][/green] {reply}")
-                # One-shot approach warning when today's spend crosses the
-                # configured percentage of the daily cap.
-                if speak and ledger.is_approaching_daily_cap() \
-                        and not ledger.warned_today():
-                    prompts.play("daily_cap_warning", backend)
-                    ledger.mark_warned_today()
-                # On barge-in: listen right away (no wake word) so the player
-                # can steer; the classify step below decides menu vs. story.
-                pending_follow = True if interrupted else follow_enabled
-            except Exception as exc:
-                log.warning("Zug-Fehler (Loop läuft weiter): %r", exc)
-                try:
-                    leds.error()
-                    if speak:
-                        prompts.play("error_retry", backend)
-                except Exception:
-                    pass
-                time.sleep(1.0)
-                continue
-    except KeyboardInterrupt:
-        print()
-        if speak:
-            prompts.play("goodbye", backend)
-    interrupt_btn.close()
-    shutdown_btn.close()
-    leds.off()
+                    subprocess.run(
+                        ["sudo", "-n", "systemctl", "poweroff"],
+                        check=False, timeout=5)
+                except Exception as exc:
+                    log.warning("shutdown failed: %r", exc)
+                break
+            # rc == "next_story": outer loop iterates, wake-word gate
+            # opens a fresh world-selection round.
+    finally:
+        interrupt_btn.close()
+        shutdown_btn.close()
+        leds.off()
     return 0
 
 

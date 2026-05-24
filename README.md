@@ -104,7 +104,8 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 `storyteller-pi run` is the full voice appliance. Boot flow:
 
-1. Spoken greeting (`intro` voice prompt, toggleable).
+1. Spoken greeting + (optional) one-time commands info — both toggleable
+   in the system menu (`intro`, `commands info`).
 2. **Idle wait** for the *"Hey Jarvis"* wake word — the Pi stays silent
    until you call it.
 3. On wake-word: *"Would you like to start a story?"* — yes opens the
@@ -115,10 +116,14 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 In-session: wake word with a follow-up window, speech capture that ends
 on a pause, a wait-sound loop under TTS, and a spoken system menu
-(save / quit / undo / reset world / audio / intro / close). Per-world
-session state auto-resumes across restarts (LangGraph checkpointer,
-`thread_id = pi-<world>`); `--new` starts a fresh branch. Resuming a
-saved world plays a short spoken recap of where you are.
+(save / end story / shutdown / undo / reset world / audio / intro /
+commands info / close). Voice commands during play: **"Vermerken / Note"**
+to add a player-introduced world fact (RAG-indexed live), **"Geschichte
+beenden / End story"** to save + return to the wake-word idle for the
+next world, **"Schluss / Ausschalten / Shutdown"** to power the device
+off. Per-world session state auto-resumes across restarts (LangGraph
+checkpointer, `thread_id = pi-<world>`); `--new` starts a fresh branch.
+Resuming a saved world plays a short spoken recap of where you are.
 
 **Barge-in** — the narrator can be interrupted any time:
 - **Pi** — an optional GPIO push-button (see [docs/SETUP_PI.md](docs/SETUP_PI.md));

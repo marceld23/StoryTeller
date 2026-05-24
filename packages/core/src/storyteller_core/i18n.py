@@ -58,11 +58,28 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "greeting": "Hey, Du. Ich bin dein Geschichtenerzähler.",
         "intro": "Hi, ich bin Jarvis, dein Geschichtenerzähler. "
                  "Sag Hey Jarvis, wenn du eine Geschichte hören möchtest.",
+        "intro_commands": "Während einer Geschichte kannst du jederzeit "
+                           "sagen: Vermerken, gefolgt von einer Notiz — "
+                           "etwa Vermerken, Otkar ist ein Bibliothekar — "
+                           "dann nehme ich das in die Welt auf. "
+                           "Menü oder System öffnet die Einstellungen. "
+                           "Geschichte beenden speichert und führt zurück "
+                           "zur Welt-Auswahl. "
+                           "Beenden, Schluss oder Ausschalten fährt das "
+                           "Gerät komplett herunter.",
         "start_question": "Möchtest du eine Geschichte starten?",
         "start_question_repeat": "Ich habe das nicht verstanden — "
                                   "bitte sag Ja oder Nein.",
+        "story_ended": "Spielstand gespeichert. Bis später — sag "
+                        "Hey Jarvis, wenn du weitermachen willst.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
                      "wieder hören? Sage ja oder nein.",
+        "commands_intro_ask": "Möchtest du die Befehls-Info beim "
+                               "nächsten Start wieder hören? Sage ja "
+                               "oder nein.",
+        "commands_intro_on": "Befehls-Info wird künftig wieder "
+                              "abgespielt.",
+        "commands_intro_off": "Befehls-Info wird künftig übersprungen.",
         "intro_hint": "Du kannst das jederzeit im Systemmenü unter "
                       "Einführung wieder umstellen.",
         "intro_on": "Einführung wird künftig wieder abgespielt.",
@@ -114,11 +131,25 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "greeting": "Hey there. I'm your storyteller.",
         "intro": "Hi, I'm Jarvis, your storyteller. "
                  "Say Hey Jarvis when you want to hear a story.",
+        "intro_commands": "During a story you can say at any time: "
+                           "Note, followed by a brief — e.g. Note, Otkar "
+                           "is a librarian — and I'll add it to the "
+                           "world. Menu or System opens the settings. "
+                           "End story saves and returns to the world "
+                           "menu. Shut down or Goodbye powers the "
+                           "device off.",
         "start_question": "Would you like to start a story?",
         "start_question_repeat": "I didn't catch that — please say "
                                   "yes or no.",
+        "story_ended": "Game saved. See you later — say Hey Jarvis to "
+                        "pick up where we left off.",
         "intro_ask": "Would you like to hear this intro again next time? "
                      "Say yes or no.",
+        "commands_intro_ask": "Would you like to hear the commands info "
+                               "again next time? Say yes or no.",
+        "commands_intro_on": "Commands info will be played again from "
+                              "now on.",
+        "commands_intro_off": "Commands info will be skipped from now on.",
         "intro_hint": "You can change this any time in the system menu "
                       "under Intro.",
         "intro_on": "The intro will be played again from now on.",
@@ -401,20 +432,48 @@ BEAT_NUDGE = {
 # --- In-loop voice command keywords ---
 CMD_KEYWORDS = {
     "de": {
-        "quit": ("beenden", "aufhören", "schluss", "tschüss", "tschüs"),
+        # Hard shutdown of the appliance (sudo poweroff). Matched as
+        # short token at first position so it doesn't fire mid-sentence.
+        "shutdown": ("beenden", "aufhören", "schluss", "tschüss",
+                       "tschüs", "ausschalten", "ausmachen"),
         "save": ("speicher",),
         "load": ("lade", "spielstand"),
         "menu": ("system", "systemmenü", "systemmenu", "menü", "menu"),
         "note": ("vermerken", "vermerk", "notiz", "merke", "merken"),
     },
     "en": {
-        "quit": ("quit", "stop", "exit", "goodbye", "that's all"),
+        "shutdown": ("shutdown", "shut", "power off", "poweroff",
+                       "turn off", "goodbye"),
         "save": ("save",),
         "load": ("load", "resume"),
         "menu": ("system", "system menu", "menu"),
         "note": ("note", "take note", "remember as world"),
     },
 }
+
+
+# Multi-word phrases that close the CURRENT story (save + back to the
+# wake-word idle / world menu) WITHOUT powering the device off. Matched
+# as utterance prefix in the main loop (not as a token bag).
+END_STORY_PHRASES = {
+    "de": (
+        "geschichte beenden", "geschichte ende", "geschichte aus",
+        "geschichte vorbei", "story beenden", "story ende",
+    ),
+    "en": (
+        "end story", "end the story", "stop story", "stop the story",
+        "story over", "finish story",
+    ),
+}
+
+
+def matches_end_story(text: str, locale: str) -> bool:
+    """True if `text` starts with one of the END_STORY_PHRASES for `locale`."""
+    s = (text or "").strip().lower()
+    if not s:
+        return False
+    phrases = END_STORY_PHRASES.get(norm(locale), ())
+    return any(s.startswith(p) for p in phrases)
 
 
 # Phrases / templates for runtime user-note creation. Rendered via live
