@@ -108,11 +108,16 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
    in the system menu (`intro`, `commands info`).
 2. **Idle wait** for the *"Hey Jarvis"* wake word — the Pi stays silent
    until you call it.
-3. On wake-word: *"Would you like to start a story?"* — yes opens the
-   world menu, no / silent / unclear (after one re-ask) goes back to
-   idle.
-4. After *yes*: voice world-menu (free-form phrasing, LLM-classified),
-   then the picked world is loaded.
+3. On wake-word: *"Would you like to get started?"* — yes continues, no
+   / silent / unclear (after one re-ask) goes back to idle.
+4. *"Existing world or new one?"* — branches into either:
+   * the voice world-menu (free-form phrasing, LLM-classified) → load
+     the picked world, **or**
+   * a guided **voice-mode world design**: a short Q&A interview drives
+     [generate_world](packages/core/src/storyteller_core/worlds/generate.py)
+     live on-device; player ends the interview by saying *"Generieren /
+     Generate"*, a neutral wait-sound covers the 1–3 min generation,
+     then the new world is saved and started.
 
 In-session: wake word with a follow-up window, speech capture that ends
 on a pause, a wait-sound loop under TTS, and a spoken system menu

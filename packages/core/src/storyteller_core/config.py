@@ -217,6 +217,19 @@ class StoryCfg(BaseModel):
     # Checkpoint retention: keep this many checkpoints per session thread
     # (0 = unlimited). `storyteller-cli prune` enforces it.
     checkpoint_keep_per_thread: int = 100
+    # Voice-mode world generation: the player can design a world via
+    # "neue Welt" → an interview chat with a small LLM, terminated by
+    # the spoken "Generieren" keyword. world_design_reminder_after gives
+    # them a single nudge after that many Q&A pairs ("you can say
+    # Generieren now"); world_design_max_turns is a hard safety net
+    # (after that we generate anyway even if the player keeps talking).
+    world_design_reminder_after: int = 10
+    world_design_max_turns: int = 30
+    # Wait-sound played while the generation pipeline runs (1–3 min).
+    # No world is loaded yet, so we use a neutral file from
+    # data/wait_sounds/.
+    world_gen_wait_sound: str = "generic_waiting.wav"
+
     narration_guidance: str = (
         "Erzähle EINFACH und KLAR fürs Zuhören: höchstens 4–6 kurze Sätze. "
         "Pro Antwort nur EINE Situation und höchstens ein bis zwei neue "

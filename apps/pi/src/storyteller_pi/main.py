@@ -28,8 +28,12 @@ from rich import print as rp
 from storyteller_core.config import load_config
 from storyteller_core.i18n import (
     CMD_KEYWORDS,
+    DESIGN_PROMPTS,
+    NO_KEYWORDS,
     NOTE_PROMPTS,
     RESTORE_DIRECTIVE,
+    YES_KEYWORDS,
+    classify_play_mode,
     matches_end_story,
     norm,
 )
@@ -37,7 +41,9 @@ from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
 from storyteller_core.story.ledger import CostLedger
 from storyteller_core.story.user_notes import create_user_note
-from storyteller_core.worlds.registry import load_world
+from storyteller_core.story.world_design import WorldDesignInterview
+from storyteller_core.worlds.generate import generate_world
+from storyteller_core.worlds.registry import load_world, save_world
 
 log = logging.getLogger("storyteller.pi")
 
@@ -279,19 +285,17 @@ def cmd_run(args: argparse.Namespace) -> int:
     # after one re-ask / no answer) drops back to the wake-word wait,
     # so the device stays unobtrusive when nobody wants to play.
 
-    YES_KW = ("ja", "jo", "jap", "klar", "mach", "gerne", "bestätig",
-              "bestatig", "yes", "yeah", "yep", "sure", "okay", "ok")
-    NO_KW = ("nein", "nö", "no", "nope", "later", "later", "stop")
-
     def _yesno(text: str) -> str:
         """Return "yes" / "no" / "unclear" from a free-form answer."""
         lw = (text or "").strip().lower()
         if not lw:
             return "unclear"
         toks = [t.strip(",.!?;:") for t in lw.split()]
-        if any(k in toks or any(k in t for t in toks) for k in NO_KW):
+        if any(k in toks or any(k in t for t in toks)
+               for k in NO_KEYWORDS):
             return "no"
-        if any(k in toks or any(k in t for t in toks) for k in YES_KW):
+        if any(k in toks or any(k in t for t in toks)
+               for k in YES_KEYWORDS):
             return "yes"
         return "unclear"
 
@@ -329,6 +333,160 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return True
             # Bei zweitem Miss zurück in Idle (Wake-Word-Wait).
 
+    def _ask_play_mode() -> str:
+        """Ask "existing world or new world?". Returns "existing", "create"
+        or "" (unclear after one retry — caller should drop back to idle)."""
+        if speak:
+            prompts.play("mode_question", backend)
+        answer = _record_answer()
+        rp(f"[cyan][Du][/cyan] {answer}")
+        cls = classify_play_mode(answer)
+        if cls != "unclear":
+            return cls
+        if speak:
+            prompts.play("mode_repeat", backend)
+        answer = _record_answer()
+        rp(f"[cyan][Du][/cyan] {answer}")
+        cls = classify_play_mode(answer)
+        return cls if cls in ("existing", "create") else ""
+
+    def _design_world_interactively():
+        """Voice-mode world design + generation. Returns the freshly
+        generated ``World`` instance (saved to disk + RAG-able) on success,
+        ``None`` on abort (cap exceeded, generation failed, player said
+        "Geschichte beenden", or user picked "back to menu" after
+        generation). The caller treats ``None`` as "drop back to the world
+        selection / wake-word idle"."""
+        from types import SimpleNamespace
+
+        from storyteller_core.worlds.schema import FXPreset
+        from storyteller_voice.waitloop import WaitLoop
+
+        loc = norm(cfg.general.locale)
+        loc_cmds = CMD_KEYWORDS[loc]
+        # Fake world-shaped object for the _say helper (which dereferences
+        # world.wait_sound + world.narration_style) — we don't have a real
+        # World yet because the player is just designing it.
+        design_stub = SimpleNamespace(
+            wait_sound=cfg.story.world_gen_wait_sound,
+            narration_style="ruhig, freundlich, neutral",
+            fx_preset=FXPreset(),
+        )
+        design_fx = VoiceFX(cfg, design_stub.fx_preset)
+        interview = WorldDesignInterview(cfg, locale=loc)
+
+        if speak:
+            prompts.play("design_intro", backend)
+
+        # Hand-crafted first question — saves one LLM call and keeps the
+        # opener predictable.
+        first_q = interview.opening_question()
+        interview.add_question(first_q)
+        _say(cfg, design_stub, backend, tts, design_fx, leds,
+             (lambda q=first_q: q), speak=speak)
+
+        reminder_played = False
+        while True:
+            leds.listen()
+            with tempfile.NamedTemporaryFile(suffix=".wav",
+                                              delete=False) as t:
+                wav = t.name
+            backend.record_until_silence(wav)
+            answer = stt.transcribe(wav).strip()
+            rp(f"[cyan][Du][/cyan] {answer}")
+            if not answer:
+                # silence: re-ask the previous question briefly
+                _say(cfg, design_stub, backend, tts, design_fx, leds,
+                     (lambda q=first_q: q), speak=speak)
+                continue
+            low = answer.lower()
+            toks = [t.strip(",.!?;:") for t in low.split()]
+            # Abort to wake-word idle
+            if matches_end_story(low, loc):
+                log.info("design interview aborted by player")
+                return None
+            # Generate trigger
+            if toks and toks[0] in loc_cmds["generate"]:
+                break
+            # Otherwise: record + ask next question
+            interview.add_user(answer)
+            n_pairs = sum(1 for m in interview.history
+                          if m["role"] == "user")
+            try:
+                q = interview.next_question()
+            except DailyCapExceeded:
+                if speak:
+                    prompts.play("daily_cap_pause", backend)
+                return None
+            interview.add_question(q)
+            # One-shot reminder once the player has answered enough
+            # questions for the picture to be dense.
+            if (n_pairs >= cfg.story.world_design_reminder_after
+                    and not reminder_played):
+                if speak:
+                    prompts.play("design_reminder", backend)
+                reminder_played = True
+            _say(cfg, design_stub, backend, tts, design_fx, leds,
+                 (lambda q=q: q), speak=speak)
+            if n_pairs >= cfg.story.world_design_max_turns:
+                log.info("design max turns reached — forcing generation")
+                break
+            first_q = q  # used as repeat target on next silent answer
+
+        # Persist transcript first — survives a generation crash.
+        try:
+            tpath = interview.save_transcript()
+            log.info("world-design transcript: %s", tpath)
+        except Exception as exc:
+            log.warning("transcript save failed: %r", exc)
+
+        # GENERATION (1–3 minutes) under the neutral ambient.
+        if speak:
+            prompts.play("generating_wait", backend)
+        try:
+            with WaitLoop(cfg, backend, cfg.story.world_gen_wait_sound,
+                          leds):
+                world = generate_world(
+                    cfg, interview.as_brief(),
+                    progress=lambda m: log.info("gen: %s", m))
+            save_world(cfg, world)
+        except DailyCapExceeded:
+            if speak:
+                prompts.play("daily_cap_pause", backend)
+            return None
+        except Exception as exc:
+            log.warning("world generation failed: %r", exc)
+            if speak:
+                prompts.play("generated_fail", backend)
+            return None
+
+        # Index the new world into the RAG store immediately so the
+        # narrator can retrieve from it on the very first turn.
+        try:
+            from storyteller_core.story.rag import RAG
+            RAG(cfg).index_world(world, force=True, locale=loc)
+        except Exception as exc:
+            log.warning("post-gen RAG indexing failed: %r", exc)
+
+        # Confirmation + decision.
+        display = world.display_name or world.name
+        confirm = DESIGN_PROMPTS[loc]["generated_ok"].format(name=display)
+        _say(cfg, design_stub, backend, tts, design_fx, leds,
+             (lambda c=confirm: c), speak=speak)
+        if speak:
+            prompts.play("generated_confirm_ask", backend)
+        ans = _record_answer()
+        rp(f"[cyan][Du][/cyan] {ans}")
+        lw = ans.lower()
+        # "Starten" / "los" / "yes" → start the just-generated world.
+        # Anything else (incl. "Auswahl" / "Menu") → caller falls back
+        # to the world menu; the new world is on disk so it'll show up.
+        if any(k in lw for k in ("start", "los", "begin", "go",
+                                  "spielen", "play")) \
+                or _yesno(ans) == "yes":
+            return world
+        return None
+
     def _play_one_story() -> str:
         """Run ONE story session.
 
@@ -344,18 +502,40 @@ def cmd_run(args: argparse.Namespace) -> int:
         # still see the outer cmd_run values instead of "referenced
         # before assignment".
         nonlocal cfg, stt, tts
+        # Hot-reload now (before the design / menu phase) so admin /
+        # .env edits made between stories pick up.
+        cfg = load_config()
+        stt = get_stt(cfg)
+        tts = get_tts(cfg)
         # --- world selection ---
+        world = None
         wid = args.world
-        if not wid:
-            if text_mode or ww is None:
-                wid = "sternenfahrt"
-            else:
-                if not _await_start_yes():
-                    rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
-                    return "shutdown"
-                sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww, speak).run()
+        if wid:
+            world = load_world(cfg, wid)
+        elif text_mode or ww is None:
+            world = load_world(cfg, "sternenfahrt")
+        else:
+            if not _await_start_yes():
+                rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
+                return "shutdown"
+            mode = _ask_play_mode()
+            if mode == "create":
+                # Voice-mode world generation. _design_world_interactively
+                # runs the interview, calls generate_world under the
+                # neutral wait-sound, and asks "start now or back to
+                # menu". On None we fall through to the regular menu so
+                # the just-saved world (if any) can be picked there.
+                world = _design_world_interactively()
+                if world is None:
+                    return "next_story"
+            elif mode == "existing":
+                sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww,
+                                speak).run()
                 wid = sel.get("world_id") or "sternenfahrt"
-        world = load_world(cfg, wid)
+                world = load_world(cfg, wid)
+            else:
+                # unclear after retry → back to wake-word idle
+                return "next_story"
         rp(f"[bold]Welt:[/bold] {world.name}")
 
         thread = args.thread or f"pi-{world.id}"

@@ -67,9 +67,28 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "zur Welt-Auswahl. "
                            "Beenden, Schluss oder Ausschalten fährt das "
                            "Gerät komplett herunter.",
-        "start_question": "Möchtest du eine Geschichte starten?",
+        "start_question": "Möchtest du loslegen?",
         "start_question_repeat": "Ich habe das nicht verstanden — "
                                   "bitte sag Ja oder Nein.",
+        "mode_question": "Möchtest du eine bestehende Welt spielen oder "
+                          "eine neue Welt erstellen?",
+        "mode_repeat": "Bitte sag: bestehende Welt oder neue Welt.",
+        "design_intro": "Wir gestalten zusammen eine neue Welt. Ich "
+                         "stelle dir ein paar Fragen — wenn dir die "
+                         "Details reichen, sag einfach Generieren. Das "
+                         "Erzeugen der Welt kann danach ein bis drei "
+                         "Minuten dauern.",
+        "design_reminder": "Du kannst jetzt Generieren sagen, wenn dir "
+                            "die Details reichen.",
+        "generating_wait": "Ich erzeuge die Welt — das dauert ein bis "
+                            "drei Minuten. Im Hintergrund läuft ein "
+                            "Wartesound.",
+        "generated_fail": "Beim Erzeugen der Welt ist etwas "
+                           "schiefgegangen. Lass uns zur Welt-Auswahl "
+                           "zurückkehren.",
+        "generated_confirm_ask": "Die Welt ist fertig. Direkt starten "
+                                  "oder zurück zur Welt-Auswahl? Sag "
+                                  "Starten oder Auswahl.",
         "story_ended": "Spielstand gespeichert. Bis später — sag "
                         "Hey Jarvis, wenn du weitermachen willst.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
@@ -138,9 +157,27 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "End story saves and returns to the world "
                            "menu. Shut down or Goodbye powers the "
                            "device off.",
-        "start_question": "Would you like to start a story?",
+        "start_question": "Would you like to get started?",
         "start_question_repeat": "I didn't catch that — please say "
                                   "yes or no.",
+        "mode_question": "Would you like to play an existing world, or "
+                          "create a new one?",
+        "mode_repeat": "Please say: existing world, or new world.",
+        "design_intro": "Let's design a new world together. I'll ask "
+                         "you a few questions — when you have enough "
+                         "details, just say Generate. Building the "
+                         "world afterwards can take one to three "
+                         "minutes.",
+        "design_reminder": "You can say Generate now if you have enough "
+                            "details.",
+        "generating_wait": "I'm building the world — this takes one to "
+                            "three minutes. You'll hear an ambient "
+                            "wait-sound.",
+        "generated_fail": "Something went wrong while building the "
+                           "world. Let's go back to the world menu.",
+        "generated_confirm_ask": "The world is ready. Start the story "
+                                  "now, or back to the world menu? "
+                                  "Say Start or Menu.",
         "story_ended": "Game saved. See you later — say Hey Jarvis to "
                         "pick up where we left off.",
         "intro_ask": "Would you like to hear this intro again next time? "
@@ -440,6 +477,11 @@ CMD_KEYWORDS = {
         "load": ("lade", "spielstand"),
         "menu": ("system", "systemmenü", "systemmenu", "menü", "menu"),
         "note": ("vermerken", "vermerk", "notiz", "merke", "merken"),
+        # First token in the world-design interview loop that signals
+        # "stop asking, build the world now". Matched ONLY inside the
+        # interview — outside it the words are ignored.
+        "generate": ("generieren", "generier", "erstellen", "los",
+                       "fertig", "starten"),
     },
     "en": {
         "shutdown": ("shutdown", "shut", "power off", "poweroff",
@@ -448,8 +490,59 @@ CMD_KEYWORDS = {
         "load": ("load", "resume"),
         "menu": ("system", "system menu", "menu"),
         "note": ("note", "take note", "remember as world"),
+        "generate": ("generate", "create", "build", "go", "ready",
+                      "done"),
     },
 }
+
+
+# --- Dynamic templates for the world-design flow (live TTS) -----------
+# Cached prompts cover everything that's static; the few lines below
+# include the just-generated world name, so they're rendered live.
+DESIGN_PROMPTS = {
+    "de": {
+        "generated_ok": "Die Welt {name} ist fertig.",
+        "starting_in_world": "Die Geschichte in {name} beginnt jetzt.",
+        "interview_fallback_question": "Erzähl mir mehr.",
+    },
+    "en": {
+        "generated_ok": "The world {name} is ready.",
+        "starting_in_world": "The story in {name} begins now.",
+        "interview_fallback_question": "Tell me more.",
+    },
+}
+
+
+# Yes/no-ish phrase buckets reused by main.py's voice gates.
+YES_KEYWORDS = (
+    "ja", "jo", "jap", "klar", "mach", "gerne", "bestätig", "bestatig",
+    "yes", "yeah", "yep", "sure", "okay", "ok",
+)
+NO_KEYWORDS = (
+    "nein", "nö", "no", "nope", "later", "stop",
+)
+
+
+def classify_play_mode(text: str) -> str:
+    """Classify the answer to "existing world or new world?".
+
+    Returns ``"existing"`` / ``"create"`` / ``"unclear"``. Used only by the
+    Pi main loop; intentionally heuristic (no LLM call) so the question
+    stays free regardless of cost cap status.
+    """
+    lw = (text or "").strip().lower()
+    if not lw:
+        return "unclear"
+    create_kw = ("neu", "neue", "erstell", "generier", "neue welt",
+                 "create", "new", "build", "design")
+    existing_kw = ("bestehend", "vorhanden", "spielen", "weitermachen",
+                   "fortsetzen", "existing", "old", "saved", "load",
+                   "play")
+    if any(k in lw for k in create_kw):
+        return "create"
+    if any(k in lw for k in existing_kw):
+        return "existing"
+    return "unclear"
 
 
 # Multi-word phrases that close the CURRENT story (save + back to the

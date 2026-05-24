@@ -22,14 +22,44 @@ into the story, following a dramatic arc.
    *commands info on/off*).
 3. The Pi **idles silently** with the LED ring green. Nothing happens
    until you say the wake word.
-4. Say **"Hey Jarvis"**. The system answers: *"Would you like to start
-   a story?"* — answer *yes* to open the world menu, *no* (or stay
-   silent) to drop back into idle.
-5. After *yes* you hear the **world menu**: *"Which world…?"* — answer
-   naturally, e.g. *"something in space"* → Starfaring, *"dragons and
-   magic"* → Everwood. (Recognition is LLM-based, so free phrasing
-   works.) Each world resumes where you last left it; pass `--new` to
-   start it over from scratch.
+4. Say **"Hey Jarvis"**. The system answers: *"Would you like to get
+   started?"* — answer *yes* to continue, *no* (or stay silent) to drop
+   back into idle.
+5. *"Would you like to play an existing world, or create a new one?"*
+   * **Existing** → the world menu opens (*"Which world…?"*): answer
+     naturally, e.g. *"something in space"* → Starfaring, *"dragons
+     and magic"* → Everwood. (Recognition is LLM-based, so free
+     phrasing works.) Each world resumes where you last left it.
+   * **New** → the [voice-mode world design](#voice-mode-world-design)
+     starts (see below).
+   Pass `--new` to start a world over from scratch.
+
+### Voice-mode world design
+
+When you say *"new world"* at the mode question, Jarvis walks you
+through a short interview to gather your idea, then generates the
+world live. Step by step:
+
+1. *"Let's design a new world together. I'll ask you a few questions —
+   when you have enough details, just say Generate. Building the world
+   afterwards can take one to three minutes."*
+2. Jarvis asks a focused question — setting, your role as the player,
+   tone, a central tension, the opening moment — one at a time. Answer
+   freely; the next question builds on what you said.
+3. After ~10 Q&A pairs Jarvis reminds you once that you can say
+   *"Generate"* whenever you feel the picture is dense enough.
+4. Say **"Generate"** (or *"Generieren"*) to end the interview.
+5. *"I'm building the world — this takes one to three minutes. You'll
+   hear an ambient wait-sound."* A neutral drone plays while the
+   multi-step generation pipeline runs.
+6. When ready: *"The world `<name>` is ready. Start the story now, or
+   back to the world menu? Say Start or Menu."* Saying **Start** drops
+   you straight into the new world's opening; anything else lands you
+   in the regular world menu (where the freshly saved world is now
+   available alongside the seed worlds).
+
+A JSONL transcript of every interview lands in
+`data/transcripts/_world_design-<utc-ts>.jsonl` for audit.
 
 ## Voice commands during a story
 

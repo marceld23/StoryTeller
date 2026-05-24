@@ -39,6 +39,7 @@ data/wait_sounds/*
 !data/wait_sounds/scifi_ambient.wav
 !data/wait_sounds/fantasy_waiting.wav
 !data/wait_sounds/scifi_waiting.wav
+!data/wait_sounds/generic_waiting.wav
 
 %APPDATA%/*
 

@@ -98,7 +98,33 @@ def _forest(dur: float, sr: int) -> np.ndarray:
     return _norm(sig, 0.20)
 
 
-_MOODS = {"space": _space, "forest": _forest}
+def _neutral(dur: float, sr: int) -> np.ndarray:
+    """Genre-agnostic wait sound used while a brand-new world is being
+    generated (no World object available yet, so no genre to pick from).
+    Soft, tonal, calmly breathing — meant to occupy 1–3 minutes without
+    drawing attention."""
+    n = int(dur * sr)
+    t = np.arange(n) / sr
+    sig = np.zeros(n)
+    # Warm sustained chord (A2, E3, A3, E4) — integer cycles per dur for
+    # a seamless loop.
+    for f, a in ((110.0, 1.0), (164.81, 0.6), (220.0, 0.45),
+                 (329.63, 0.18), (440.0, 0.10)):
+        f = round(f * dur) / dur
+        sig += a * np.sin(2 * np.pi * f * t)
+    # Two slow beating LFOs (different speeds) for organic motion.
+    lfo1 = 0.78 + 0.22 * np.sin(2 * np.pi * (1.0 / dur) * t)
+    lfo2 = 0.92 + 0.08 * np.sin(2 * np.pi * (3.0 / dur) * t + 1.3)
+    sig *= lfo1 * lfo2
+    # Faint mid-band air; loud enough to texture the chord, quiet
+    # enough to leave room for any spoken progress hint on top.
+    rng = np.random.default_rng(11)
+    air = _bandpass_noise(n, sr, 300.0, 2500.0, rng)
+    sig += 0.10 * (air / (np.max(np.abs(air)) or 1.0))
+    return _norm(sig, 0.18)
+
+
+_MOODS = {"space": _space, "forest": _forest, "neutral": _neutral}
 
 # world genre/id -> mood
 GENRE_MOOD = {
