@@ -146,7 +146,8 @@ def _say(cfg, world, backend, tts, fx, leds, gen, speak: bool = True,
         if chunks_iter is not None:
             yield from chunks_iter
 
-    play_stream(backend, _rest(), fx=fx, stop=interrupt)
+    tts_gain = float(getattr(cfg.audio, "tts_gain", 1.0) or 1.0)
+    play_stream(backend, _rest(), fx=fx, stop=interrupt, gain=tts_gain)
     return text
 
 
@@ -627,6 +628,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                 # narration if the LLM call fails.
                 return engine.recap() or engine.last_narration() \
                     or engine.turn(RESTORE_DIRECTIVE[loc])
+            # Fresh game: engine.opening() now does the two-phase intro
+            # internally (read-only world_intro + first-scene turn,
+            # joined with a paragraph break for natural TTS pause).
             return engine.opening()
 
         # Bridge the opening generation with the wait sound (audio mode only).
@@ -645,6 +649,14 @@ def cmd_run(args: argparse.Namespace) -> int:
             opening_interrupted = ev.is_set()
             if opening_interrupted:
                 rp("[yellow]… unterbrochen — ich höre …[/yellow]")
+            else:
+                # After a fresh opening without barge-in, the loop drops
+                # straight into follow-up listening with no audible cue —
+                # players sit confused waiting for a "your turn" signal.
+                # Play a short hint that tells them they can answer now
+                # OR wake the system with Hey Jarvis. Skipped if a
+                # barge-in already moved us into the listening branch.
+                prompts.play("post_opening_hint", backend)
         else:
             first = _first_narration()
             rp(f"[green][Erzähler][/green] {first}")

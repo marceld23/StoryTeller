@@ -49,10 +49,66 @@ class StoryEngine:
         return (result.get("response") or "").strip()
 
     def opening(self) -> str:
+        """First narration for a fresh game. Two phases concatenated:
+        a read-only `world_intro()` (welcome to this world — setting,
+        role, central tension) followed by the actual opening turn
+        (first scene + open question). Joined with a blank line so the
+        streaming TTS chunker naturally pauses between them. If
+        world_intro fails, the opening turn alone is still returned —
+        the player never gets an empty narration."""
         from ..i18n import OPENING_DIRECTIVE, norm
 
         locale = norm(self.ctx.cfg.general.locale)
-        return self.turn(OPENING_DIRECTIVE[locale])
+        intro = self.world_intro()
+        scene = self.turn(OPENING_DIRECTIVE[locale])
+        if intro and scene:
+            return intro.rstrip() + "\n\n" + scene.lstrip()
+        return scene or intro
+
+    def world_intro(self) -> str:
+        """Spoken "welcome to this world" introduction. Read-only — does NOT
+        advance the story or write to the checkpoint. Used once for new
+        games BEFORE opening(): gives the player a settled overview
+        (setting, role, central tension) before the first scene drops.
+        Returns empty string on failure so the caller can fall back to
+        opening() directly without breaking the session."""
+        from ..i18n import INTRO_SYS, norm
+        from ..oai import chat_extras, get_chat_client
+
+        locale = norm(self.ctx.cfg.general.locale)
+        world = self.ctx.world
+        # Compact world brief — same fields the system prompt already
+        # uses, just packed for a one-shot intro call. We want the LLM
+        # to *use* the world we have, not invent a new one.
+        brief = (
+            f"WORLD: {world.name} ({world.genre})\n"
+            f"DESCRIPTION: {world.description}\n"
+            f"PLAYER ROLE: {world.player_role}\n"
+            f"STARTING SITUATION: {world.starting_situation}\n"
+            f"MOOD: {world.mood}\n"
+            f"AMBIENCE: {world.ambience}\n"
+            f"NARRATION STYLE: {world.narration_style}\n"
+        )
+        try:
+            client = get_chat_client(self.ctx.cfg, "story")
+            r = client.chat.completions.create(
+                model=self.ctx.cfg.models.story_llm,
+                messages=[{"role": "system", "content": INTRO_SYS[locale]},
+                          {"role": "user", "content": brief}],
+                **chat_extras(self.ctx.cfg, "story",
+                              temperature=self.ctx.cfg.models.llm_temperature),
+            )
+            from .ledger import CostLedger
+            CostLedger(self.ctx.cfg).record_chat_usage(
+                role="story", model=self.ctx.cfg.models.story_llm,
+                usage=r.usage, thread_id=self.thread_id,
+                world_id=getattr(world, "id", None))
+            text = (r.choices[0].message.content or "").strip()
+            if text and self.ctx.transcript:
+                self.ctx.transcript.assistant(text, "world_intro")
+            return text
+        except Exception:
+            return ""
 
     def recap(self) -> str:
         """Short spoken "previously on…" for a RESUMED game. Read-only: makes

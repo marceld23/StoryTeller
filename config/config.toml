@@ -94,6 +94,10 @@ sd_output_device   = ""                       # sounddevice device; empty => ALS
 mixer_card         = "ArrayUAC10"             # ALSA card name of the ReSpeaker
 mixer_control      = "Master"                 # softvol control
 default_volume_pct = 15   # ReSpeaker line-out is very "hot"; raise if needed (amixer -c ArrayUAC10 sset Master 25%)
+# Software gain applied to spoken content only (narrator TTS + cached
+# voice prompts). 1.0 = original. 1.25 = +25% louder; the wait-sound
+# ambient stays at its own gain so the contrast stays balanced.
+tts_gain           = 1.25
 input_sample_rate  = 16000
 pw_sink            = ""   # Phase 8: PipeWire sink (empty = default sink, e.g. Bluetooth)
 

@@ -122,4 +122,26 @@ class VoicePromptCache:
                 self.leds.speak()
             except Exception:
                 pass
-        backend.play_wav(str(wav))
+        # Apply audio.tts_gain so menu/system prompts sit at the same
+        # loudness as narrator TTS (which gets the gain via play_array).
+        # Cached WAVs are int16 — boost with saturating clip, then play
+        # from a temp file. Skipped on gain ≈ 1.0 to avoid the I/O.
+        gain = float(getattr(self.cfg.audio, "tts_gain", 1.0) or 1.0)
+        if abs(gain - 1.0) < 0.01:
+            backend.play_wav(str(wav))
+            return
+        try:
+            import tempfile
+            data, sr = sf.read(str(wav), dtype="int16", always_2d=False)
+            if getattr(data, "ndim", 1) > 1:
+                data = data[:, 0]
+            boosted = np.clip(data.astype(np.int32) * gain,
+                              -32768, 32767).astype(np.int16)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
+                tmp = t.name
+            sf.write(tmp, boosted, int(sr), subtype="PCM_16")
+            backend.play_wav(tmp)
+        except Exception:
+            # Any I/O hiccup: fall back to ungained playback rather than
+            # break a voice prompt the player needs to hear.
+            backend.play_wav(str(wav))

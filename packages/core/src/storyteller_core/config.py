@@ -168,6 +168,14 @@ class AudioCfg(BaseModel):
     # — clearly audible but in the background. Tune up/down in
     # `data/audio.json` if your speakers / room call for it.
     wait_sound_gain: float = 2.5
+    # TTS playback boost (narrator + cached voice prompts). Symmetric knob
+    # to wait_sound_gain: software multiplier applied before int16 clip,
+    # so speech can be made louder *without* also boosting ambient pause
+    # sounds. 1.0 = original level (TTS-rendered float in [-1, 1]). 1.25
+    # = +25 % louder, with saturating clip for the loudest peaks. Local
+    # voice prompts (wake_hint, world_<id>, …) inherit the same gain so
+    # menu + narrator stay balanced. Override via data/audio.json.
+    tts_gain: float = 1.25
 
 
 class WakeWordCfg(BaseModel):

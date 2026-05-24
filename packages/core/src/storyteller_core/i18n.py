@@ -49,6 +49,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "closed": "Menü geschlossen. Weiter geht's.",
         "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
                      "um mich wieder zu wecken.",
+        "post_opening_hint": "Du kannst jetzt direkt antworten — ich höre. "
+                              "Sonst sag Hey Jarvis, um mich zu wecken.",
         "wifi_setup": "Kein WLAN gefunden. Verbinde dein Handy mit dem "
                       "WLAN storyteller-wifi. Es öffnet sich automatisch "
                       "eine Seite, auf der du dein WLAN auswählen und das "
@@ -144,6 +146,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "closed": "Menu closed. Let's continue.",
         "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
                      "wake me again.",
+        "post_opening_hint": "You can answer now — I'm listening. "
+                              "Otherwise say Hey Jarvis to wake me.",
         "wifi_setup": "No Wi-Fi found. Connect your phone to the Wi-Fi "
                       "storyteller-wifi. A page opens automatically where "
                       "you can pick your Wi-Fi and enter the password. "
@@ -371,23 +375,55 @@ GATE_NARRATOR_RULE = {
 
 # --- Engine/CLI directives ---
 OPENING_DIRECTIVE = {
-    "de": ("[Dies ist eine NEUE Geschichte — der Spieler hat diese Welt "
-           "noch nicht gespielt. Beginne mit einer kurzen, ruhigen "
-           "Einführung in die Welt (1–2 Sätze: Stimmung, Ort, Zeitgefühl "
-           "— KEIN Faktenkatalog, ein Bild). Geh dann NAHTLOS in die "
-           "Eröffnung über: 2–3 kurze Sätze zur konkreten Ausgangslage "
-           "der Spielfigur, höchstens ein, zwei konkrete Dinge. Ende mit "
-           "EINER klaren, offenen Lage oder Frage, auf die der Spieler "
-           "direkt reagieren kann. Insgesamt einfach und fürs Zuhören — "
-           "keine Aufzählungen, keine Infoflut.]"),
-    "en": ("[This is a NEW story — the player has not played this world "
-           "yet. Open with a short, quiet introduction to the world (1–2 "
-           "sentences: mood, place, sense of time — NOT a fact list, a "
-           "picture). Then transition SEAMLESSLY into the opening: 2–3 "
-           "short sentences on the protagonist's starting situation, at "
-           "most one or two concrete things. End with ONE clear, open "
-           "situation or question the player can react to directly. "
-           "Overall simple and audio-friendly — no lists, no info flood.]"),
+    "de": ("[Dies ist eine NEUE Geschichte. Die Welt wurde dem Spieler "
+           "GERADE in einer separaten Einführung vorgestellt — wiederhole "
+           "NICHT Setting, Rolle oder zentrale Spannung. Steig direkt in "
+           "die erste Szene ein: 2–4 kurze Sätze zur konkreten "
+           "Ausgangslage der Spielfigur (Ort, Zeit, ein, zwei konkrete "
+           "Dinge). Ende mit EINER klaren, offenen Lage oder Frage, auf "
+           "die der Spieler direkt reagieren kann. Einfach fürs Zuhören "
+           "— keine Aufzählungen, keine Infoflut.]"),
+    "en": ("[This is a NEW story. The world has JUST been introduced to "
+           "the player in a separate intro — do NOT repeat setting, role "
+           "or central tension. Drop straight into the first scene: 2–4 "
+           "short sentences on the protagonist's starting situation "
+           "(place, time, one or two concrete things). End with ONE "
+           "clear, open situation or question the player can react to "
+           "directly. Simple, audio-friendly — no lists, no info flood.]"),
+}
+
+# World intro: read-only, spoken-aloud "welcome to this world" before the
+# first scene. NOT a turn — does not advance the chat memory or invoke
+# tools. Stays clearly separated from OPENING_DIRECTIVE so the player
+# hears two distinct phases (settled overview -> first scene).
+INTRO_SYS = {
+    "de": ("Du bist der Erzähler einer interaktiven Audio-Geschichte. "
+           "Stelle dem Spieler die Welt vor, die er gleich spielen wird. "
+           "GENAU drei kurze Absätze, zusammen 4–6 Sätze:\n"
+           "1. Setting / Stimmung (1–2 Sätze): wo und wann spielt das? "
+           "Welche Atmosphäre?\n"
+           "2. Spielerrolle (1–2 Sätze): wer ist die Spielfigur, was tut "
+           "sie?\n"
+           "3. Zentrale Spannung (1–2 Sätze): was ist gerade unklar, "
+           "bedrohlich, oder im Wandel? Mache neugierig, ohne die "
+           "Geschichte vorwegzunehmen.\n"
+           "Sprich den Spieler direkt an, ruhig und bildhaft, einfaches "
+           "Deutsch — der Spieler hört dich vorlesen. KEINE "
+           "Aufzählungen, KEINE Frage am Ende (die kommt in der "
+           "nächsten Phase), KEINE Tool-Aufrufe."),
+    "en": ("You are the narrator of an interactive audio story. "
+           "Introduce the world the player is about to enter. EXACTLY "
+           "three short paragraphs, 4–6 sentences total:\n"
+           "1. Setting / mood (1–2 sentences): where and when? What "
+           "atmosphere?\n"
+           "2. Player role (1–2 sentences): who is the protagonist, "
+           "what do they do?\n"
+           "3. Central tension (1–2 sentences): what is uncertain, "
+           "threatening, or in flux right now? Make the player curious "
+           "without spoiling.\n"
+           "Address the player directly, calm and vivid, simple English "
+           "— they will hear you read aloud. NO lists, NO question at "
+           "the end (the next phase asks), NO tool calls."),
 }
 RESTORE_DIRECTIVE = {
     "de": ("[Setze die Geschichte fort: fasse in 1-2 Sätzen zusammen, wo wir "

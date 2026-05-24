@@ -24,9 +24,16 @@ from .backend import AudioBackend
 
 
 def play_array(backend: AudioBackend, audio: np.ndarray, sample_rate: int,
-               stop: threading.Event | None = None) -> None:
+               stop: threading.Event | None = None,
+               gain: float = 1.0) -> None:
     """Play a float32 mono array. If `stop` is given, playback aborts as soon
-    as the event is set (barge-in / button interrupt)."""
+    as the event is set (barge-in / button interrupt). `gain` multiplies
+    the samples before the saturating clip to [-1, 1] — used to apply
+    `audio.tts_gain` so spoken content sits louder than the ambient
+    wait-loop without touching the HW master."""
+    audio = np.asarray(audio, dtype=np.float32)
+    if gain != 1.0:
+        audio = audio * float(gain)
     audio = np.clip(audio, -1.0, 1.0).astype(np.float32)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         path = tmp.name
@@ -42,12 +49,13 @@ def play_stream(
     chunks: Iterable[tuple[np.ndarray, int]],
     fx=None,                                  # VoiceFX | None
     stop: threading.Event | None = None,
+    gain: float = 1.0,
 ) -> None:
     """Play an iterator of `(audio, sr)` chunks sequentially. The chunks are
     consumed lazily, so a streaming TTS producer can keep working while the
     earlier chunks play. FX (if given) is applied per chunk — reverb tails
     cannot bleed across chunks, which is the price for low first-audio
-    latency.
+    latency. `gain` is forwarded to play_array for the TTS boost.
 
     Stops cleanly as soon as `stop` is set (between or during chunks)."""
     for audio, sr in chunks:
@@ -57,4 +65,4 @@ def play_stream(
             audio = fx.process(audio, sr)
         if audio is None or len(audio) == 0:
             continue
-        play_array(backend, audio, sr, stop=stop)
+        play_array(backend, audio, sr, stop=stop, gain=gain)
