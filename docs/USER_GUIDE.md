@@ -12,11 +12,22 @@ into the story, following a dramatic arc.
 - **Browser:** open the player UI at `http://<host>:8090` (play backend
   running); pick a world, then play by text or hold-to-talk.
 
-On `run` without `--world` you first hear the **world menu**: *"Which
-world…?"* — answer naturally, e.g. *"something in space"* → Starfaring,
-*"dragons and magic"* → Everwood. (Recognition is LLM-based, so free phrasing
-works.) Each world resumes where you last left it; pass `--new` to start it
-over from scratch.
+## Boot sequence (Pi / voice)
+
+1. After power-on you hear a short greeting: *"Hi, I'm Jarvis, your
+   storyteller. Say Hey Jarvis when you want to hear a story."*
+2. The Pi then **idles silently** with the LED ring green. Nothing
+   happens until you say the wake word.
+3. Say **"Hey Jarvis"**. The system answers: *"Would you like to start
+   a story?"* — answer *yes* to open the world menu, *no* (or stay
+   silent) to drop back into idle.
+4. After *yes* you hear the **world menu**: *"Which world…?"* — answer
+   naturally, e.g. *"something in space"* → Starfaring, *"dragons and
+   magic"* → Everwood. (Recognition is LLM-based, so free phrasing
+   works.) Each world resumes where you last left it; pass `--new` to
+   start it over from scratch.
+
+The boot greeting can be toggled off via the system menu (*intro on/off*).
 
 ## Talking to the narrator (voice loop)
 

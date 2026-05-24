@@ -56,9 +56,11 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "audio_bt_on": "Audioausgabe auf Bluetooth umgestellt.",
         "audio_bt_off": "Audioausgabe zurück auf den Standard.",
         "greeting": "Hey, Du. Ich bin dein Geschichtenerzähler.",
-        "intro": "Hi, ich bin Jarvis, dein Geschichtenerzähler. Du kannst "
-                 "mit mir reden. Wenn du in das Einstellungsmenü willst, "
-                 "sag einfach System oder Menü, und sonst nichts.",
+        "intro": "Hi, ich bin Jarvis, dein Geschichtenerzähler. "
+                 "Sag Hey Jarvis, wenn du eine Geschichte hören möchtest.",
+        "start_question": "Möchtest du eine Geschichte starten?",
+        "start_question_repeat": "Ich habe das nicht verstanden — "
+                                  "bitte sag Ja oder Nein.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
                      "wieder hören? Sage ja oder nein.",
         "intro_hint": "Du kannst das jederzeit im Systemmenü unter "
@@ -110,9 +112,11 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "audio_bt_on": "Audio output switched to Bluetooth.",
         "audio_bt_off": "Audio output back to the default.",
         "greeting": "Hey there. I'm your storyteller.",
-        "intro": "Hi, I'm Jarvis, your storyteller. You can just talk to me. "
-                 "If you want the settings menu, simply say System or Menu, "
-                 "and nothing else.",
+        "intro": "Hi, I'm Jarvis, your storyteller. "
+                 "Say Hey Jarvis when you want to hear a story.",
+        "start_question": "Would you like to start a story?",
+        "start_question_repeat": "I didn't catch that — please say "
+                                  "yes or no.",
         "intro_ask": "Would you like to hear this intro again next time? "
                      "Say yes or no.",
         "intro_hint": "You can change this any time in the system menu "

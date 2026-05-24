@@ -264,12 +264,72 @@ def cmd_run(args: argparse.Namespace) -> int:
         if load_settings(cfg).get("intro_enabled", True):
             prompts.play("intro", backend)
 
+    # --- wake-word gate + yes/no start question ---
+    # After the boot greeting the device idles silently until the wake
+    # word fires. Only then we ask whether to start a story — answering
+    # "yes" opens the world selection menu. Anything else (no / unclear
+    # after one re-ask / no answer) drops back to the wake-word wait,
+    # so the device stays unobtrusive when nobody wants to play.
+
+    YES_KW = ("ja", "jo", "jap", "klar", "mach", "gerne", "bestätig",
+              "bestatig", "yes", "yeah", "yep", "sure", "okay", "ok")
+    NO_KW = ("nein", "nö", "no", "nope", "later", "later", "stop")
+
+    def _yesno(text: str) -> str:
+        """Return "yes" / "no" / "unclear" from a free-form answer."""
+        lw = (text or "").strip().lower()
+        if not lw:
+            return "unclear"
+        toks = [t.strip(",.!?;:") for t in lw.split()]
+        if any(k in toks or any(k in t for t in toks) for k in NO_KW):
+            return "no"
+        if any(k in toks or any(k in t for t in toks) for k in YES_KW):
+            return "yes"
+        return "unclear"
+
+    def _record_answer() -> str:
+        leds.listen()
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
+            wav = t.name
+        backend.record_until_silence(wav)
+        return stt.transcribe(wav).strip()
+
+    def _await_start_yes() -> bool:
+        """Block on wake-word, then ask the start question. Returns True
+        once the player confirms; loops on no / unclear / silence."""
+        while True:
+            leds.idle()
+            if not ww.listen_blocking():
+                # Wake-word listener exited (e.g. shutdown) — give up.
+                return False
+            if speak:
+                prompts.play("start_question", backend)
+            answer = _record_answer()
+            rp(f"[cyan][Du][/cyan] {answer}")
+            verdict = _yesno(answer)
+            if verdict == "yes":
+                return True
+            if verdict == "no":
+                # Sofort still — kein Bestätigungston, zurück in Idle.
+                continue
+            # unclear -> ein einziger Nachfrage-Versuch
+            if speak:
+                prompts.play("start_question_repeat", backend)
+            answer = _record_answer()
+            rp(f"[cyan][Du][/cyan] {answer}")
+            if _yesno(answer) == "yes":
+                return True
+            # Bei zweitem Miss zurück in Idle (Wake-Word-Wait).
+
     # --- world selection ---
     wid = args.world
     if not wid:
         if text_mode or ww is None:
             wid = "sternenfahrt"
         else:
+            if not _await_start_yes():
+                rp("[dim]Wake-Word-Listener beendet — Abbruch.[/dim]")
+                return 0
             sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww, speak).run()
             wid = sel.get("world_id") or "sternenfahrt"
     world = load_world(cfg, wid)
