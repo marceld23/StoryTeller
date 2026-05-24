@@ -51,12 +51,28 @@ world live. Step by step:
 4. Say **"Generate"** (or *"Generieren"*) to end the interview.
 5. *"I'm building the world — this takes one to three minutes. You'll
    hear an ambient wait-sound."* A neutral drone plays while the
-   multi-step generation pipeline runs.
+   multi-step generation pipeline runs. **The generation itself
+   can't be cancelled** — once you say *"Generate"* it runs through
+   to completion.
 6. When ready: *"The world `<name>` is ready. Start the story now, or
    back to the world menu? Say Start or Menu."* Saying **Start** drops
    you straight into the new world's opening; anything else lands you
    in the regular world menu (where the freshly saved world is now
    available alongside the seed worlds).
+
+**During the interview** (before you say *"Generate"*) you can:
+
+* **Stay silent** → after the next listening window times out, Jarvis
+  switches into passive mode and plays *"Ich höre jetzt nicht mehr
+  aktiv zu, sag Hey Jarvis, um mich wieder zu wecken."* Say *"Hey
+  Jarvis"* to resume; the last question is re-read first, then the
+  mic re-opens.
+* **Cancel the interview** by saying any of *"abbrechen"*, *"stopp"*,
+  *"beenden"*, *"schluss"* (en: *"cancel"*, *"stop"*, *"abort"*,
+  *"quit"*) as a short utterance (≤3 tokens). Jarvis confirms with
+  *"Weltdesign abgebrochen. Sag Hey Jarvis, wenn du wieder loslegen
+  möchtest."* and drops back to the wake-word idle. The same
+  *"Geschichte beenden"* phrase from the story loop also works.
 
 A JSONL transcript of every interview lands in
 `data/transcripts/_world_design-<utc-ts>.jsonl` for audit.

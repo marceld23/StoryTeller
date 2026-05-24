@@ -380,13 +380,39 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # Hand-crafted first question — saves one LLM call and keeps the
         # opener predictable.
-        first_q = interview.opening_question()
-        interview.add_question(first_q)
+        last_q = interview.opening_question()
+        interview.add_question(last_q)
         _say(cfg, design_stub, backend, tts, design_fx, leds,
-             (lambda q=first_q: q), speak=speak)
+             (lambda q=last_q: q), speak=speak)
 
+        # Silence handling: after a question we listen WITHOUT the wake
+        # word (pending_follow=True), like the main story loop's
+        # follow-up window. On an empty STT result we flip back to
+        # passive mode — next iteration plays wake_hint + waits for
+        # "Hey Jarvis", then replays the last question with a short
+        # cue ("Hier nochmal die Frage:") and listens.
         reminder_played = False
+        pending_follow = True
+        hinted = False
         while True:
+            if not pending_follow and ww is not None:
+                if speak and not hinted:
+                    prompts.play("wake_hint", backend)
+                    hinted = True
+                rp("[dim]… warte auf Wake-Word (Welt-Design) …[/dim]")
+                if not ww.listen_blocking():
+                    time.sleep(2)
+                    continue
+                hinted = False
+                # Resumed: cue + replay last question, then listen.
+                if speak:
+                    try:
+                        prompts.play("design_resume", backend)
+                    except Exception:
+                        pass
+                _say(cfg, design_stub, backend, tts, design_fx, leds,
+                     (lambda q=last_q: q), speak=speak)
+            pending_follow = False
             leds.listen()
             with tempfile.NamedTemporaryFile(suffix=".wav",
                                               delete=False) as t:
@@ -395,15 +421,32 @@ def cmd_run(args: argparse.Namespace) -> int:
             answer = stt.transcribe(wav).strip()
             rp(f"[cyan][Du][/cyan] {answer}")
             if not answer:
-                # silence: re-ask the previous question briefly
-                _say(cfg, design_stub, backend, tts, design_fx, leds,
-                     (lambda q=first_q: q), speak=speak)
+                # Silence → drop back into passive (wake-word) mode.
                 continue
             low = answer.lower()
             toks = [t.strip(",.!?;:") for t in low.split()]
-            # Abort to wake-word idle
+            # Short cancel command anywhere in the interview (≤3 tokens,
+            # first token in the cancel bucket): bail out cleanly back
+            # to the wake-word idle. Same pattern shutdown / menu use.
+            if toks and len(toks) <= 3 and any(
+                    t in loc_cmds["cancel"] for t in toks):
+                log.info("design interview cancelled by player")
+                if speak:
+                    try:
+                        prompts.play("design_cancelled", backend)
+                    except Exception:
+                        pass
+                return None
+            # Also accept the canonical "Geschichte beenden" phrase
+            # (Story-Loop equivalent — kept so the global cancel verb
+            # works even though there is no story yet).
             if matches_end_story(low, loc):
-                log.info("design interview aborted by player")
+                log.info("design interview aborted via end-story phrase")
+                if speak:
+                    try:
+                        prompts.play("design_cancelled", backend)
+                    except Exception:
+                        pass
                 return None
             # Generate trigger
             if toks and toks[0] in loc_cmds["generate"]:
@@ -431,7 +474,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             if n_pairs >= cfg.story.world_design_max_turns:
                 log.info("design max turns reached — forcing generation")
                 break
-            first_q = q  # used as repeat target on next silent answer
+            last_q = q                     # used by silence-replay path
+            pending_follow = True          # immediate follow-up window
 
         # Persist transcript first — survives a generation crash.
         try:

@@ -89,6 +89,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "generated_confirm_ask": "Die Welt ist fertig. Direkt starten "
                                   "oder zurück zur Welt-Auswahl? Sag "
                                   "Starten oder Auswahl.",
+        "design_cancelled": "Welt-Design abgebrochen. Sag Hey Jarvis, "
+                             "wenn du wieder loslegen möchtest.",
+        "design_resume": "Hier nochmal die Frage:",
         "story_ended": "Spielstand gespeichert. Bis später — sag "
                         "Hey Jarvis, wenn du weitermachen willst.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
@@ -178,6 +181,9 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "generated_confirm_ask": "The world is ready. Start the story "
                                   "now, or back to the world menu? "
                                   "Say Start or Menu.",
+        "design_cancelled": "World design cancelled. Say Hey Jarvis "
+                             "when you want to start over.",
+        "design_resume": "Here's the question again:",
         "story_ended": "Game saved. See you later — say Hey Jarvis to "
                         "pick up where we left off.",
         "intro_ask": "Would you like to hear this intro again next time? "
@@ -482,6 +488,12 @@ CMD_KEYWORDS = {
         # interview — outside it the words are ignored.
         "generate": ("generieren", "generier", "erstellen", "los",
                        "fertig", "starten"),
+        # Short cancel command for sub-flows like the world-design
+        # interview (NOT the running story — there "schluss / beenden"
+        # is shutdown, see "shutdown" bucket). Matched as a short
+        # ≤3-token utterance with the cancel word at the start.
+        "cancel": ("abbrechen", "abbruch", "stopp", "stop", "halt",
+                     "beenden", "schluss", "aufhören"),
     },
     "en": {
         "shutdown": ("shutdown", "shut", "power off", "poweroff",
@@ -492,6 +504,8 @@ CMD_KEYWORDS = {
         "note": ("note", "take note", "remember as world"),
         "generate": ("generate", "create", "build", "go", "ready",
                       "done"),
+        "cancel": ("cancel", "stop", "abort", "quit", "end",
+                     "nevermind"),
     },
 }
 

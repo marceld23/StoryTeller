@@ -115,9 +115,12 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
      the picked world, **or**
    * a guided **voice-mode world design**: a short Q&A interview drives
      [generate_world](packages/core/src/storyteller_core/worlds/generate.py)
-     live on-device; player ends the interview by saying *"Generieren /
-     Generate"*, a neutral wait-sound covers the 1–3 min generation,
-     then the new world is saved and started.
+     live on-device. The interview obeys the same idle / silence
+     contract as the story loop (silence → *"sag Hey Jarvis"* + replay
+     last question on wake) and accepts short cancel commands
+     (*"abbrechen / stopp / beenden"*). Player ends the interview by
+     saying *"Generieren / Generate"*; a neutral wait-sound covers the
+     1–3 min generation, then the new world is saved and started.
 
 In-session: wake word with a follow-up window, speech capture that ends
 on a pause, a wait-sound loop under TTS, and a spoken system menu
