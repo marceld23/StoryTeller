@@ -100,6 +100,29 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 ---
 
+## HTTPS for remote phones / PCs
+
+Browsers gate `navigator.mediaDevices` behind HTTPS or localhost — so
+opening the player web-ui's voice page from a phone over plain LAN
+HTTP fails with a TypeError. `scripts/install_https.sh` sets up a
+local CA (via mkcert) plus Caddy as a TLS reverse proxy in front of
+both backends:
+
+```bash
+bash scripts/install_https.sh        # one-shot, idempotent
+```
+
+After installing the generated `/etc/storyteller/mkcert/rootCA.pem` on
+each remote device once (per-device steps in
+[docs/SETUP_HTTPS.md](docs/SETUP_HTTPS.md)), you get:
+
+* `https://story.local/`           → player text/voice/`/create`
+* `https://story.local:8443/`      → admin
+* `http://story.local/`            → 301 → https
+
+The plain-HTTP listeners on 8080/8090 stay bound (so existing curl /
+smoke / tunnel workflows aren't disturbed).
+
 ## Feature parity across entry points
 
 The same gameplay features are available in all three player-facing

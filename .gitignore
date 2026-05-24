@@ -1,5 +1,14 @@
 # Secrets
 .env
+# TLS material (certs + private keys). The HTTPS setup
+# (scripts/install_https.sh + docs/SETUP_HTTPS.md) places everything
+# under /etc/storyteller/mkcert/, NOT in the repo — but a defense-in-
+# depth ignore here makes sure a stray copy never lands in a commit.
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
 
 # Python / uv
 .venv/

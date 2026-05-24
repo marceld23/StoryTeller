@@ -114,7 +114,7 @@ The browser-based player UI mirrors the same features as voice and CLI:
   * **"+ Notiz"** — opens a small textarea; the input is sent over WS as `{type: 'note', text}` and the backend wraps `create_user_note` (Vermerken-equivalent).
   * **"Geschichte beenden"** — sends `{type: 'end_story'}`; the server closes the engine, the client drops back to the world picker. State is auto-saved as usual.
 * **Daily cost cap pause** — when the server raises `DailyCapExceeded`, the WS sends `{type: 'daily_cap_exceeded', message, …}`. Both pages show a red banner with a "Zurück zur Welt-Auswahl" button; player input is disabled until the player navigates back. State on disk is untouched.
-* **Voice page only**: a soft ambient drone (the same `generic_waiting.wav` the Pi uses) loops while the server is thinking, so the player has audible feedback during the LLM wait window.
+* **Voice page only**: a soft ambient drone (the same `generic_waiting.wav` the Pi uses) loops while the server is thinking, so the player has audible feedback during the LLM wait window. The voice page also surfaces a red mic-warning banner when the browser refuses microphone access — typical reason: the page is loaded over plain `http://<lan-ip>:…` (no secure context). See [docs/SETUP_HTTPS.md](SETUP_HTTPS.md) for a one-shot HTTPS setup that unblocks voice from remote devices.
 
 ## Talking to the narrator (voice loop)
 
