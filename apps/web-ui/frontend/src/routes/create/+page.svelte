@@ -30,8 +30,11 @@
 
 <main>
   <header>
-    <h1>Neue Welt erstellen</h1>
-    <a href="/">← zurück</a>
+    <a class="brand" href="/" title="StoryTeller">
+      <img src="/favicon.png" alt="" />
+      <h1>Neue Welt erstellen</h1>
+    </a>
+    <a class="back" href="/">← zurück</a>
   </header>
 
   <p class="hint">
@@ -69,11 +72,25 @@
 
 <style>
   main { max-width: 760px; margin: 0 auto; padding: 1rem;
-         display: flex; flex-direction: column; min-height: 100vh; }
-  header { display: flex; justify-content: space-between; align-items: baseline;
-           border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+         display: flex; flex-direction: column;
+         min-height: 100vh; min-height: 100dvh;
+         box-sizing: border-box; }
+  header { display: flex; justify-content: space-between;
+           align-items: center; border-bottom: 1px solid var(--border);
+           padding-bottom: 0.5rem; gap: 0.6rem; }
   header h1 { margin: 0; font-size: 1.4rem; color: #6fc3df; }
-  header a { color: var(--muted, #888); text-decoration: none; }
+  .brand { display: flex; align-items: center; gap: 0.5rem;
+           color: inherit; text-decoration: none; }
+  .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
+  .back { color: var(--muted, #888); text-decoration: none; font-size: 0.95rem; }
+  @media (max-width: 600px) {
+    main { padding: 0.7rem; }
+    header h1 { font-size: 1.05rem; }
+    .brand img { width: 28px; height: 28px; }
+    textarea { min-height: 18em; font-size: 1rem; }
+    .actions { flex-direction: column; align-items: stretch; }
+    .actions button { width: 100%; }
+  }
   .hint { color: var(--muted, #888); font-size: 0.9rem; }
   .hint.small { font-size: 0.85rem; }
   textarea {

@@ -491,6 +491,19 @@
     border-bottom: 1px solid var(--border);
     margin: 0.5rem 0 1rem;
   }
+  @media (max-width: 700px) {
+    /* horizontal scroll instead of multi-row wrap so the editor body
+       stays at full height on phones */
+    .tabs {
+      flex-wrap: nowrap; overflow-x: auto; gap: 0.2rem;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .tabs button { flex: 0 0 auto; font-size: 0.88rem;
+                    padding: 0.35rem 0.6rem; }
+    .grid { grid-template-columns: 1fr !important; }
+    .toolbar { flex-wrap: wrap; }
+  }
   .tabs button {
     background: transparent; color: var(--muted);
     border: 1px solid transparent; border-bottom: none;

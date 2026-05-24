@@ -174,11 +174,14 @@
 
 <main>
   <header>
-    <h1>StoryTeller</h1>
+    <a class="brand" href="/" title="StoryTeller">
+      <img src="/favicon.png" alt="" />
+      <h1>StoryTeller</h1>
+    </a>
     {#if threadId}
       <small>session: <code>{threadId}</code></small>
     {:else}
-      <a href="/voice">🎤 Sprachmodus</a>
+      <a class="mode-link" href="/voice">🎤 Sprachmodus</a>
     {/if}
   </header>
 
@@ -282,7 +285,15 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;          /* mobile-safari address-bar safe */
+    box-sizing: border-box;
   }
+  .brand {
+    display: flex; align-items: center; gap: 0.5rem;
+    text-decoration: none; color: inherit;
+  }
+  .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
+  .mode-link { color: var(--muted); text-decoration: none; font-size: 0.95rem; }
   .banner {
     background: var(--surface-2); color: var(--fg);
     border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem; border-radius: 4px;
@@ -344,4 +355,18 @@
   }
   footer button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
   .error { color: #e07a7a; }
+  @media (max-width: 600px) {
+    main { padding: 0.7rem; }
+    h1 { font-size: 1.15rem; }
+    .brand img { width: 28px; height: 28px; }
+    .picker { padding: 1rem 0; }
+    .picker select { width: 100%; margin-right: 0; }
+    .picker button { width: 100%; margin-top: 0.4rem; }
+    .line { max-width: 95%; padding: 0.5rem 0.7rem; font-size: 0.96rem; }
+    footer { flex-direction: column; gap: 0.4rem; }
+    footer textarea { width: 100%; box-sizing: border-box; font-size: 1rem; }
+    footer button { width: 100%; padding: 0.6rem; }
+    .side-actions { justify-content: stretch; }
+    .side-actions .ghost { flex: 1; }
+  }
 </style>

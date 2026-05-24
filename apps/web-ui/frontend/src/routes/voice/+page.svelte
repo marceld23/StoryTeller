@@ -189,8 +189,11 @@
 
 <main>
   <header>
-    <h1>StoryTeller · Sprache</h1>
-    <a href="/">Textmodus</a>
+    <a class="brand" href="/" title="StoryTeller">
+      <img src="/favicon.png" alt="" />
+      <h1>StoryTeller · Sprache</h1>
+    </a>
+    <a class="mode-link" href="/">Textmodus</a>
   </header>
 
   {#if error}<p class="error">{error}</p>{/if}
@@ -269,10 +272,30 @@
 </main>
 
 <style>
-  main { max-width: 760px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; min-height: 100vh; }
-  header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  main { max-width: 760px; margin: 0 auto; padding: 1rem;
+         display: flex; flex-direction: column;
+         min-height: 100vh; min-height: 100dvh;
+         box-sizing: border-box; }
+  header { display: flex; justify-content: space-between;
+           align-items: center; border-bottom: 1px solid var(--border);
+           padding-bottom: 0.5rem; gap: 0.6rem; }
   h1 { margin: 0; font-size: 1.4rem; color: #6fc3df; }
+  .brand { display: flex; align-items: center; gap: 0.5rem;
+           color: inherit; text-decoration: none; }
+  .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
+  .mode-link { color: var(--muted); text-decoration: none; font-size: 0.95rem; }
   header a { color: var(--muted); }
+  @media (max-width: 600px) {
+    main { padding: 0.7rem; }
+    h1 { font-size: 1.15rem; }
+    .brand img { width: 28px; height: 28px; }
+    .ptt { font-size: 1rem; padding: 0.9rem; }
+    .line { max-width: 95%; padding: 0.5rem 0.7rem; font-size: 0.96rem; }
+    .picker select { width: 100%; margin-right: 0; }
+    .picker button { width: 100%; margin-top: 0.4rem; }
+    .side-actions { justify-content: stretch; }
+    .side-actions .ghost { flex: 1; }
+  }
   .picker { padding: 2rem 0; }
   .picker select { padding: 0.4rem; margin-right: 0.5rem; }
   .picker button { padding: 0.4rem 1rem; background: #6fc3df; color: #10131a; border: none; border-radius: 3px; cursor: pointer; }
