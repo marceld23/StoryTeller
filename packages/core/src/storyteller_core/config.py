@@ -287,12 +287,16 @@ class WebCfg(BaseModel):
         "http://localhost:5173", "http://localhost:5174",
     ]
     # Hard caps on player/admin free-text input (cost/abuse guard).
-    # max_prompt_chars covers the admin "generate world from prompt" box —
-    # raised to fit multi-page world briefs (rich description, lore, tone
-    # notes, sample voice, …). Both modern cloud LLMs (gpt-5.x, 200k+ ctx)
-    # and the local qwen3-30b-32k (32k ctx) handle this comfortably.
+    # max_prompt_chars covers the admin "generate world from prompt" box
+    # + the player web-ui's /create page. Multi-page world briefs (lore,
+    # tone, sample voice, NPC sketches) need plenty of headroom; modern
+    # cloud LLMs (gpt-5.x, 200k+ token ctx) take 100k chars (~25-30k
+    # tokens) without breaking a sweat. Local qwen3-30b-32k (32k token
+    # ctx) is borderline at that size but still fits — system prompts
+    # in the gen pipeline are <500 tokens and per-call outputs cap at
+    # ~3k tokens, so a 100k-char input + outputs stays under 32k.
     max_turn_chars: int = 2000
-    max_prompt_chars: int = 50000
+    max_prompt_chars: int = 100000
 
 
 class ModerationCfg(BaseModel):

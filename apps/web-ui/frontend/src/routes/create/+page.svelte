@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { generatePlayerWorld } from '$lib/api';
 
   let prompt = $state('');
@@ -7,10 +8,31 @@
   let error = $state('');
   let elapsed = $state(0);
   let tick: number | undefined = undefined;
+  // Server-side cap (web.max_prompt_chars). Loaded once at mount so the
+  // counter matches whatever the operator configured. Falls back to the
+  // shipped default if /api/health is unreachable.
+  let maxChars = $state(100000);
+
+  const tooLong = $derived(prompt.length > maxChars);
+
+  onMount(async () => {
+    try {
+      const r = await fetch('/api/health');
+      if (r.ok) {
+        const j = await r.json();
+        const lim = j?.limits?.max_prompt_chars;
+        if (typeof lim === 'number' && lim > 0) maxChars = lim;
+      }
+    } catch { /* keep fallback */ }
+  });
 
   async function submit() {
     const text = prompt.trim();
     if (!text || busy) return;
+    if (tooLong) {
+      error = `Prompt zu lang (${prompt.length.toLocaleString('de-DE')} / ${maxChars.toLocaleString('de-DE')} Zeichen).`;
+      return;
+    }
     busy = true; error = ''; elapsed = 0;
     tick = window.setInterval(() => (elapsed += 1), 1000);
     try {
@@ -42,7 +64,8 @@
     zentrale Spannung, der Ausgangsmoment der ersten Szene. Je dichter
     der Brief, desto näher trifft die Generierung. Mehrere Absätze sind
     OK — das große Modell macht daraus eine vollständige Welt
-    (Orte, Personen, Items, Glossar, Blueprint, Zufallslisten).
+    (Orte, Personen, Items, Glossar, Blueprint, Zufallslisten). Limit
+    <strong>{maxChars.toLocaleString('de-DE')}</strong> Zeichen.
     <br><strong>Dauert ein bis drei Minuten</strong> und kostet ein paar Cent
     (oder ist kostenlos, wenn das System auf lokale Modelle umgestellt ist).
   </p>
@@ -55,15 +78,24 @@
             placeholder="z. B. 'Eine düstere Unterwasserstadt, in der Erinnerungen als Währung gehandelt werden. Spielerrolle: ein versinkender Bibliothekar. Tonalität: melancholisch mit subtilem Horror …'"
             disabled={busy}></textarea>
 
+  <div class="meta">
+    <span class:over={tooLong}>
+      {prompt.length.toLocaleString('de-DE')} / {maxChars.toLocaleString('de-DE')} Zeichen
+    </span>
+  </div>
+
   <div class="actions">
     {#if busy}
-      <button disabled>Generiere… ({elapsed}s)</button>
+      <button disabled>
+        <span class="spinner-inline"></span>
+        Generiere… ({elapsed}s)
+      </button>
       <span class="hint small">
         Welt wird in mehreren Schritten zusammengebaut — bitte Tab
         nicht schließen.
       </span>
     {:else}
-      <button onclick={submit} disabled={!prompt.trim()}>
+      <button onclick={submit} disabled={!prompt.trim() || tooLong}>
         Welt generieren
       </button>
     {/if}
@@ -108,4 +140,15 @@
   }
   button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
   .error { color: #e07a7a; }
+  .meta { text-align: right; color: var(--muted); font-size: 0.85rem;
+           margin: -0.4rem 0 0.4rem; }
+  .meta .over { color: #c25450; font-weight: 600; }
+  .spinner-inline {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.18);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.9s linear infinite; vertical-align: middle;
+    margin-right: 0.35rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
