@@ -126,6 +126,53 @@ default"; `planner_llm`/`gen_llm` empty ⇒ same as `story_llm`,
   }
   ```
 
+### Provider mix: OpenRouter chat + OpenAI audio (hybrid)
+
+Storyteller resolves each role's API key independently, so you can
+mix providers freely. The typical hybrid setup runs cheap DeepSeek /
+Claude / etc. via [OpenRouter](https://openrouter.ai/) for the narrator
++ planner + world generation, and keeps OpenAI for STT / TTS /
+embeddings (where there's no good drop-in alternative).
+
+1. Add both keys to `.env`:
+
+   ```bash
+   OPENAI_API_KEY=sk-...
+   OPENROUTER_API_KEY=sk-or-v1-...
+   ```
+
+   No per-endpoint `api_key` is needed in `data/models.json` — endpoints
+   whose `base_url` contains `openrouter.ai` auto-resolve to
+   `OPENROUTER_API_KEY`; everything else falls back to
+   `OPENAI_API_KEY`. (Explicit `api_key` per endpoint still wins.)
+
+2. Point the chat endpoints at OpenRouter (`data/models.openrouter.bak.json`
+   ships as a starter — copy / symlink to `data/models.json`):
+
+   ```json
+   {
+     "story_llm":   "deepseek/deepseek-v4-pro",
+     "planner_llm": "deepseek/deepseek-v4-flash",
+     "gen_llm":     "deepseek/deepseek-v4-pro",
+     "stt":         "gpt-4o-mini-transcribe",
+     "tts":         "gpt-4o-mini-tts",
+     "embedding":   "text-embedding-3-small",
+     "story_endpoint":   { "base_url": "https://openrouter.ai/api/v1" },
+     "planner_endpoint": { "base_url": "https://openrouter.ai/api/v1" },
+     "gen_endpoint":     { "base_url": "https://openrouter.ai/api/v1" }
+   }
+   ```
+
+3. Reasoning effort works on OpenRouter too — `chat_extras` auto-
+   detects OpenRouter endpoints and switches the request payload
+   from OpenAI's flat `reasoning_effort: "low"` to OpenRouter's
+   nested `reasoning: { effort: "low" }`, so all per-role
+   `*_reasoning_effort` settings keep working unchanged.
+
+4. Restart `storyteller`, `storyteller-admin`, `storyteller-web-ui`
+   (config hot-reloads `data/models.json`; only the *.env* changes
+   need a process restart since dotenv is loaded once).
+
 **Audio** → `data/audio.json`: output backend (`auto` / `alsa_softvol` /
 `portable` / `pipewire`) and an optional PipeWire sink.
 

@@ -27,7 +27,15 @@ Put your OpenAI key in `/home/pi/storyteller/.env`:
 
 ```
 OPENAI_API_KEY=sk-...
+# optional: OpenRouter key for cheap chat models alongside OpenAI audio:
+# OPENROUTER_API_KEY=sk-or-v1-...
 ```
+
+Both keys can coexist. Endpoints whose `base_url` points at
+`https://openrouter.ai/api/v1` resolve their key from
+`OPENROUTER_API_KEY`; everything else falls back to `OPENAI_API_KEY`.
+Explicit `api_key` values set on individual endpoints in
+`data/models.json` always win over both env vars.
 
 ## 2. ReSpeaker hardware + dependencies
 

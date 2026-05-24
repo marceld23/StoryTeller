@@ -426,6 +426,13 @@ class Config(BaseModel):
     paths: PathsCfg = PathsCfg()
 
     openai_api_key: str = ""
+    # Separate fallback for endpoints whose base_url points at
+    # https://openrouter.ai/api/v1 — lets you run a hybrid stack
+    # (cheap chat via OpenRouter, audio + embeddings still on OpenAI)
+    # without pasting the OpenRouter key into every endpoint slot.
+    # Per-endpoint api_key explicitly set in data/models.json still
+    # wins over this fallback.
+    openrouter_api_key: str = ""
 
     def path(self, rel: str) -> Path:
         p = Path(rel)
@@ -471,6 +478,7 @@ def _build_config(config_path: str | None) -> Config:
         data = tomllib.loads(cfg_file.read_text())
     cfg = Config(**data)
     cfg.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+    cfg.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
     cfg.web.auth_token = os.environ.get("STORYTELLER_WEB_TOKEN", cfg.web.auth_token)
     cfg.web.admin_token = (os.environ.get("STORYTELLER_ADMIN_TOKEN", "")
                            or cfg.web.admin_token or cfg.web.auth_token)

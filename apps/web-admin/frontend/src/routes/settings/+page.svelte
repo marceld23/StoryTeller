@@ -18,6 +18,111 @@
   let error: string = $state('');
   let status: string = $state('');
 
+  // Preset definitions. Selecting one in the UI populates the editable
+  // fields below (model names + endpoints + reasoning) so the operator
+  // doesn't have to fill seven endpoint slots by hand for a common
+  // setup. `api_key` fields are deliberately left empty — keys live in
+  // .env (OPENAI_API_KEY / OPENROUTER_API_KEY) and are resolved by the
+  // backend per endpoint based on base_url. "Custom" is a no-op (just
+  // edit the fields directly).
+  type Preset = {
+    label: string;
+    names?: Record<string, string>;
+    nums?: Record<string, number>;
+    efforts?: Record<string, string>;
+    eps?: Record<string, { base_url: string; api_key: string }>;
+  };
+  const PRESETS: Record<string, Preset> = {
+    openai: {
+      label: 'OpenAI default (Cloud)',
+      names: {
+        story_llm: 'gpt-5.4-mini', planner_llm: '', gen_llm: 'gpt-5.4',
+        stt: 'gpt-4o-mini-transcribe', tts: 'gpt-4o-mini-tts',
+        tts_voice: 'ballad', embedding: 'text-embedding-3-small',
+      },
+      efforts: {
+        story_reasoning_effort: 'low', planner_reasoning_effort: 'medium',
+        gen_reasoning_effort: 'medium', gate_reasoning_effort: '',
+      },
+      eps: {
+        story: { base_url: '', api_key: '' },
+        planner: { base_url: '', api_key: '' },
+        gen: { base_url: '', api_key: '' },
+        stt: { base_url: '', api_key: '' },
+        tts: { base_url: '', api_key: '' },
+        embedding: { base_url: '', api_key: '' },
+      },
+    },
+    openrouter_hybrid: {
+      label: 'Hybrid: OpenRouter (DeepSeek) chat + OpenAI audio',
+      names: {
+        story_llm: 'deepseek/deepseek-v4-pro',
+        planner_llm: 'deepseek/deepseek-v4-flash',
+        gen_llm: 'deepseek/deepseek-v4-pro',
+        stt: 'gpt-4o-mini-transcribe', tts: 'gpt-4o-mini-tts',
+        tts_voice: 'ballad', embedding: 'text-embedding-3-small',
+      },
+      efforts: {
+        story_reasoning_effort: 'low', planner_reasoning_effort: 'medium',
+        gen_reasoning_effort: 'medium', gate_reasoning_effort: '',
+      },
+      eps: {
+        story: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        planner: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        gen: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        stt: { base_url: '', api_key: '' },
+        tts: { base_url: '', api_key: '' },
+        embedding: { base_url: '', api_key: '' },
+      },
+    },
+    openrouter_full: {
+      label: 'OpenRouter (everything: chat + audio + embeddings)',
+      names: {
+        story_llm: 'deepseek/deepseek-v4-pro',
+        planner_llm: 'deepseek/deepseek-v4-flash',
+        gen_llm: 'deepseek/deepseek-v4-pro',
+        stt: 'openai/whisper-large-v3-turbo',
+        tts: 'openai/gpt-4o-mini-tts',
+        tts_voice: 'ballad',
+        embedding: 'text-embedding-3-small',
+      },
+      efforts: {
+        story_reasoning_effort: 'low', planner_reasoning_effort: 'medium',
+        gen_reasoning_effort: 'medium', gate_reasoning_effort: '',
+      },
+      eps: {
+        story: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        planner: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        gen: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        stt: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        tts: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+        embedding: { base_url: 'https://openrouter.ai/api/v1', api_key: '' },
+      },
+    },
+    local: {
+      label: 'Local AI Server (qwen3 / faster-whisper / xtts)',
+      names: {
+        story_llm: 'qwen3-30b-32k', planner_llm: 'qwen3-30b-32k',
+        gen_llm: 'qwen3-30b-32k',
+        stt: 'deepdml/faster-whisper-large-v3-turbo-ct2',
+        tts: 'marcel', tts_voice: 'marcel', embedding: 'bge-m3',
+      },
+      efforts: {
+        story_reasoning_effort: 'none', planner_reasoning_effort: 'none',
+        gen_reasoning_effort: 'none', gate_reasoning_effort: 'none',
+      },
+      eps: {
+        story: { base_url: 'http://192.168.178.95:11434/v1', api_key: '' },
+        planner: { base_url: 'http://192.168.178.95:11434/v1', api_key: '' },
+        gen: { base_url: 'http://192.168.178.95:11434/v1', api_key: '' },
+        stt: { base_url: 'http://192.168.178.95:8001/v1', api_key: '' },
+        tts: { base_url: 'xtts://192.168.178.95:8002', api_key: '' },
+        embedding: { base_url: 'http://192.168.178.95:11434/v1', api_key: '' },
+      },
+    },
+  };
+  let presetSel = $state('');   // '' = Custom (no auto-apply on load)
+
   // structured model fields
   const NAMES = ['story_llm', 'planner_llm', 'gen_llm', 'stt', 'tts', 'tts_voice', 'embedding'];
   const NUMS = ['llm_temperature', 'planner_temperature', 'gen_temperature',
@@ -122,6 +227,29 @@
   }
 
   function def(k: string): string { return String(defaults[k] ?? ''); }
+
+  function applyPreset(id: string) {
+    const p = PRESETS[id];
+    if (!p) return;
+    if (p.names) {
+      for (const [k, v] of Object.entries(p.names)) names[k] = v;
+    }
+    if (p.nums) {
+      for (const [k, v] of Object.entries(p.nums)) nums[k] = String(v);
+    }
+    if (p.efforts) {
+      for (const [k, v] of Object.entries(p.efforts)) efforts[k] = v;
+    }
+    if (p.eps) {
+      for (const [k, v] of Object.entries(p.eps)) eps[k] = { ...v };
+    }
+    // Trigger a Svelte 5 store flush by reassigning the state vars.
+    names = { ...names };
+    nums = { ...nums };
+    efforts = { ...efforts };
+    eps = { ...eps };
+    status = `Preset "${p.label}" geladen. Speichern nicht vergessen.`;
+  }
 </script>
 
 <h1>Einstellungen</h1>
@@ -134,6 +262,26 @@
     <label class="rawtoggle"><input type="checkbox" checked={rawMode} onchange={toggleRaw} /> Roh-JSON</label>
   </div>
   <p class="hint">Leere Felder = Standard aus <code>config.toml</code>. <code>planner_llm</code>/<code>gen_llm</code> leer ⇒ wie <code>story_llm</code>. Gespeichert wird in <code>data/models.json</code>.</p>
+
+  <div class="preset-row">
+    <label class="preset">
+      <span>Preset laden</span>
+      <select bind:value={presetSel} onchange={() => { if (presetSel) applyPreset(presetSel); presetSel = ''; }}>
+        <option value="">— Custom (Felder einzeln bearbeiten) —</option>
+        {#each Object.entries(PRESETS) as [id, p] (id)}
+          <option value={id}>{p.label}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="hint small">
+      Preset überschreibt Modellnamen, Endpoints und Reasoning-Werte.
+      <strong>API-Keys liegen in <code>.env</code></strong>
+      (<code>OPENAI_API_KEY</code> und/oder <code>OPENROUTER_API_KEY</code>) —
+      endpoints mit base_url <code>openrouter.ai/api/v1</code> nutzen
+      automatisch den OpenRouter-Key, alle anderen den OpenAI-Key. Speichern
+      nicht vergessen.
+    </p>
+  </div>
 
   {#if rawMode}
     <textarea bind:value={modelsRaw} rows="16"></textarea>
@@ -234,6 +382,16 @@
   .eplabel { font-size: 0.85rem; color: var(--muted); }
   textarea { width: 100%; box-sizing: border-box; }
   .hint { color: var(--muted); font-size: 0.9rem; margin: 0.3rem 0; }
+  .hint.small { font-size: 0.8rem; }
+  .preset-row { background: var(--surface-2, transparent); padding: 0.6rem 0.7rem;
+                border-radius: 4px; margin-bottom: 1rem;
+                border: 1px dashed var(--border); }
+  .preset-row .preset { display: grid;
+                        grid-template-columns: max-content 1fr; gap: 0.5rem;
+                        align-items: center; margin: 0; max-width: 720px; }
+  .preset-row .preset > span { font-size: 0.85rem; color: var(--muted);
+                                white-space: nowrap; }
+  .preset-row .preset select { width: 100%; box-sizing: border-box; }
   .onoff { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: var(--fg); }
   .onoff input { width: auto; }
   .warn { color: #c25450; }

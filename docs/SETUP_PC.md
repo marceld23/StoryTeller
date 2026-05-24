@@ -14,6 +14,8 @@ cd StoryTeller
 curl -LsSf https://astral.sh/uv/install.sh | sh    # if uv not installed
 uv sync                                            # workspace venv (one .venv)
 echo "OPENAI_API_KEY=sk-..." > .env
+# optional: add OpenRouter for cheap chat LLMs (DeepSeek etc.) alongside OpenAI:
+# echo "OPENROUTER_API_KEY=sk-or-v1-..." >> .env
 uv run --package storyteller-cli storyteller-cli seed   # write seed worlds (once)
 ```
 

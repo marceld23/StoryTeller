@@ -33,6 +33,20 @@ def reasoning_kwargs(cfg: Config, role: str) -> dict:
     return {}
 
 
+def _endpoint_for_role(cfg: Config, role: str) -> Endpoint | None:
+    """Pick the Endpoint a chat role actually talks to, mirroring the
+    fallback chain in get_chat_client (gate → planner → story). Used
+    by chat_extras to decide which provider's reasoning wire format
+    to emit."""
+    ep = _ep(cfg, f"{role}_endpoint")
+    if role in ("planner", "gate") and ep is not None and not (ep.base_url or "").strip():
+        if role == "gate":
+            ep = _ep(cfg, "planner_endpoint")
+        if ep is None or not (ep.base_url or "").strip():
+            ep = _ep(cfg, "story_endpoint")
+    return ep
+
+
 def chat_extras(
     cfg: Config,
     role: str,
@@ -57,16 +71,32 @@ def chat_extras(
         MUST suppress reasoning_effort, and instead forward normal
         sampling knobs (temperature / penalties).
 
+    Plus one provider quirk: OpenRouter's chat completions endpoint
+    expects the reasoning knob in NESTED form (``reasoning: {effort:
+    "<v>"}``), not OpenAI's flat ``reasoning_effort``. We auto-detect
+    the route from the role's endpoint base_url and emit the right
+    shape so the same per-role *_reasoning_effort settings work on
+    either backend.
+
     Behaviour:
-      * tools=False + reasoning active -> {"reasoning_effort": "<v>"}
-      * tools=False + reasoning off    -> {"temperature": …, plus
-                                           non-zero penalties}
-      * tools=True (any reasoning)     -> {"temperature": …, plus
-                                           non-zero penalties} — reasoning
-                                           is dropped.
+      * tools=False + reasoning active + OpenAI/local route
+            -> {"reasoning_effort": "<v>"}
+      * tools=False + reasoning active + OpenRouter route
+            -> {"reasoning": {"effort": "<v>"}}
+      * tools=False + reasoning off
+            -> {"temperature": …, plus non-zero penalties}
+      * tools=True (any reasoning)
+            -> {"temperature": …, plus non-zero penalties}
+               (reasoning dropped — tools+reasoning is unsupported on
+               chat completions for gpt-5.x; OpenRouter passes tools
+               with reasoning for some providers but to keep behaviour
+               uniform we still drop reasoning when tools are present.)
     """
     effort = cfg.models.reasoning_effort_for(role)
     if effort in _VALID_EFFORTS and not tools:
+        ep = _endpoint_for_role(cfg, role)
+        if ep is not None and _is_openrouter(ep.base_url):
+            return {"reasoning": {"effort": effort}}
         return {"reasoning_effort": effort}
     out: dict = {}
     if temperature is not None:
@@ -87,12 +117,26 @@ def _make(api_key: str, base_url: str, timeout: float, max_retries: int) -> Open
     return OpenAI(**kwargs)
 
 
+def _is_openrouter(base_url: str) -> bool:
+    """True when a base_url points at OpenRouter — used to swap the
+    default API-key fallback and the reasoning-effort wire format."""
+    return "openrouter.ai" in (base_url or "").lower()
+
+
 def _resolve(cfg: Config, ep: Endpoint | None) -> tuple[str, str]:
-    """(api_key, base_url) for an endpoint, falling back to OpenAI + the
-    .env key. A custom base_url without a key uses a dummy bearer (many
-    local servers accept any)."""
+    """(api_key, base_url) for an endpoint, falling back to the right
+    .env key based on the base_url:
+      * openrouter.ai → cfg.openrouter_api_key (OPENROUTER_API_KEY)
+      * everything else (incl. empty base_url = OpenAI default) →
+        cfg.openai_api_key (OPENAI_API_KEY)
+    An explicit api_key on the Endpoint object always wins. A custom
+    base_url without a resolvable key uses a dummy bearer (many local
+    servers accept any)."""
     base = (ep.base_url or "").strip() if ep else ""
-    key = ((ep.api_key or "").strip() if ep else "") or cfg.openai_api_key
+    key = (ep.api_key or "").strip() if ep else ""
+    if not key:
+        key = (cfg.openrouter_api_key if _is_openrouter(base)
+               else cfg.openai_api_key)
     if not key and not base:
         raise RuntimeError("OPENAI_API_KEY fehlt (.env) und keine eigene "
                            "base_url gesetzt.")
