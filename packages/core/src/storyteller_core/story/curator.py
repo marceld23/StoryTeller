@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from ..config import Config
 from ..i18n import GATE_SYS, norm
-from ..oai import get_chat_client, reasoning_kwargs
+from ..oai import chat_extras, get_chat_client
 
 log = logging.getLogger("storyteller.curator")
 
@@ -115,11 +115,11 @@ class Curator:
             client = get_chat_client(self.cfg, "gate")
             resp = client.chat.completions.create(
                 model=self.cfg.models.gate,
-                temperature=float(self.cfg.models.gate_temperature),
                 messages=[{"role": "system", "content": GATE_SYS[loc]},
                           {"role": "user", "content": user_msg}],
                 response_format={"type": "json_object"},
-                **reasoning_kwargs(self.cfg, "gate"),
+                **chat_extras(self.cfg, "gate",
+                              temperature=self.cfg.models.gate_temperature),
             )
             if self.cost is not None:
                 _usd = self.cost.record_chat(resp.usage, role="gate")

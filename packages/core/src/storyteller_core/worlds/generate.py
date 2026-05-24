@@ -35,7 +35,7 @@ import re
 from collections.abc import Callable
 
 from ..config import Config
-from ..oai import get_chat_client, reasoning_kwargs
+from ..oai import chat_extras, get_chat_client
 from .schema import Beat, Blueprint, World
 
 _log = logging.getLogger("storyteller.gen")
@@ -232,11 +232,10 @@ def _llm_json(cfg: Config, system: str, user: str) -> dict:
     ledger.assert_under_cap()
     r = get_chat_client(cfg, "gen").chat.completions.create(
         model=cfg.models.gen,
-        temperature=cfg.models.gen_temperature,
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": user}],
         response_format={"type": "json_object"},
-        **reasoning_kwargs(cfg, "gen"),
+        **chat_extras(cfg, "gen", temperature=cfg.models.gen_temperature),
     )
     ledger.record_chat_usage(role="gen", model=cfg.models.gen, usage=r.usage)
     return json.loads(r.choices[0].message.content or "{}")

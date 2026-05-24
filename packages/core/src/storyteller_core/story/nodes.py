@@ -28,7 +28,7 @@ from ..i18n import (
     VOICE_SAMPLE_LABEL,
     norm,
 )
-from ..oai import get_chat_client, reasoning_kwargs
+from ..oai import chat_extras, get_chat_client
 from .blueprint import BlueprintTracker
 from .cost import CostTracker
 from .dynamics import INTEGRATION_RULE, StoryDynamics
@@ -73,10 +73,9 @@ def _repair_language(text: str, locale: str, cfg: Config) -> str:
     try:
         r = get_chat_client(cfg, "story").chat.completions.create(
             model=cfg.models.story_llm,
-            temperature=0.3,
             messages=[{"role": "system", "content": REPAIR_LANGUAGE_SYS[locale]},
                       {"role": "user", "content": text}],
-            **reasoning_kwargs(cfg, "story"),
+            **chat_extras(cfg, "story", temperature=0.3),
         )
         CostLedger(cfg).record_chat_usage(
             role="story", model=cfg.models.story_llm, usage=r.usage)
@@ -513,16 +512,19 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
     sys_prompt = state.get("system_prompt", "")
     messages = [{"role": "system", "content": sys_prompt}] + list(state.get("memory") or [])
 
-    kw = {
+    kw: dict = {
         "model": cfg.models.story_llm,
         "messages": messages,
-        "temperature": cfg.models.llm_temperature,
     }
-    if cfg.models.frequency_penalty:
-        kw["frequency_penalty"] = cfg.models.frequency_penalty
-    if cfg.models.presence_penalty:
-        kw["presence_penalty"] = cfg.models.presence_penalty
-    kw.update(reasoning_kwargs(cfg, "story"))
+    # chat_extras handles the reasoning-vs-sampling switch: reasoning models
+    # reject any non-default temperature/penalty, so when reasoning_effort
+    # is active these knobs are silently dropped.
+    kw.update(chat_extras(
+        cfg, "story",
+        temperature=cfg.models.llm_temperature,
+        frequency_penalty=cfg.models.frequency_penalty,
+        presence_penalty=cfg.models.presence_penalty,
+    ))
     if use_tools:
         kw["tools"] = TOOLS
 
@@ -798,12 +800,12 @@ def _fold_into_synopsis(
     try:
         resp = get_chat_client(cfg, "planner").chat.completions.create(
             model=cfg.models.planner,
-            temperature=cfg.models.planner_temperature,
             messages=[
                 {"role": "system", "content": SUMMARIZER_SYS[locale]},
                 {"role": "user", "content": user_msg},
             ],
-            **reasoning_kwargs(cfg, "planner"),
+            **chat_extras(cfg, "planner",
+                          temperature=cfg.models.planner_temperature),
         )
         CostLedger(cfg).record_chat_usage(
             role="planner", model=cfg.models.planner, usage=resp.usage)

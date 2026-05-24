@@ -18,7 +18,7 @@ import json
 import logging
 
 from ..config import Config
-from ..oai import get_chat_client, reasoning_kwargs
+from ..oai import chat_extras, get_chat_client
 from .cost import DailyCapExceeded
 from .ledger import CostLedger
 
@@ -84,12 +84,11 @@ def extract_note(cfg: Config, raw_text: str, locale: str = "de") -> dict:
         client = get_chat_client(cfg, "gen")
         r = client.chat.completions.create(
             model=cfg.models.gen,
-            temperature=0.2,
             messages=[
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": raw},
             ],
-            **reasoning_kwargs(cfg, "gen"),
+            **chat_extras(cfg, "gen", temperature=0.2),
             response_format={"type": "json_object"},
         )
         ledger.record_chat_usage(role="gen", model=cfg.models.gen,

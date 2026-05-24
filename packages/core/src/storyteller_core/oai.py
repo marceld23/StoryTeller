@@ -33,6 +33,39 @@ def reasoning_kwargs(cfg: Config, role: str) -> dict:
     return {}
 
 
+def chat_extras(
+    cfg: Config,
+    role: str,
+    *,
+    temperature: float | None = None,
+    frequency_penalty: float | None = None,
+    presence_penalty: float | None = None,
+) -> dict:
+    """Sampling kwargs to merge into ``chat.completions.create``.
+
+    OpenAI reasoning models (gpt-5.x with ``reasoning_effort`` != none) only
+    accept the default ``temperature`` / ``top_p`` / ``frequency_penalty``
+    / ``presence_penalty`` — passing a custom value returns HTTP 400. So
+    when reasoning is active for this role, we forward ONLY
+    ``reasoning_effort`` and DROP every sampling knob. When reasoning is
+    off we forward the non-None / non-zero values the caller passed.
+
+    Use this helper EVERYWHERE you'd otherwise pass
+    ``temperature=cfg.models.<x>_temperature, **reasoning_kwargs(...)``.
+    """
+    effort = cfg.models.reasoning_effort_for(role)
+    if effort in _VALID_EFFORTS:
+        return {"reasoning_effort": effort}
+    out: dict = {}
+    if temperature is not None:
+        out["temperature"] = float(temperature)
+    if frequency_penalty:
+        out["frequency_penalty"] = float(frequency_penalty)
+    if presence_penalty:
+        out["presence_penalty"] = float(presence_penalty)
+    return out
+
+
 @lru_cache
 def _make(api_key: str, base_url: str, timeout: float, max_retries: int) -> OpenAI:
     kwargs: dict = {"api_key": api_key, "timeout": timeout,
