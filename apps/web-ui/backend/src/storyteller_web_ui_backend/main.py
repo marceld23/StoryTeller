@@ -35,7 +35,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from storyteller_core.config import ROOT, load_config
-from storyteller_core.i18n import norm
+from storyteller_core.i18n import CMD_KEYWORDS, norm
 from storyteller_core.story.cost import DailyCapExceeded
 from storyteller_core.story.engine import StoryEngine
 from storyteller_core.story.user_notes import create_user_note
@@ -525,6 +525,25 @@ async def ws_voice(websocket: WebSocket, thread_id: str,
                 await websocket.send_json({"type": "stt", "text": text_in})
                 if not text_in.strip():
                     await websocket.send_json({"type": "audio_done"})
+                    continue
+                # Voice command: "Wiederhole" / "Repeat" — replay the
+                # last narration without a story turn. Matched as a
+                # SHORT phrase (≤3 tokens) so a mid-sentence "again"
+                # in player input cannot trigger a fake repeat.
+                _toks = [t.strip(",.!?;:") for t in text_in.lower().split()]
+                _loc = norm(cfg.general.locale)
+                _repeat_kw = CMD_KEYWORDS.get(_loc, {}).get("repeat", ())
+                if (_toks and len(_toks) <= 3
+                        and any(t in _repeat_kw for t in _toks)):
+                    last = await asyncio.to_thread(engine.last_narration)
+                    if last and last.strip():
+                        await _say(last)
+                    else:
+                        # No prior narration -> short message, no LLM call.
+                        msg = ("Da ist noch keine Erzählung, die ich "
+                               "wiederholen könnte." if _loc == "de"
+                               else "There's no narration to repeat yet.")
+                        await _say(msg)
                     continue
                 await websocket.send_json({"type": "thinking"})
                 try:

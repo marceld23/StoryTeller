@@ -265,15 +265,14 @@ def cmd_run(args: argparse.Namespace) -> int:
                   "wake-word packages), then restart storyteller.")
         return 1
 
-    # --- optional spoken intro at start ---
-    # Three sequential cues (each cached, offline-safe, no tokens):
-    #   welcome              — short "Willkommen beim Geschichtenerzähler"
-    #                          ALWAYS plays so the player hears the device
-    #                          is alive after boot.
-    #   intro_enabled        — Jarvis greeting + "Sag Hey Jarvis …"
-    #   intro_commands_enabled — list of in-story voice commands; the
-    #                          final sentence is the wake-hint, so the
-    #                          player knows the device is now idle.
+    # --- short spoken greeting at boot ---
+    # Just the welcome prompt now — one sentence that tells the player
+    # the device is alive and that Hey Jarvis is the wake word. The
+    # longer "during a story you can say …" briefing is deferred to
+    # AFTER the world is picked (see _play_one_story below), so a
+    # cold start no longer dumps a wall of commands on a player who
+    # might not even start a story yet. `intro_enabled` (toggled via
+    # the sysmenu Einführung entry) gates the welcome.
     if speak and not text_mode:
         from storyteller_hardware.runtime import load_settings
 
@@ -294,12 +293,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                             "missing prompts will be live-synth'd on "
                             "first play.", exc)
 
-        prompts.play("welcome", backend)
         _st = load_settings(cfg)
         if _st.get("intro_enabled", True):
-            prompts.play("intro", backend)
-        if _st.get("intro_commands_enabled", True):
-            prompts.play("intro_commands", backend)
+            prompts.play("welcome", backend)
 
     # --- wake-word gate + yes/no start question ---
     # After the boot greeting the device idles silently until the wake
@@ -604,6 +600,18 @@ def cmd_run(args: argparse.Namespace) -> int:
                 # unclear after retry → back to wake-word idle
                 return "next_story"
         rp(f"[bold]Welt:[/bold] {world.name}")
+
+        # Play the in-story command briefing now that a story is actually
+        # about to start — earlier (right after boot) the player might
+        # never start a story at all, and dumping the whole "Vermerken /
+        # Wiederhole / Menü / Schluss / Hey Jarvis"-block on every boot
+        # was noisy. Toggleable via sysmenu Befehl-Info.
+        if speak and not text_mode:
+            from storyteller_hardware.runtime import load_settings
+
+            _st = load_settings(cfg)
+            if _st.get("intro_commands_enabled", True):
+                prompts.play("intro_commands", backend)
 
         thread = args.thread or f"pi-{world.id}"
         if args.new:
@@ -998,6 +1006,25 @@ def cmd_run(args: argparse.Namespace) -> int:
                             return "shutdown"
                         if rc == "end_story":
                             return "next_story"
+                        pending_follow = follow_enabled
+                        continue
+                    # "Wiederhole" / "Repeat" — re-play the last narration
+                    # via TTS, no LLM call, no state change. Matched as a
+                    # SHORT (1–3 token) utterance to avoid mid-sentence
+                    # false positives ("ich überleg's mir nochmal").
+                    if toks and len(toks) <= 3 and any(
+                            t in cmd_kw["repeat"] for t in toks):
+                        last = engine.last_narration()
+                        if last and last.strip():
+                            log.info("repeat command: replaying last "
+                                     "narration (%d chars)", len(last))
+                            _say(cfg, world, backend, tts, fx, leds,
+                                 (lambda txt=last: txt), speak=speak)
+                        else:
+                            if speak:
+                                prompts.play("nothing_to_repeat", backend)
+                            else:
+                                rp("[dim](nichts zu wiederholen)[/dim]")
                         pending_follow = follow_enabled
                         continue
                     # "Geschichte beenden" / "end story" — save (auto-saved

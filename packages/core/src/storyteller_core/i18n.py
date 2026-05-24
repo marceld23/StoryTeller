@@ -23,7 +23,8 @@ def norm(locale: str | None) -> str:
 # --- Static voice-prompt texts (rendered to audio per locale) ---
 VOICE_PROMPTS: dict[str, dict[str, str]] = {
     "de": {
-        "welcome": "Willkommen beim Geschichtenerzähler.",
+        "welcome": "Hallo, ich bin dein Erzähler. Wenn du bereit bist, "
+                    "weck mich mit Hey Jarvis.",
         "choose_world": "Welche Welt möchtest du spielen?",
         "world_sternenfahrt": "Sternenfahrt. Du bist Raumschiffkapitän.",
         "world_immerwald": "Das Immerwald-Reich. Du bist Waldläufer.",
@@ -64,6 +65,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "sagen: Vermerken, gefolgt von einer Notiz — "
                            "etwa Vermerken, Otkar ist ein Bibliothekar — "
                            "dann nehme ich das in die Welt auf. "
+                           "Wiederhole oder Sag das nochmal lässt mich "
+                           "die letzte Erzählung wiederholen. "
                            "Menü oder System öffnet die Einstellungen. "
                            "Geschichte beenden speichert und führt zurück "
                            "zur Welt-Auswahl. "
@@ -71,6 +74,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                            "Gerät komplett herunter. "
                            "Ich höre jetzt nicht mehr aktiv zu — sag "
                            "Hey Jarvis, um mich zu wecken.",
+        "nothing_to_repeat": "Da ist noch keine Erzählung, die ich "
+                              "wiederholen könnte.",
         "start_question": "Möchtest du loslegen?",
         "start_question_repeat": "Ich habe das nicht verstanden — "
                                   "bitte sag Ja oder Nein.",
@@ -124,7 +129,8 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
                               "möglich, bevor ich pausieren muss.",
     },
     "en": {
-        "welcome": "Welcome to the storyteller.",
+        "welcome": "Hello, I'm your storyteller. When you're ready, "
+                    "wake me with Hey Jarvis.",
         "choose_world": "Which world would you like to play?",
         "world_sternenfahrt": "Starfaring. You are a starship captain.",
         "world_immerwald": "The Everwood Realm. You are a ranger.",
@@ -162,12 +168,15 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "intro_commands": "During a story you can say at any time: "
                            "Note, followed by a brief — e.g. Note, Otkar "
                            "is a librarian — and I'll add it to the "
-                           "world. Menu or System opens the settings. "
+                           "world. Repeat or Say that again lets me "
+                           "replay the last narration. "
+                           "Menu or System opens the settings. "
                            "End story saves and returns to the world "
                            "menu. Shut down or Goodbye powers the "
                            "device off. "
                            "I'm no longer actively listening now — say "
                            "Hey Jarvis to wake me.",
+        "nothing_to_repeat": "There's no narration to repeat yet.",
         "start_question": "Would you like to get started?",
         "start_question_repeat": "I didn't catch that — please say "
                                   "yes or no.",
@@ -523,6 +532,11 @@ CMD_KEYWORDS = {
         "load": ("lade", "spielstand"),
         "menu": ("system", "systemmenü", "systemmenu", "menü", "menu"),
         "note": ("vermerken", "vermerk", "notiz", "merke", "merken"),
+        # Re-play the last narration as TTS (no LLM call). Matched as a
+        # short standalone phrase so a mid-sentence "nochmal" inside a
+        # player input does not accidentally trigger a replay.
+        "repeat": ("wiederhole", "wiederhol", "wiederholen", "nochmal",
+                     "nochmals"),
         # First token in the world-design interview loop that signals
         # "stop asking, build the world now". Matched ONLY inside the
         # interview — outside it the words are ignored.
@@ -542,6 +556,10 @@ CMD_KEYWORDS = {
         "load": ("load", "resume"),
         "menu": ("system", "system menu", "menu"),
         "note": ("note", "take note", "remember as world"),
+        # Re-play the last narration as TTS (no LLM call). Matched as a
+        # short standalone phrase so a mid-sentence "again" inside a
+        # player input does not accidentally trigger a replay.
+        "repeat": ("repeat", "again", "once more"),
         "generate": ("generate", "create", "build", "go", "ready",
                       "done"),
         "cancel": ("cancel", "stop", "abort", "quit", "end",

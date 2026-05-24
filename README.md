@@ -136,6 +136,7 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
 | Existing-world selection | ✓ voice menu | ✓ numbered picker | ✓ dropdown |
 | **World generation** from a player brief | ✓ voice interview + "Generieren" | ✓ `/create <prompt>` | ✓ `/create` page (text) |
 | **Vermerken / world notes** (player-introduced facts → RAG) | ✓ "Vermerken: …" | ✓ `/note <text>` | ✓ "+ Notiz" button (text + voice pages) |
+| **Wiederhole / Repeat** (re-play last narration, TTS only) | ✓ "Wiederhole" / "Repeat" | scroll up | ✓ "Wiederhole" in voice page (STT-matched) |
 | **Geschichte beenden** → back to world picker | ✓ voice command | ✓ `/end` | ✓ "Geschichte beenden" button |
 | **Daily cost cap** pause + player message | ✓ `daily_cap_pause` prompt | ✓ rich-text cap notice | ✓ red banner + WS `daily_cap_exceeded` |
 | Wait-sound under LLM thinking | ✓ per-world / generic ambient | — (text) | ✓ voice page loops `generic_waiting.wav` |
@@ -145,8 +146,9 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
 
 `storyteller-pi run` is the full voice appliance. Boot flow:
 
-1. Spoken greeting + (optional) one-time commands info — both toggleable
-   in the system menu (`intro`, `commands info`).
+1. Short spoken greeting (*"Hallo, ich bin dein Erzähler. Wenn du
+   bereit bist, weck mich mit Hey Jarvis."*) — toggleable in the system
+   menu (`intro`).
 2. **Idle wait** for the *"Hey Jarvis"* wake word — the Pi stays silent
    until you call it.
 3. On wake-word: *"Would you like to get started?"* — yes continues, no
@@ -162,16 +164,22 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
      (*"abbrechen / stopp / beenden"*). Player ends the interview by
      saying *"Generieren / Generate"*; a neutral wait-sound covers the
      1–3 min generation, then the new world is saved and started.
+5. **Once a world is picked, before the first narration** the in-story
+   command briefing plays (Vermerken / Wiederhole / Menü / Geschichte
+   beenden / Schluss + the wake-hint). Toggleable in the system menu
+   (`commands info`).
 
 In-session: wake word with a follow-up window, speech capture that ends
 on a pause, a wait-sound loop under TTS, and a spoken system menu
 (save / end story / shutdown / undo / reset world / audio / intro /
 commands info / close). Voice commands during play: **"Vermerken / Note"**
-to add a player-introduced world fact (RAG-indexed live), **"Geschichte
-beenden / End story"** to save + return to the wake-word idle for the
-next world, **"Schluss / Ausschalten / Shutdown"** to power the device
-off. Per-world session state auto-resumes across restarts (LangGraph
-checkpointer, `thread_id = pi-<world>`); `--new` starts a fresh branch.
+to add a player-introduced world fact (RAG-indexed live), **"Wiederhole
+/ Repeat / Sag das nochmal"** to re-play the last narration (TTS only,
+no LLM call), **"Geschichte beenden / End story"** to save + return to
+the wake-word idle for the next world, **"Schluss / Ausschalten /
+Shutdown"** to power the device off. Per-world session state auto-
+resumes across restarts (LangGraph checkpointer, `thread_id =
+pi-<world>`); `--new` starts a fresh branch.
 Resuming a saved world plays a short spoken recap of where you are.
 
 **Barge-in** — the narrator can be interrupted any time:

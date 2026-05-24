@@ -15,18 +15,15 @@ into the story, following a dramatic arc.
 
 ## Boot sequence (Pi / voice)
 
-1. After power-on you hear a short greeting: *"Hi, I'm Jarvis, your
-   storyteller. Say Hey Jarvis when you want to hear a story."*
-2. Then a one-time commands info lists what you can say during play
-   (Note, Menu / System, End story, Shutdown). Both pieces can be
-   toggled off independently in the system menu (*intro on/off* and
-   *commands info on/off*).
-3. The Pi **idles silently** with the LED ring green. Nothing happens
+1. After power-on you hear a single short greeting: *"Hello, I'm your
+   storyteller. When you're ready, wake me with Hey Jarvis."*
+   (Toggle: *intro on/off* in the system menu.)
+2. The Pi **idles silently** with the LED ring green. Nothing happens
    until you say the wake word.
-4. Say **"Hey Jarvis"**. The system answers: *"Would you like to get
+3. Say **"Hey Jarvis"**. The system answers: *"Would you like to get
    started?"* — answer *yes* to continue, *no* (or stay silent) to drop
    back into idle.
-5. *"Would you like to play an existing world, or create a new one?"*
+4. *"Would you like to play an existing world, or create a new one?"*
    * **Existing** → the world menu opens (*"Which world…?"*): answer
      naturally, e.g. *"something in space"* → Starfaring, *"dragons
      and magic"* → Everwood. (Recognition is LLM-based, so free
@@ -34,6 +31,11 @@ into the story, following a dramatic arc.
    * **New** → the [voice-mode world design](#voice-mode-world-design)
      starts (see below).
    Pass `--new` to start a world over from scratch.
+5. **Once a world is picked**, just before the first narration you
+   hear the in-story commands briefing (Vermerken / Wiederhole /
+   Menü / Geschichte beenden / Schluss + the wake-hint). Toggle off
+   via the system menu (*commands info on/off*) if you don't want
+   to hear it every session.
 
 ### Voice-mode world design
 
@@ -87,6 +89,7 @@ narrator just spoke) you can say any of:
 |-----|--------|
 | anything else | The narrator weaves it into the story. |
 | **Vermerken / Note** — followed by a brief | Adds the brief as a player-introduced fact to this world. Indexed into RAG immediately, so the narrator can pick it up from the very next turn. The admin can later promote it to the canonical world via the *Notizen* tab in the web admin. |
+| **Wiederhole / Sag das nochmal / Repeat / Again** | Re-plays the last narration via TTS — no new story turn, no LLM call. Useful if you missed something. Matched as a SHORT phrase (≤3 tokens) so a mid-sentence "nochmal" inside a real player input won't accidentally trigger it. |
 | **Menü / System / Menu** | Opens the spoken system menu (save, end story, shutdown, undo, reset world, audio output, intro toggle, commands info toggle, close menu). |
 | **Geschichte beenden / End story** | Saves the current game (every turn is auto-checkpointed anyway), plays a short confirmation, and drops back to the wake-word idle. Saying *"Hey Jarvis"* afterwards reopens the world menu. |
 | **Beenden / Schluss / Ausschalten / Shutdown** | Powers the device off (`systemctl poweroff` — needs NOPASSWD sudo, see *docs/SETUP_PI.md*). Same as a long-press on the shutdown GPIO button. |
@@ -114,6 +117,7 @@ The browser-based player UI mirrors the same features as voice and CLI:
 * **In-game actions** (both text + voice pages):
   * **"+ Notiz"** — opens a small textarea; the input is sent over WS as `{type: 'note', text}` and the backend wraps `create_user_note` (Vermerken-equivalent).
   * **"Geschichte beenden"** — sends `{type: 'end_story'}`; the server closes the engine, the client drops back to the world picker. State is auto-saved as usual.
+  * **Voice page only**: saying *"Wiederhole"* / *"Repeat"* / *"Sag das nochmal"* re-plays the last narration via TTS — no LLM call, no story turn. Same matching as on the Pi (short ≤3-token phrase).
 * **Daily cost cap pause** — when the server raises `DailyCapExceeded`, the WS sends `{type: 'daily_cap_exceeded', message, …}`. Both pages show a red banner with a "Zurück zur Welt-Auswahl" button; player input is disabled until the player navigates back. State on disk is untouched.
 * **Voice page only**: a soft ambient drone (the same `generic_waiting.wav` the Pi uses) loops while the server is thinking, so the player has audible feedback during the LLM wait window. The voice page also surfaces a red mic-warning banner when the browser refuses microphone access — typical reason: the page is loaded over plain `http://<lan-ip>:…` (no secure context). See [docs/SETUP_HTTPS.md](SETUP_HTTPS.md) for a one-shot HTTPS setup that unblocks voice from remote devices.
 
