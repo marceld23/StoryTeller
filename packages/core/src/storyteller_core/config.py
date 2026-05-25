@@ -34,11 +34,13 @@ class Endpoint(BaseModel):
 class ModelsCfg(BaseModel):
     story_llm: str = "gpt-5.4-mini"            # narrator (quality matters)
     planner_llm: str = ""                      # architect+summarizer; ""=story_llm
-    # One-shot, high-stakes calls that build NEW content (world generation
-    # from a prompt, world-piece suggestions in the admin UI). Defaults to
-    # the big "gpt-5.4" — these calls are rare; structural quality pays
-    # off for every subsequent session.
-    gen_llm: str = "gpt-5.4"
+    # JSON-structured content-authoring calls: world generation (rare,
+    # 13 calls per world), voice-mode world-design interview, player
+    # `Vermerken` note extraction (1× per player note), admin ✨
+    # world-piece suggestions. Defaults to gpt-5.4-mini — same model
+    # the other roles use. Bump to gpt-5.4 (full) if you want richer
+    # generated worlds and don't mind the cost on the rare big calls.
+    gen_llm: str = "gpt-5.4-mini"
     # Narration "gate" — a small/fast LLM that decides per turn what the
     # narrator is allowed to reveal (curate authored plot vs. let the
     # player improvise). Empty => same model as planner_llm. Keep this on

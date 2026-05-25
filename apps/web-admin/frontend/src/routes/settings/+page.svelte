@@ -76,7 +76,7 @@
     openai: {
       label: 'OpenAI default (Cloud)',
       names: {
-        story_llm: 'gpt-5.4-mini', planner_llm: '', gen_llm: 'gpt-5.4',
+        story_llm: 'gpt-5.4-mini', planner_llm: '', gen_llm: 'gpt-5.4-mini',
         stt: 'gpt-4o-mini-transcribe', tts: 'gpt-4o-mini-tts',
         tts_voice: 'ballad', embedding: 'text-embedding-3-small',
       },
