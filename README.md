@@ -384,6 +384,7 @@ moment.
 - [PLAN.md](PLAN.md) — what's still open
 - [docs/SETUP_PI.md](docs/SETUP_PI.md) — Raspberry Pi + ReSpeaker
 - [docs/SETUP_PC.md](docs/SETUP_PC.md) — PC setup (no Pi/no ReSpeaker)
+- [docker/README.md](docker/README.md) — self-host the web services in Docker (admin + player + Caddy, x86_64)
 - [docs/SETUP_LOCAL_AI_SERVER.md](docs/SETUP_LOCAL_AI_SERVER.md) — optional fully-local AI backends (Ollama + Whisper + XTTS) on a Windows + NVIDIA GPU host
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to play
 - [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) — admin frontend (worlds, generation, transcripts, model/endpoint settings)

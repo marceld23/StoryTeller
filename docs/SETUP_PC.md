@@ -49,6 +49,24 @@ Open <http://localhost:8090> (play: text or tap-to-talk voice) and
 settings). **Frontend dev** with hot reload: `cd apps/web-ui/frontend &&
 yarn dev` (talks to the running backend via `VITE_BACKEND`).
 
+### 3a. Web-only via Docker (alternative to 3)
+
+If you don't want Python/Node/Caddy on the host, the web services
+also ship as a Docker stack:
+
+```bash
+cd docker/
+cp .env.example .env                # fill OPENAI_API_KEY + admin token
+docker compose up --build
+```
+
+Player UI at `https://localhost/`, admin at `https://localhost:8443/`,
+TLS via Caddy's self-signed CA (accept the warning once). x86_64-only,
+single image reused for both services, persistence via `./data/`
+bind-mount (empty on first run; generate worlds via the admin UI).
+The Pi voice-loop / CLI are **not** in scope for Docker. Full
+walkthrough: [../docker/README.md](../docker/README.md).
+
 ## 4. Voice loop on the PC (optional)
 
 There is no separate PC voice app; the Pi loop runs on a PC too, using the OS

@@ -121,6 +121,14 @@ record a collapsible **📤 Prompt an LLM** entry — the exact system prompt
 plus all follow-up messages (including tool round-trips) sent to the narrator
 model. Off by default (it makes transcripts much larger).
 
+**Löschen.** Jeder Verlauf hat ein 🗑-Symbol rechts in der Listen-Zeile —
+einmal klicken bewaffnet den Button (rot „wirklich? 🗑"), zweiter Klick
+innerhalb 5 s löscht die Datei. **Automatischer Cleanup**: Verläufe einer
+Welt werden zusätzlich entfernt, wenn die Welt selbst gelöscht oder ihr
+Spielstand zurückgesetzt wird (Sysmenu „Welt zurücksetzen" auf dem Pi,
+oder `engine.reset()`). Es gibt **keine** zeitbasierte Auto-Aufräumung —
+nur die expliziten Pfade. Wer alte Verläufe behalten will, behält sie.
+
 ### Einstellungen (`/settings`)
 
 Three groups; each "Speichern" writes a runtime override file under `data/`

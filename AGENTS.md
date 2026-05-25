@@ -90,3 +90,20 @@ The pre-LangGraph save format (`data/saves/*.json`) is **not** supported. Don't 
 
 - `.env` at repo root holds `OPENAI_API_KEY`. Never commit it.
 - `data/` holds runtime artifacts (worlds, saves, checkpoints, transcripts) — also gitignored where appropriate.
+
+## Docker deployment (`docker/`)
+
+- The web services (admin + player) ship as a Docker stack for hosts
+  that don't want Python/Node/Caddy installed locally. Single image
+  (`storyteller-web:local`), two containers, Caddy in front.
+- **Scope**: web-services only. Pi voice-loop / CLI / local-AI server
+  stacks stay outside — they're host-coupled (audio, GPIO, GPU).
+- **Two hard rules apply inside the image**, same as outside:
+  Python → uv; web frontends → yarn 4.x. The Dockerfile honours both
+  (multi-stage: node:20 + yarn 4.12.0 → python:3.13-slim + uv).
+- When changing the workspace structure (`pyproject.toml` members or
+  sources), also touch `docker/Dockerfile.web` — it copies the
+  workspace skeleton in a layer-cache-friendly order and creates stub
+  packages for `apps/cli` / `apps/pi` so uv can resolve the graph
+  without dragging in their source. New workspace members need the
+  same treatment.

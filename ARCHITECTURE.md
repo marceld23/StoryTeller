@@ -231,7 +231,9 @@ independently. Moderation always uses OpenAI. Client cache keys on
 
 ---
 
-## 10. Deployment (systemd)
+## 10. Deployment
+
+### Option A — systemd on a host (Pi or PC)
 
 | Service | Runs | Port |
 |---|---|---|
@@ -243,6 +245,26 @@ independently. Moderation always uses OpenAI. Client cache keys on
 Bring-up: `uv sync` → `scripts/install_wakeword.sh` (re-run after every
 `uv sync`) → `scripts/build_frontends.sh` → `scripts/install_services.sh`.
 See [docs/SETUP_PI.md](docs/SETUP_PI.md).
+
+### Option B — Docker (web services only)
+
+A docker/ folder ships a self-host stack for the two web services. The
+Pi voice-loop, CLI and local-AI server stacks stay outside (they're
+host-coupled — audio devices, GPIO, GPU). The Docker layout:
+
+| File | Purpose |
+|---|---|
+| `docker/Dockerfile.web` | 3-stage build: node-build (yarn 4 → static frontends) → python-deps (uv sync workspace) → runtime (python:3.13-slim + venv + sources, no Node) |
+| `docker/docker-compose.yml` | Orchestrates `web-ui:8090` + `web-admin:8080` + Caddy. Both backends share **one** image; only the CMD differs. |
+| `docker/Caddyfile` | TLS via `tls internal` (self-signed). `:443` → web-ui, `:8443` → admin, `:80` → 301 redirect. |
+| `docker/.env.example` | OPENAI / OPENROUTER keys + admin/player tokens. |
+
+x86_64 only (no multi-arch buildx in compose). `./data/` is bind-
+mounted from the host so persistence survives `compose down`. Empty
+on first run — generate worlds via the admin UI. Pi co-host on the
+same machine: bind-mount `/home/pi/storyteller/data:/app/data` and
+both sides share state. Full walkthrough:
+[docker/README.md](docker/README.md).
 
 ---
 
