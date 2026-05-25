@@ -1153,6 +1153,18 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
             response_format={"type": "json_object"},
             **chat_extras(cfg, "gen", temperature=cfg.models.gen_temperature),
         )
+        # Cost-track this admin "✨ Vorschlag" call — was a leak: clicked
+        # repeatedly in the world editor, each call uses the big gen
+        # model and produces non-trivial JSON. Without logging, daily
+        # totals systematically undercounted on heavy editing days.
+        try:
+            from storyteller_core.story.ledger import CostLedger
+            CostLedger(cfg).record_chat_usage(
+                role="gen", model=cfg.models.gen,
+                usage=r.usage,
+                world_id=world_id)
+        except Exception:                                  # pragma: no cover
+            pass
         data = json.loads(r.choices[0].message.content or "{}")
     except Exception as exc:
         raise HTTPException(502, f"gen model error: {exc!r}") from exc

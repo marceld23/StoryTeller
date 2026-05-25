@@ -89,6 +89,17 @@ def classify_world_choice(cfg: Config, said: str,
             response_format={"type": "json_object"},
             **chat_extras(cfg, "story"),
         )
+        # Cost-track this call — was a leak: every spoken world-pick
+        # in the world menu fires one story_llm call here. Without
+        # logging it the daily ledger undercounted by a meaningful
+        # amount on chat-heavy sessions.
+        try:
+            from storyteller_core.story.ledger import CostLedger
+            CostLedger(cfg).record_chat_usage(
+                role="story", model=cfg.models.story_llm,
+                usage=r.usage)
+        except Exception:                                  # pragma: no cover
+            pass
         choice = json.loads(r.choices[0].message.content or "{}") \
             .get("choice", "unknown").strip()
         log.info("[WorldClassify] said=%r -> choice=%r", said, choice)

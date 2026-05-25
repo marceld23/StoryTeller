@@ -111,6 +111,7 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
         import json
 
         from storyteller_core.oai import chat_extras, get_chat_client
+        from storyteller_core.story.ledger import CostLedger
 
         ids = [o[0] for o in options]
         cat = "\n".join(f"- {i}: {d}" for i, d in options)
@@ -125,6 +126,16 @@ def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
                       {"role": "user", "content": said}],
             response_format={"type": "json_object"},
             **chat_extras(cfg, "story"))
+        # Cost-track this call — was a leak: yes/no answers, world picks
+        # and sysmenu navigations all go through here, several times per
+        # session. Each call uses story_llm (the big model) so they add
+        # up on top of the actual story turns.
+        try:
+            CostLedger(cfg).record_chat_usage(
+                role="story", model=cfg.models.story_llm,
+                usage=r.usage)
+        except Exception:                                  # pragma: no cover
+            pass
         c = (json.loads(r.choices[0].message.content or "{}")
              .get("choice", "unknown").strip())
         return c if c in ids else "unknown"
