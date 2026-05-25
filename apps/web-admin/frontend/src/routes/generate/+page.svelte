@@ -57,7 +57,7 @@
 <p class="hint">
   Das große Modell (<code>gen_llm</code>) entwirft eine vollständige Welt
   (Orte, Personen, Items, Glossar, Blueprint, Zufallslisten) und indexiert sie
-  anschließend für RAG. Dauert je nach Modell 1–3 Minuten und kostet Tokens.
+  anschließend für RAG. Dauert je nach Modell 5–15 Minuten und kostet viele Tokens.
   Du kannst hier auch mehrseitige Briefings einfügen — Limit
   <strong>{maxChars.toLocaleString('de-DE')}</strong> Zeichen.
 </p>

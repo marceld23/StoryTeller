@@ -284,6 +284,12 @@ _LIST_ORDER = ("regions", "places", "factions", "persons", "items",
                "creatures", "glossary", "history", "fragments",
                "random_tables")
 
+# Total progress steps surfaced to UIs. = 1 skeleton + 1 tech_magic +
+# 1 blueprints + N content-lists. Single source of truth so the
+# admin/Pi/CLI all show the same denominator. When _LIST_ORDER grows
+# or a phase is added, only this constant needs updating.
+WORLD_GEN_TOTAL_STEPS = 3 + len(_LIST_ORDER)
+
 
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "_", (s or "").lower()).strip("_")
@@ -378,7 +384,7 @@ def _world_context(skeleton: dict, prompt: str,
 
 def _generate_skeleton(cfg: Config, prompt: str,
                        progress: ProgressFn | None) -> dict:
-    _p(progress, f"1/9 Welt-Skelett ({cfg.models.gen})…")
+    _p(progress, f"1/{WORLD_GEN_TOTAL_STEPS} Welt-Skelett ({cfg.models.gen})…")
     try:
         data = _llm_json(cfg, _SYS_SKELETON, prompt)
     except Exception as exc:
@@ -450,7 +456,7 @@ def _generate_blueprints(cfg: Config, skeleton: dict, prompt: str,
     model_dump dicts ready for World.blueprints. On any failure the
     pipeline still returns at least ONE variant from the same default
     skeleton so the engine never sees an empty list."""
-    _p(progress, "3/13 Spannungsbögen (3 Varianten)…")
+    _p(progress, f"3/{WORLD_GEN_TOTAL_STEPS} Spannungsbögen (3 Varianten)…")
     user = (
         _world_context(skeleton, prompt) + "\n\n"
         "Design 3 diverse macro tension arcs for this world. Remember: "
@@ -602,7 +608,7 @@ def generate_world(cfg: Config, prompt: str,
     steps see the already-generated names through `_world_context()` and
     are told to use them verbatim.
     """
-    total = 3 + len(_LIST_ORDER)               # skeleton + tech + blueprints + lists
+    total = WORLD_GEN_TOTAL_STEPS              # skeleton + tech + blueprints + lists
     skeleton = _generate_skeleton(cfg, prompt, progress)
     tech_magic = _generate_tech_magic(cfg, skeleton, prompt, 2, total,
                                       progress)

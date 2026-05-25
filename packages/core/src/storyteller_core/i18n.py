@@ -70,10 +70,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "cancelled": "Abgebrochen. Weiter geht's.",
         "world_reset": "Diese Welt wurde zurückgesetzt. Wir beginnen von vorn.",
         "closed": "Menü geschlossen. Weiter geht's.",
-        "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Sag Hey Jarvis, "
-                     "um mich wieder zu wecken.",
+        "wake_hint": "Ich höre jetzt nicht mehr aktiv zu. Weck mich, "
+                     "wenn du weitermachen willst.",
         "post_opening_hint": "Du kannst jetzt direkt antworten — ich höre. "
-                              "Sonst sag Hey Jarvis, um mich zu wecken.",
+                              "Sonst weck mich später.",
         "wifi_setup": "Kein WLAN gefunden. Verbinde dein Handy mit dem "
                       "WLAN storyteller-wifi. Es öffnet sich automatisch "
                       "eine Seite, auf der du dein WLAN auswählen und das "
@@ -135,11 +135,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "generated_confirm_ask": "Die Welt ist fertig. Direkt starten "
                                   "oder zurück zur Welt-Auswahl? Sag "
                                   "Starten oder Auswahl.",
-        "design_cancelled": "Welt-Design abgebrochen. Sag Hey Jarvis, "
-                             "wenn du wieder loslegen möchtest.",
+        "design_cancelled": "Welt-Design abgebrochen. Weck mich wieder, "
+                             "wenn du loslegen möchtest.",
         "design_resume": "Hier nochmal die Frage:",
-        "story_ended": "Spielstand gespeichert. Bis später — sag "
-                        "Hey Jarvis, wenn du weitermachen willst.",
+        "story_ended": "Spielstand gespeichert. Bis später.",
         "intro_ask": "Möchtest du diese Einführung beim nächsten Start "
                      "wieder hören? Sage ja oder nein.",
         "commands_intro_ask": "Möchtest du die Befehls-Info beim "
@@ -211,10 +210,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "cancelled": "Cancelled. Let's continue.",
         "world_reset": "This world has been reset. We start over.",
         "closed": "Menu closed. Let's continue.",
-        "wake_hint": "I'm no longer actively listening. Say Hey Jarvis to "
-                     "wake me again.",
+        "wake_hint": "I'm no longer actively listening. Wake me when "
+                     "you want to continue.",
         "post_opening_hint": "You can answer now — I'm listening. "
-                              "Otherwise say Hey Jarvis to wake me.",
+                              "Otherwise wake me later.",
         "wifi_setup": "No Wi-Fi found. Connect your phone to the Wi-Fi "
                       "storyteller-wifi. A page opens automatically where "
                       "you can pick your Wi-Fi and enter the password. "
@@ -270,11 +269,10 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "generated_confirm_ask": "The world is ready. Start the story "
                                   "now, or back to the world menu? "
                                   "Say Start or Menu.",
-        "design_cancelled": "World design cancelled. Say Hey Jarvis "
-                             "when you want to start over.",
+        "design_cancelled": "World design cancelled. Wake me when you "
+                             "want to start over.",
         "design_resume": "Here's the question again:",
-        "story_ended": "Game saved. See you later — say Hey Jarvis to "
-                        "pick up where we left off.",
+        "story_ended": "Game saved. See you later.",
         "intro_ask": "Would you like to hear this intro again next time? "
                      "Say yes or no.",
         "commands_intro_ask": "Would you like to hear the commands info "
