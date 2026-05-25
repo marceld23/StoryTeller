@@ -88,7 +88,7 @@ def test_classify_on_arc_lex_via_involved_person():
         beat_dwell=1,
     )
     assert sig.on_arc_lex is True
-    assert sig.pull() == 0.7
+    assert sig.pull() == 0.8
 
 
 def test_classify_off_arc_world_query():

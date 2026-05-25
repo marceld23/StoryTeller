@@ -283,9 +283,13 @@ class StoryCfg(BaseModel):
     # the current pressure level (defaults match the soft-fade design).
     pressure_ema_alpha: float = 0.4              # smoothing: high = faster reaction
     pressure_gate_min: float = 0.10              # gate skipped below
-    pressure_gate_strict: float = 0.70           # full max_reveals above
+    # Tier-flip thresholds for "full" vs. "ambient" rendering. Both sit
+    # BELOW the typical stationary EMA for an on_arc-heavy session
+    # (~0.80, see _PULL_ON_ARC) so a single lateral or off_arc turn
+    # doesn't flap the narrator's system prompt between tiers.
+    pressure_gate_strict: float = 0.65           # full max_reveals above
     pressure_substory_ambient: float = 0.30      # ambient substory hint above
-    pressure_substory_full: float = 0.70         # full substory block above
+    pressure_substory_full: float = 0.65         # full substory block above
     pressure_substory_tools: float = 0.30        # show substory tools above
     pressure_substory_plan: float = 0.20         # planner runs above; below
                                                   # the active substory goes

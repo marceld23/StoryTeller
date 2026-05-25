@@ -31,10 +31,14 @@ from ..config import Config
 WINDOW_SIZE = 6
 
 # Pull-value per signal "kind" — recency-weighted mean of these is the
-# target pressure.
+# target pressure. _PULL_ON_ARC sits at 0.8 (not 0.7) so a session full
+# of on_arc turns converges its stationary EMA well ABOVE the
+# pressure_substory_full threshold (0.65) — without that headroom every
+# small lateral fluctuation would flip the narrator between the full
+# and ambient substory block tier mid-session.
 _PULL_EXPLICIT_PLOT = 1.0
 _PULL_ADVANCED = 0.9
-_PULL_ON_ARC = 0.7
+_PULL_ON_ARC = 0.8
 _PULL_LATERAL = 0.5
 _PULL_OFF_ARC = 0.2
 _PULL_EXPLICIT_FREE = 0.0
