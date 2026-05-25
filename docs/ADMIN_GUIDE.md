@@ -58,8 +58,19 @@ The **world editor** (`/worlds/<id>`) is a structured form:
   ambience off. The repo ships `fantasy_ambient.wav` and `scifi_ambient.wav`.
 - **Tone** — sliders 0–5 (darkness / humor / romance / action / horror),
   pacing, free-text notes.
-- **Blueprint** — premise, escalation rule, and the macro beats (name, goal,
-  tension).
+- **Blueprint-Varianten** — every world ships with up to 4 macro arcs
+  ("Variante 1 / 2 / 3 …") shown as sub-tabs in *Ton & Bogen*. Each
+  variant has its own length (short / medium / long / epic), structure
+  (linear / parallel / spiral / frame / mosaic), twist_kind
+  (betrayal / revelation / sacrifice / hidden_enemy / red_herring /
+  role_reversal / circular / "" for no twist), trigger_hints (when
+  this variant feels right), description, premise, escalation rule
+  and beats list. The substory planner picks the best-fitting variant
+  for each new arc, so the same world can play structurally different
+  on a replay. Single-variant worlds (the legacy seed worlds today)
+  keep working unchanged — the editor hoists the legacy single
+  blueprint into `variants[0]` so the same UI handles both. "+ Variante"
+  / "Variante löschen" inside the sub-tab nav add or remove arcs.
 - **Content lists** — places / persons / items / glossary / history /
   fragments via a reusable list editor; each entry has add / remove and a
   **✨ suggest** button that asks the LLM for one schema-shaped entry.

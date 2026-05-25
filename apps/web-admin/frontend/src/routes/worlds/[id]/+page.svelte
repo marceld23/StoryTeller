@@ -142,6 +142,29 @@
     w.tone ??= { darkness: 2, humor: 1, romance: 1, action: 3, horror: 1, pacing: 'medium', notes: '' };
     w.blueprint ??= { premise: '', beats: [], escalation_rule: '' };
     w.blueprint.beats ??= [];
+    // Multi-variant blueprints. When the world only has the legacy
+    // single `blueprint`, we virtually hoist it as variants[0] so the
+    // editor always presents the new shape (single-variant editing
+    // still works exactly like before). Save writes both back —
+    // backend persists both fields; the engine prefers `blueprints`
+    // when non-empty (active_blueprint helper).
+    w.blueprints ??= [];
+    if (w.blueprints.length === 0 && w.blueprint && w.blueprint.beats) {
+      w.blueprints = [{
+        name: 'Hauptbogen',
+        description: '',
+        length: 'medium',
+        structure: 'linear',
+        twist_kind: '',
+        trigger_hints: [],
+        blueprint: w.blueprint
+      }];
+    }
+    for (const v of w.blueprints) {
+      v.trigger_hints ??= [];
+      v.blueprint ??= { premise: '', beats: [], escalation_rule: '' };
+      v.blueprint.beats ??= [];
+    }
     // tech_magic is allowed to stay null (no system at all); we just
     // normalise the inner shape lazily when the editor needs it (see
     // ensureTechMagic). Existing worlds without the field load fine.
@@ -178,6 +201,65 @@
   function clearTechMagic() {
     if (!confirm('Tech/Magie-System komplett entfernen?')) return;
     world.tech_magic = null;
+  }
+
+  // --- Blueprint-Variants editing (Ton & Bogen tab) ---
+  let activeVariantIdx = $state(0);
+  const LENGTH_OPTIONS = ['short', 'medium', 'long', 'epic'];
+  const STRUCTURE_OPTIONS = ['linear', 'parallel', 'spiral', 'frame', 'mosaic'];
+  const TWIST_OPTIONS = [
+    { value: '', label: '— kein expliziter Twist —' },
+    { value: 'betrayal', label: 'betrayal — Verbündeter wird Gegner' },
+    { value: 'revelation', label: 'revelation — Wahrheit kippt Wahrnehmung' },
+    { value: 'sacrifice', label: 'sacrifice — Kosten höher als gedacht' },
+    { value: 'hidden_enemy', label: 'hidden_enemy — eigentlicher Antagonist enthüllt' },
+    { value: 'red_herring', label: 'red_herring — falscher Antagonist' },
+    { value: 'role_reversal', label: 'role_reversal — Opfer/Täter tauschen' },
+    { value: 'circular', label: 'circular — Anfang = Ende, anders' }
+  ];
+
+  function addVariant() {
+    world.blueprints = [...world.blueprints, {
+      name: `Variante ${world.blueprints.length + 1}`,
+      description: '',
+      length: 'medium',
+      structure: 'linear',
+      twist_kind: '',
+      trigger_hints: [],
+      blueprint: {
+        premise: '',
+        beats: [],
+        escalation_rule: ''
+      }
+    }];
+    activeVariantIdx = world.blueprints.length - 1;
+  }
+
+  function rmVariant(i: number) {
+    if (world.blueprints.length <= 1) {
+      alert('Mindestens eine Variante muss erhalten bleiben.');
+      return;
+    }
+    const v = world.blueprints[i];
+    if (!confirm(`Variante "${v.name}" wirklich löschen?`)) return;
+    world.blueprints = world.blueprints.filter((_: any, idx: number) => idx !== i);
+    activeVariantIdx = Math.max(0, Math.min(activeVariantIdx, world.blueprints.length - 1));
+  }
+
+  function addVariantBeat(v: any) {
+    v.blueprint.beats = [...v.blueprint.beats, { name: '', goal: '', tension: 5 }];
+  }
+
+  function rmVariantBeat(v: any, i: number) {
+    v.blueprint.beats = v.blueprint.beats.filter((_: any, idx: number) => idx !== i);
+  }
+
+  function variantTriggersStr(v: any): string {
+    return (v.trigger_hints ?? []).join(', ');
+  }
+
+  function setVariantTriggers(v: any, s: string) {
+    v.trigger_hints = s.split(',').map((t) => t.trim()).filter(Boolean);
   }
 
   async function save() {
@@ -223,12 +305,10 @@
   }
 
   // beats helpers
-  function addBeat() {
-    world.blueprint.beats = [...world.blueprint.beats, { name: '', goal: '', tension: 5 }];
-  }
-  function rmBeat(i: number) {
-    world.blueprint.beats = world.blueprint.beats.filter((_: any, idx: number) => idx !== i);
-  }
+  // Legacy single-blueprint addBeat / rmBeat were replaced by the
+  // variant-aware addVariantBeat / rmVariantBeat — single-blueprint
+  // worlds are still editable because normalize() hoists the legacy
+  // `world.blueprint` into `world.blueprints[0]` for the editor.
 
   // random table helpers
   function addTable() {
@@ -281,7 +361,7 @@
     <nav class="tabs" aria-label="Welt-Editor Sektionen">
       <button class:active={tab === 'grundlagen'} onclick={() => setTab('grundlagen')}>Grundlagen</button>
       <button class:active={tab === 'ton'} onclick={() => setTab('ton')}>Ton &amp; Bogen
-        <span class="count">{(world.blueprint.beats ?? []).length}</span></button>
+        <span class="count">{world.blueprints.length || 1}</span></button>
       <button class:active={tab === 'regionen'} onclick={() => setTab('regionen')}>Regionen
         <span class="count">{world.regions.length}</span></button>
       <button class:active={tab === 'orte'} onclick={() => setTab('orte')}>Orte
@@ -431,21 +511,93 @@
       </section>
 
       <section>
-        <h3>Spannungsbogen (Blueprint)</h3>
-        <label><span>Prämisse</span>
-          <textarea bind:value={world.blueprint.premise} rows="4"></textarea>
-        </label>
-        <label><span>Eskalationsregel</span>
-          <textarea bind:value={world.blueprint.escalation_rule} rows="3"></textarea>
-        </label>
-        <h4>Beats <button onclick={addBeat}>+ Beat</button></h4>
-        {#each world.blueprint.beats as b, i (i)}
-          <div class="row">
-            <input placeholder="Name" bind:value={b.name} />
-            <input placeholder="Ziel" bind:value={b.goal} />
-            <input type="number" min="0" max="10" bind:value={b.tension} title="Spannung 0-10" />
-            <button class="danger" onclick={() => rmBeat(i)}>×</button>
-          </div>
+        <h3>Spannungsbögen (Blueprint-Varianten)</h3>
+        <p class="hint">
+          Mehrere Story-Bögen pro Welt → der Story-Planer wählt zu
+          Beginn jeder neuen Substory einen aus, der zum
+          Spielverlauf passt. Mische bewusst Längen, Strukturen und
+          Twist-Arten — sonst fühlen sich alle Spielsessions strukturell
+          gleich an. Bei nur einer Variante verhält sich das System
+          wie früher.
+        </p>
+
+        <nav class="vtabs">
+          {#each world.blueprints as v, i (i)}
+            <button
+              class:active={activeVariantIdx === i}
+              onclick={() => (activeVariantIdx = i)}
+              title={v.description || v.blueprint.premise}
+            >
+              {v.name || `Variante ${i + 1}`}
+              <span class="vbadge">{v.length}/{v.structure}</span>
+            </button>
+          {/each}
+          <button class="ghost" onclick={addVariant}>+ Variante</button>
+        </nav>
+
+        {#each world.blueprints as v, i (i)}
+          {#if activeVariantIdx === i}
+            <div class="variant-body">
+              <div class="grid">
+                <label><span>Name</span>
+                  <input bind:value={v.name} placeholder="Schmuggler-Run" />
+                </label>
+                <label><span>Länge</span>
+                  <select bind:value={v.length}>
+                    {#each LENGTH_OPTIONS as l (l)}
+                      <option value={l}>{l}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label><span>Struktur</span>
+                  <select bind:value={v.structure}>
+                    {#each STRUCTURE_OPTIONS as s (s)}
+                      <option value={s}>{s}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label><span>Twist-Art</span>
+                  <select bind:value={v.twist_kind}>
+                    {#each TWIST_OPTIONS as t (t.value)}
+                      <option value={t.value}>{t.label}</option>
+                    {/each}
+                  </select>
+                </label>
+              </div>
+              <label><span>Beschreibung (wann passt dieser Bogen)</span>
+                <textarea bind:value={v.description} rows="2"></textarea>
+              </label>
+              <label><span>Trigger-Hinweise (komma — wann picken)</span>
+                <input
+                  value={variantTriggersStr(v)}
+                  oninput={(e) => setVariantTriggers(v, (e.target as HTMLInputElement).value)}
+                  placeholder="z.B. erstes mal, kennt fraktionen, intimer ton"
+                />
+              </label>
+              <label><span>Prämisse (Premise)</span>
+                <textarea bind:value={v.blueprint.premise} rows="3"></textarea>
+              </label>
+              <label><span>Eskalationsregel</span>
+                <textarea bind:value={v.blueprint.escalation_rule} rows="2"></textarea>
+              </label>
+              <h4>Beats <button onclick={() => addVariantBeat(v)}>+ Beat</button></h4>
+              {#each v.blueprint.beats as b, bi (bi)}
+                <div class="row">
+                  <input placeholder="Name" bind:value={b.name} />
+                  <input placeholder="Ziel" bind:value={b.goal} />
+                  <input type="number" min="0" max="10" bind:value={b.tension}
+                          title="Spannung 0-10" style="width: 70px" />
+                  <button class="danger" onclick={() => rmVariantBeat(v, bi)}>×</button>
+                </div>
+              {/each}
+
+              <div class="row" style="margin-top: 0.9rem; justify-content: flex-end">
+                <button class="danger" onclick={() => rmVariant(i)}>
+                  Variante löschen
+                </button>
+              </div>
+            </div>
+          {/if}
         {/each}
       </section>
     {/if}
@@ -647,4 +799,22 @@
   .muted.small { font-size: 0.85rem; }
   label.inline { display: flex; align-items: center; gap: 0.4rem; }
   label.inline input[type=checkbox] { width: auto; }
+
+  /* Blueprint-variants sub-tabs */
+  .vtabs { display: flex; flex-wrap: wrap; gap: 0.3rem;
+            margin: 0.5rem 0 0.8rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.4rem; }
+  .vtabs button { background: transparent; color: var(--muted);
+                   border: 1px solid var(--border);
+                   border-radius: 4px; padding: 0.3rem 0.7rem;
+                   font-size: 0.9rem; cursor: pointer; }
+  .vtabs button:hover { color: inherit; }
+  .vtabs button.active { background: var(--surface);
+                          color: inherit; border-color: #6fc3df; }
+  .vtabs button.ghost { color: var(--muted); border-style: dashed; }
+  .vbadge { color: var(--muted); margin-left: 0.4rem;
+            font-size: 0.75rem; font-family: monospace; }
+  .vtabs button.active .vbadge { color: inherit; }
+  .variant-body { padding-top: 0.4rem; }
 </style>

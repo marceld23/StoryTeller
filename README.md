@@ -136,6 +136,7 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
 | Existing-world selection | ✓ voice menu | ✓ numbered picker | ✓ dropdown |
 | **World generation** from a player brief | ✓ voice interview + "Generieren" | ✓ `/create <prompt>` | ✓ `/create` page (text) |
 | **Welten verwalten** (copy / rename / delete) | ✓ voice ("verwalten" → kopieren / umbenennen / löschen + ja/nein) | — | ✓ buttons in worlds list (Admin) |
+| **Multi-Blueprint-Varianten** (replay value: same world, structurally different arc) | engine + planner pick per new substory | engine + planner pick per new substory | ✓ sub-tabs in Ton & Bogen tab (Admin) |
 | **Vermerken / world notes** (player-introduced facts → RAG) | ✓ "Vermerken: …" | ✓ `/note <text>` | ✓ "+ Notiz" button (text + voice pages) |
 | **Wiederhole / Repeat** (re-play last narration, TTS only) | ✓ "Wiederhole" / "Repeat" | scroll up | ✓ "Wiederhole" in voice page (STT-matched) |
 | **Geschichte beenden** → back to world picker | ✓ voice command | ✓ `/end` | ✓ "Geschichte beenden" button |

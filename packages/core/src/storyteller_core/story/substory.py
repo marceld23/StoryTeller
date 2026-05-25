@@ -89,6 +89,75 @@ _PLANNER_SYS = (
 )
 
 
+def choose_blueprint_variant(cfg: Config, world, *, known_summary: str = "",
+                              recent: str = "", previous_summary: str = "",
+                              locale: str = "de",
+                              cost=None, ledger=None,
+                              thread_id: str | None = None,
+                              world_id: str | None = None) -> int:
+    """Pick which of `world.blueprints` should drive the NEXT substory
+    arc. Returns 0 for legacy single-arc worlds (no LLM call). For
+    multi-variant worlds: one small `planner` chat call with the
+    variant catalog + recent player context, returns the chosen
+    index. Falls back to 0 on any error so the engine always has a
+    valid choice — the engine clamps invalid indices in
+    World.active_blueprint anyway."""
+    variants = list(getattr(world, "blueprints", None) or [])
+    if len(variants) <= 1:
+        return 0
+    from ..i18n import LANG_INSTRUCTION, norm
+
+    loc = norm(locale)
+    catalog = "\n".join(
+        f"{i}: \"{v.name}\" — länge={v.length}, struktur={v.structure}, "
+        f"twist={v.twist_kind or 'kein'}; trigger={v.trigger_hints}\n"
+        f"   {v.description or v.blueprint.premise}"
+        for i, v in enumerate(variants))
+    sys_msg = (
+        "Du wählst aus mehreren Story-Bogen-Varianten einer Welt EINEN "
+        "Bogen für die kommende Substory aus. Wäge ab: was passt zum "
+        "bisherigen Spielverlauf, was würde sich frisch und passend "
+        "anfühlen — vermeide den gleichen Bogen wie im vorigen Stück, "
+        "wenn der Spieler schon Welt-Erfahrung hat. Antworte JSON: "
+        "{\"choice\": <index>, \"why\": \"<knapp>\"}. Index MUSS einer "
+        "der angebotenen sein."
+    )
+    user = (
+        f"WELT: {world.name} ({world.genre}).\n"
+        f"Dem Spieler bereits bekannt: {known_summary or '(neu)'}\n"
+        f"Vorige Substory (Abschluss): {previous_summary or '–'}\n"
+        f"Letzte Signale: {recent or '–'}\n\n"
+        f"VERFÜGBARE STORY-BÖGEN:\n{catalog}\n\n"
+        f"Wähle JETZT einen Index.\n{LANG_INSTRUCTION[loc]}"
+    )
+    try:
+        resp = get_chat_client(cfg, "planner").chat.completions.create(
+            model=cfg.models.planner,
+            messages=[{"role": "system", "content": sys_msg},
+                      {"role": "user", "content": user}],
+            response_format={"type": "json_object"},
+            **chat_extras(cfg, "planner",
+                          temperature=cfg.models.planner_temperature),
+        )
+        if cost is not None:
+            usd = cost.record_chat(resp.usage, role="planner")
+            if ledger is not None and resp.usage is not None:
+                ledger.record(
+                    kind="chat", usd=usd,
+                    thread_id=thread_id, world_id=world_id,
+                    model=cfg.models.planner,
+                    chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
+                    chat_out=getattr(resp.usage,
+                                     "completion_tokens", 0) or 0)
+        data = json.loads(resp.choices[0].message.content or "{}")
+        choice = int(data.get("choice", 0))
+        if 0 <= choice < len(variants):
+            return choice
+    except Exception:
+        pass
+    return 0
+
+
 class SubstoryPlanner:
     """The "think-and-plan step" for a new substory (its own LLM call)."""
 

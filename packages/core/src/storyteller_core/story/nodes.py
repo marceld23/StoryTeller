@@ -234,7 +234,8 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
              if (not brief and cfg.story.beat_nudge_after
                  and beat_turns >= cfg.story.beat_nudge_after) else "")
 
-    macro = BlueprintTracker(w.blueprint, state.get("macro_index", 0))
+    macro = BlueprintTracker(w.active_blueprint(state.get("blueprint_choice", 0)),
+                              state.get("macro_index", 0))
 
     sub_dict = state.get("substory")
     sub_block = ""
@@ -416,14 +417,33 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
     prev_summary = sub_dict.get("closing_summary", "") if sub_dict else ""
     macro_idx = state.get("macro_index", 0)
     transition = bool(sub_dict)
-    if transition:
-        # advance the macro one beat after a substory completes
-        if macro_idx < len(ctx.world.blueprint.beats) - 1:
-            macro_idx += 1
-
-    macro = BlueprintTracker(ctx.world.blueprint, macro_idx)
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
     recent = _recent(state.get("memory") or [])
+
+    # Multi-blueprint pick: on a transition (= previous substory just
+    # ended), re-roll the variant choice so each arc can feel different.
+    # On a fresh fan-out (no prior substory) we also pick once. Single-
+    # variant worlds short-circuit inside choose_blueprint_variant.
+    from .substory import choose_blueprint_variant
+    blueprint_choice = choose_blueprint_variant(
+        cfg, ctx.world,
+        known_summary=known_summary, recent=recent,
+        previous_summary=prev_summary, locale=locale,
+        cost=cost, ledger=CostLedger(cfg),
+        thread_id=_thread_id(config),
+        world_id=getattr(ctx.world, "id", None))
+    active_bp = ctx.world.active_blueprint(blueprint_choice)
+    if transition:
+        # advance the macro one beat after a substory completes
+        if macro_idx < len(active_bp.beats) - 1:
+            macro_idx += 1
+        # Reset macro_index when switching to a different variant —
+        # the old index referred to the previous variant's beat list,
+        # which may not exist in the new variant.
+        if blueprint_choice != state.get("blueprint_choice", 0):
+            macro_idx = 0
+
+    macro = BlueprintTracker(active_bp, macro_idx)
 
     dyn_hint = ""
     if cfg.story.dynamics_in_planning:
@@ -437,6 +457,7 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
     out = {
         "substory": new_sub.model_dump(),
         "macro_index": macro_idx,
+        "blueprint_choice": blueprint_choice,
         "transition": transition,
         "beat_turns": 0,
         "cost": cost.snapshot(),
@@ -479,7 +500,8 @@ def curate(state: dict, config: RunnableConfig) -> dict:
     locale = _locale(state, ctx)
     sub_dict = state.get("substory")
     macro_idx = state.get("macro_index", 0) or 0
-    future_beats = list(ctx.world.blueprint.beats[macro_idx + 1:])
+    active_bp = ctx.world.active_blueprint(state.get("blueprint_choice", 0))
+    future_beats = list(active_bp.beats[macro_idx + 1:])
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
     recent = _recent(state.get("memory") or [])
     try:
@@ -718,12 +740,27 @@ def replan(state: dict, config: RunnableConfig) -> dict:
     sub_dict = state.get("substory") or {}
     prev_summary = sub_dict.get("closing_summary", "")
     macro_idx = state.get("macro_index", 0)
-    if macro_idx < len(ctx.world.blueprint.beats) - 1:
-        macro_idx += 1
-
-    macro = BlueprintTracker(ctx.world.blueprint, macro_idx)
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
     recent = _recent(state.get("memory") or [])
+
+    # In-turn replan also re-rolls the variant choice so back-to-back
+    # arcs in one session can structurally differ. choose_blueprint_variant
+    # is a no-op for single-variant worlds.
+    from .substory import choose_blueprint_variant
+    blueprint_choice = choose_blueprint_variant(
+        cfg, ctx.world,
+        known_summary=known_summary, recent=recent,
+        previous_summary=prev_summary, locale=locale,
+        cost=cost, ledger=CostLedger(cfg),
+        thread_id=_thread_id(config),
+        world_id=getattr(ctx.world, "id", None))
+    active_bp = ctx.world.active_blueprint(blueprint_choice)
+    if macro_idx < len(active_bp.beats) - 1:
+        macro_idx += 1
+    if blueprint_choice != state.get("blueprint_choice", 0):
+        macro_idx = 0
+
+    macro = BlueprintTracker(active_bp, macro_idx)
     dyn_hint = StoryDynamics().roll() if cfg.story.dynamics_in_planning else ""
 
     new_sub = planner.plan_next(
@@ -736,6 +773,7 @@ def replan(state: dict, config: RunnableConfig) -> dict:
     return {
         "substory": new_sub.model_dump(),
         "macro_index": macro_idx,
+        "blueprint_choice": blueprint_choice,
         "transition": True,
         "beat_turns": 0,
         "cost": cost.snapshot(),

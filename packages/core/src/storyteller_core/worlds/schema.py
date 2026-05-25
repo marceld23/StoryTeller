@@ -126,6 +126,33 @@ class Blueprint(BaseModel):
     )
 
 
+class BlueprintVariant(BaseModel):
+    """One self-contained story arc variant for a world. Multiple
+    variants per world unlock replay value + tonal range — the
+    substory planner picks the one that fits the player's current
+    context. Fields beyond `blueprint` itself are signals the
+    picker uses (length / structure / twist_kind / trigger_hints)."""
+
+    name: str
+    description: str = ""
+    # Rough arc size — picker uses this to balance against player
+    # appetite (someone three sessions deep tends toward longer arcs).
+    length: str = "medium"               # short | medium | long | epic
+    # Macro shape — gives the narrator a hint about pacing & callbacks.
+    structure: str = "linear"            # linear | parallel | spiral
+                                          #  | frame  | mosaic
+    # Twist archetype the variant is built around. Empty = no
+    # explicit twist baked in (a quieter slice-of-life arc).
+    twist_kind: str = ""                 # betrayal | revelation |
+                                          #  sacrifice | hidden_enemy |
+                                          #  red_herring | role_reversal |
+                                          #  circular | ""
+    # Themes / setting cues that make this variant a natural fit.
+    # Surfaced to the picker so it can match against player history.
+    trigger_hints: list[str] = Field(default_factory=list)
+    blueprint: Blueprint
+
+
 class RandomEntry(BaseModel):
     weight: int = 1
     text: str
@@ -198,9 +225,33 @@ class World(BaseModel):
     tech_magic: TechMagic | None = None
 
     # --- Dramaturgy & game mechanics ---
+    # `blueprint` is the legacy single-arc field. Existing worlds
+    # (incl. all seed worlds today) live entirely on this one. The
+    # newer `blueprints` list is what the substory-planner uses going
+    # forward: 2-4 variants per world, each with its own length /
+    # structure / twist signature. When `blueprints` is empty the
+    # engine transparently treats `blueprint` as the sole variant —
+    # so single-arc worlds keep working unchanged.
     blueprint: Blueprint
+    blueprints: list[BlueprintVariant] = Field(default_factory=list)
     random_tables: list[RandomTable] = Field(default_factory=list)
 
     # --- Presentation ---
     wait_sound: str = ""
     fx_preset: FXPreset = Field(default_factory=FXPreset)
+
+    def active_blueprint(self, choice: int = 0) -> Blueprint:
+        """Resolve the Blueprint the engine should be tracking right
+        now. With multi-variant worlds, `choice` indexes into
+        `blueprints` (clamped to a valid range so a stale checkpoint
+        can't crash the engine). With legacy single-variant worlds,
+        the choice is ignored and the bare `blueprint` is returned —
+        no migration needed for old worlds + old saves."""
+        if not self.blueprints:
+            return self.blueprint
+        idx = max(0, min(choice, len(self.blueprints) - 1))
+        return self.blueprints[idx].blueprint
+
+    def variant_count(self) -> int:
+        """1 for single-arc worlds, len(blueprints) for multi-variant."""
+        return max(1, len(self.blueprints))

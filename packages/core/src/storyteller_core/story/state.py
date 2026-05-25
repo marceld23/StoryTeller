@@ -31,6 +31,11 @@ class StoryState(TypedDict, total=False):
     memory: list[dict]              # OpenAI-shaped chat messages
     substory: dict | None           # SubstoryPlan.model_dump()
     macro_index: int
+    # Index into world.blueprints picked for the CURRENT substory arc
+    # (single-variant worlds keep this at 0 implicitly via
+    # World.active_blueprint's clamp + fallback). Set by the substory
+    # planner when starting a new arc on a multi-variant world.
+    blueprint_choice: int
     known_facts: list[dict]         # KnownFacts.to_list()
     synopsis: str
     char_state: dict[str, str]

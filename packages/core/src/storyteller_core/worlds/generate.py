@@ -45,7 +45,7 @@ from collections.abc import Callable
 
 from ..config import Config
 from ..oai import chat_extras, get_chat_client
-from .schema import Beat, Blueprint, World
+from .schema import Beat, Blueprint, BlueprintVariant, World
 
 _log = logging.getLogger("storyteller.gen")
 
@@ -85,12 +85,15 @@ _SYS_SKELETON = (
 # ---------------- Step 2: blueprint ----------------
 
 _SYS_BLUEPRINT = (
-    "You design the MACRO TENSION ARC for an interactive audio "
-    "storyteller. The arc is replayed across many sessions in the same "
-    "world, so it MUST be GENERIC and FUNCTIONAL — describing the role "
-    "each beat plays in dramaturgy, NOT the specific story content.\n"
+    "You design THREE MACRO TENSION ARCS for an interactive audio "
+    "storyteller — each one a self-contained story arc that COULD be "
+    "the next session in this world. The arcs are picked at substory-"
+    "planning time, so they MUST stay GENERIC and FUNCTIONAL (describe "
+    "the role each beat plays in dramaturgy, NOT the specific story "
+    "content). Each arc has its own length / structure / twist "
+    "signature so the player gets variety across replays.\n"
     "\n"
-    "STRICT RULES:\n"
+    "STRICT RULES (apply to EVERY arc):\n"
     "- Beat names use functional labels (e.g. 'Aufhänger / Inciting "
     "Incident', 'Steigende Spannung / Rising Action', 'Erste Wende / "
     "First Turn', 'Mittelpunkt / Midpoint', 'Krise / Crisis', "
@@ -100,18 +103,37 @@ _SYS_BLUEPRINT = (
     "assumption is overturned'), NOT specific characters, places, items "
     "or plot points.\n"
     "- DO NOT name any person, place, faction, item or event that "
-    "belongs in the world content — those vary per session and are "
-    "filled in via RAG.\n"
+    "belongs in the world content.\n"
     "- premise: 1-2 sentences, genre-flavoured but abstract (no proper "
     "nouns).\n"
-    "- escalation_rule: 1 sentence on how tension should escalate in "
-    "this world's pacing.\n"
-    "- 6-8 beats with a rising-then-falling tension curve (start low, "
-    "peak 9-10 near the climax, drop on resolution).\n"
+    "- escalation_rule: 1 sentence on how tension should escalate.\n"
+    "- Tension curve per arc: rising-then-falling, starts low, peaks "
+    "9-10 near the climax, drops on resolution.\n"
+    "\n"
+    "DIVERSITY ACROSS ARCS (the picker depends on it):\n"
+    "- LENGTHS: one arc short (3-4 beats), one medium (5-7), one long "
+    "(8-10). Use the matching `length` field exactly: short | medium | "
+    "long.\n"
+    "- STRUCTURES: pick from linear | parallel | spiral | frame | "
+    "mosaic. Do NOT make all three linear. Vary explicitly.\n"
+    "- TWIST_KINDS: pick from betrayal | revelation | sacrifice | "
+    "hidden_enemy | red_herring | role_reversal | circular | \"\" "
+    "(empty = no explicit twist, a quieter slice-of-life arc). No two "
+    "arcs should share the same twist_kind.\n"
+    "- name: short distinctive label (\"Schmuggler-Run\", "
+    "\"Erkenntnis-Bogen\", \"Stiller Verlust\").\n"
+    "- description: 1-2 sentences — when does this arc feel right for "
+    "the player (e.g. \"good for a first-time visitor: an external "
+    "hook drags them into local politics\").\n"
+    "- trigger_hints: 2-4 short themes / cues (\"erstes mal\", "
+    "\"player kennt fraktionen\", \"intimer ton\", …).\n"
     "\n"
     "Answer with JSON ONLY:\n"
-    '{"premise":"","escalation_rule":"",'
-    '"beats":[{"name":"","goal":"","tension":0}]}\n'
+    '{"variants":[{"name":"","description":"","length":"short|medium|long",'
+    '"structure":"linear|parallel|spiral|frame|mosaic",'
+    '"twist_kind":"","trigger_hints":[""],'
+    '"premise":"","escalation_rule":"",'
+    '"beats":[{"name":"","goal":"","tension":0}]}]}\n'
     "Same language as the world data given below."
 )
 
@@ -384,51 +406,102 @@ def _generate_skeleton(cfg: Config, prompt: str,
     return data
 
 
-def _generate_blueprint(cfg: Config, skeleton: dict, prompt: str,
-                        progress: ProgressFn | None) -> dict:
-    _p(progress, "2/9 Spannungsbogen (funktional)…")
-    user = (
-        _world_context(skeleton, prompt) + "\n\n"
-        "Design the macro tension arc for this world. Remember: NO "
-        "proper nouns in beats, only functional roles."
-    )
-    try:
-        bp = _llm_json(cfg, _SYS_BLUEPRINT, user)
-    except Exception as exc:
-        _log.warning("blueprint call failed: %r", exc)
-        bp = {}
+_VALID_LENGTHS = {"short", "medium", "long", "epic"}
+_VALID_STRUCTURES = {"linear", "parallel", "spiral", "frame", "mosaic"}
+_VALID_TWISTS = {"", "betrayal", "revelation", "sacrifice", "hidden_enemy",
+                 "red_herring", "role_reversal", "circular"}
 
-    beats = bp.get("beats") or []
-    if not beats:
-        beats = [
-            {"name": "Aufhänger", "goal":
-             "Ein Ereignis zieht die Hauptfigur in den Konflikt.",
-             "tension": 2},
-            {"name": "Steigende Spannung", "goal":
-             "Der Druck nimmt zu, die Einsätze werden sichtbar.",
-             "tension": 4},
-            {"name": "Erste Wende", "goal":
-             "Eine Annahme über die Lage wird widerlegt.", "tension": 6},
-            {"name": "Krise", "goal":
-             "Ein Vertrauensbruch zwingt zu einer schwierigen Wahl.",
-             "tension": 8},
-            {"name": "Höhepunkt", "goal":
-             "Konfrontation mit der Wurzel des Konflikts.",
-             "tension": 10},
-            {"name": "Ausklang", "goal":
-             "Konsequenzen, eine neue offene Frage.", "tension": 3},
-        ]
-    premise = (bp.get("premise") or
-               f"Eine Geschichte aus der Welt {skeleton.get('name', '')}.")
-    escal = (bp.get("escalation_rule")
-             or Blueprint.model_fields["escalation_rule"].default)
+_DEFAULT_BEATS = [
+    {"name": "Aufhänger", "goal":
+     "Ein Ereignis zieht die Hauptfigur in den Konflikt.", "tension": 2},
+    {"name": "Steigende Spannung", "goal":
+     "Der Druck nimmt zu, die Einsätze werden sichtbar.", "tension": 4},
+    {"name": "Erste Wende", "goal":
+     "Eine Annahme über die Lage wird widerlegt.", "tension": 6},
+    {"name": "Krise", "goal":
+     "Ein Vertrauensbruch zwingt zu einer schwierigen Wahl.",
+     "tension": 8},
+    {"name": "Höhepunkt", "goal":
+     "Konfrontation mit der Wurzel des Konflikts.", "tension": 10},
+    {"name": "Ausklang", "goal":
+     "Konsequenzen, eine neue offene Frage.", "tension": 3},
+]
+
+
+def _coerce_blueprint_dict(world_name: str, raw: dict) -> dict:
+    """Turn one LLM-shaped variant dict into a Blueprint model_dump
+    with sane defaults for missing fields."""
+    beats = raw.get("beats") or _DEFAULT_BEATS
     return Blueprint(
-        premise=premise,
-        escalation_rule=escal,
+        premise=(raw.get("premise")
+                 or f"Eine Geschichte aus der Welt {world_name}."),
+        escalation_rule=(raw.get("escalation_rule")
+                          or Blueprint.model_fields["escalation_rule"].default),
         beats=[Beat(name=b.get("name", f"Beat {i+1}"),
                     goal=b.get("goal", ""),
                     tension=max(0, min(10, int(b.get("tension", 5)))))
-               for i, b in enumerate(beats[:10])]).model_dump()
+               for i, b in enumerate(beats[:12])]).model_dump()
+
+
+def _generate_blueprints(cfg: Config, skeleton: dict, prompt: str,
+                          progress: ProgressFn | None) -> list[dict]:
+    """Generate 3 macro arcs in one LLM call (the diversity prompt is
+    inside `_SYS_BLUEPRINT`). Returns a list of BlueprintVariant
+    model_dump dicts ready for World.blueprints. On any failure the
+    pipeline still returns at least ONE variant from the same default
+    skeleton so the engine never sees an empty list."""
+    _p(progress, "3/13 Spannungsbögen (3 Varianten)…")
+    user = (
+        _world_context(skeleton, prompt) + "\n\n"
+        "Design 3 diverse macro tension arcs for this world. Remember: "
+        "NO proper nouns in beats, only functional roles. Vary length, "
+        "structure and twist_kind across the arcs."
+    )
+    try:
+        data = _llm_json(cfg, _SYS_BLUEPRINT, user)
+    except Exception as exc:
+        _log.warning("blueprints call failed: %r", exc)
+        data = {}
+
+    raw_variants = data.get("variants") or []
+    world_name = skeleton.get("name", "")
+    out: list[dict] = []
+    for i, v in enumerate(raw_variants[:4]):  # cap at 4 just in case
+        if not isinstance(v, dict):
+            continue
+        length = (v.get("length") or "medium").strip().lower()
+        if length not in _VALID_LENGTHS:
+            length = "medium"
+        structure = (v.get("structure") or "linear").strip().lower()
+        if structure not in _VALID_STRUCTURES:
+            structure = "linear"
+        twist = (v.get("twist_kind") or "").strip().lower()
+        if twist not in _VALID_TWISTS:
+            twist = ""
+        trigger = v.get("trigger_hints") or []
+        if not isinstance(trigger, list):
+            trigger = []
+        variant = BlueprintVariant(
+            name=v.get("name") or f"Variante {i+1}",
+            description=v.get("description") or "",
+            length=length, structure=structure, twist_kind=twist,
+            trigger_hints=[str(t) for t in trigger][:6],
+            blueprint=Blueprint.model_validate(
+                _coerce_blueprint_dict(world_name, v)),
+        )
+        out.append(variant.model_dump())
+
+    if not out:
+        # Hard fallback: one default arc so the engine still works even
+        # if the LLM completely failed.
+        out.append(BlueprintVariant(
+            name="Hauptbogen", description="",
+            length="medium", structure="linear", twist_kind="",
+            trigger_hints=[],
+            blueprint=Blueprint.model_validate(
+                _coerce_blueprint_dict(world_name, {})),
+        ).model_dump())
+    return out
 
 
 def _generate_list(cfg: Config, kind: str, skeleton: dict, prompt: str,
@@ -529,11 +602,14 @@ def generate_world(cfg: Config, prompt: str,
     steps see the already-generated names through `_world_context()` and
     are told to use them verbatim.
     """
-    total = 3 + len(_LIST_ORDER)               # skeleton + tech + blueprint + lists
+    total = 3 + len(_LIST_ORDER)               # skeleton + tech + blueprints + lists
     skeleton = _generate_skeleton(cfg, prompt, progress)
     tech_magic = _generate_tech_magic(cfg, skeleton, prompt, 2, total,
                                       progress)
-    blueprint = _generate_blueprint(cfg, skeleton, prompt, progress)
+    # 3 diverse macro arcs in a single LLM call. The first one also
+    # populates `world.blueprint` for back-compat with code paths that
+    # may still read the legacy singular field.
+    variants = _generate_blueprints(cfg, skeleton, prompt, progress)
 
     lists: dict[str, list] = {}
     regions_ctx: list = []
@@ -552,7 +628,12 @@ def generate_world(cfg: Config, prompt: str,
         elif kind == "factions":
             factions_ctx = lists[kind]
 
-    data = {**skeleton, "blueprint": blueprint, **lists}
+    data = {
+        **skeleton,
+        "blueprint": variants[0]["blueprint"],   # legacy single
+        "blueprints": variants,                   # new multi-variant list
+        **lists,
+    }
     if tech_magic is not None:
         data["tech_magic"] = tech_magic
     _p(progress, "Welt validieren…")
