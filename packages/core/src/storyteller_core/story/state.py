@@ -72,6 +72,15 @@ class StoryState(TypedDict, total=False):
     # Curator gate for this turn: {scene_intent, permitted_reveals,
     # forbidden_topics, tone_nudge}. Empty/missing => no gate active.
     gate: dict
+    # Capitalised tokens the narrator introduced in its last few turns
+    # that aren't in any world entity list and aren't tracked yet —
+    # FIFO-capped at 6. The build_system_prompt step renders these as
+    # a `track_character` hint so the narrator stops re-introducing the
+    # same NPC every turn ("the Truppführer", "the Wirt", "JAM" …).
+    # Names move out once `track_character` actually picks them up via
+    # dispatch_tools. Kept per-session in state so the prompt remains
+    # stable across the narrator's tool-call rounds within one turn.
+    recent_npc_candidates: list[str]
     # Set by narrate() when the story-LLM call fails. engine.turn() reads
     # it after graph.invoke() and raises EndpointError so the Pi loop can
     # play the right pre-recorded prompt (offline_cloud / offline_local /

@@ -385,3 +385,109 @@ def test_tiebreaker_skips_short_window(tmp_path, monkeypatch):
     assert not tiebreaker_should_run([], cfg)
     assert not tiebreaker_should_run(
         [signal_to_dict(TurnSignal())] * 2, cfg)
+
+
+# ---- NPC-candidate extraction (Part C) -----------------------------------
+
+def test_extract_npc_candidates_picks_obvious_names():
+    """Capitalised tokens that aren't known world entities AND aren't
+    German sentence-starters should surface as candidates."""
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    # Fake world with empty entity lists — nothing pre-filters
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[], regions=[], factions=[],
+                             random_tables=[])
+    text = ("Der Truppführer schaut dich an. Otkar tritt aus dem "
+            "Schatten und nickt. JAM bestätigt knapp.")
+    out = _extract_npc_candidates(text, world, {})
+    out_low = [c.lower() for c in out]
+    assert "truppführer" in out_low
+    assert "otkar" in out_low
+    assert "jam" in out_low
+    # "Der" / "Schatten" should be filtered (sentence-start / regular noun;
+    # the latter would only slip in if there's no sentence-boundary trick —
+    # here we accept that German nouns may leak. Just check we got the
+    # interesting ones.)
+
+
+def test_extract_npc_candidates_filters_world_entities():
+    """Names already in world.places / world.glossary etc. must not
+    appear as candidates — the curator/RAG layer handles those."""
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    glossary_entry = SimpleNamespace(term="Valucium", definition="ship")
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[glossary_entry],
+                             regions=[], factions=[], random_tables=[])
+    text = "Die Valucium fliegt durch Kalar."
+    out = _extract_npc_candidates(text, world, {})
+    assert "valucium" not in [c.lower() for c in out]
+
+
+def test_extract_npc_candidates_filters_already_tracked():
+    """Names already in char_state should be filtered (no duplicate hint)."""
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[], regions=[], factions=[],
+                             random_tables=[])
+    out = _extract_npc_candidates(
+        "Otkar nickt knapp und JAM bestätigt.",
+        world,
+        {"Otkar": "ruhig, abwartend"},
+    )
+    out_low = [c.lower() for c in out]
+    assert "otkar" not in out_low      # already tracked
+    assert "jam" in out_low            # new
+
+
+def test_extract_npc_candidates_skips_long_compound_nouns():
+    """Compound nouns longer than 18 chars are concepts, not NPCs."""
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[], regions=[], factions=[],
+                             random_tables=[])
+    out = _extract_npc_candidates(
+        "Der Spiegelsplitter-Gürtel knirscht unter den Greifern.",
+        world,
+        {},
+    )
+    out_low = [c.lower() for c in out]
+    assert "spiegelsplitter-gürtel" not in out_low
+
+
+def test_extract_npc_candidates_dedupes():
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[], regions=[], factions=[],
+                             random_tables=[])
+    out = _extract_npc_candidates(
+        "Otkar nickt. Dann hebt Otkar die Hand. Otkar schweigt.",
+        world,
+        {},
+    )
+    assert sum(1 for c in out if c.lower() == "otkar") == 1
+
+
+def test_extract_npc_candidates_empty_text():
+    from types import SimpleNamespace
+
+    from storyteller_core.story.nodes import _extract_npc_candidates
+
+    world = SimpleNamespace(name="Sci", places=[], persons=[], items=[],
+                             glossary=[], regions=[], factions=[],
+                             random_tables=[])
+    assert _extract_npc_candidates("", world, {}) == []

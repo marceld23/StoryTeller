@@ -323,6 +323,24 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
 
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
 
+    # --- recent NPC candidates → track_character hint ---
+    # Names the narrator introduced in past turns that aren't yet
+    # tracked in char_state. Populated by finalize() via
+    # `_extract_npc_candidates`; cleared by dispatch_tools when
+    # track_character actually fires for one of them.
+    npc_hint = ""
+    candidates = [c for c in (state.get("recent_npc_candidates") or [])
+                  if c and c.lower() not in {
+                      k.lower() for k in (state.get("char_state") or {})}]
+    if candidates:
+        npc_hint = (
+            f"NEU AUFGETAUCHTE NPCs / Akteure (zuletzt von DIR eingeführt, "
+            f"noch NICHT mit track_character vermerkt): "
+            f"{', '.join(candidates[:6])}. "
+            f"Wenn einer dieser weiter mitspielt oder reagiert, RUFE "
+            f"jetzt `track_character` mit kurzer Stimmung/Status auf — "
+            f"sonst reagiert er nächsten Zug ohne Erinnerung.\n\n")
+
     # --- gate block (only when the curator has produced one this turn) ---
     gate_block = ""
     if gate_state:
@@ -365,21 +383,36 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"{syn}"
         f"Dem Spieler bereits bekannt: {known_summary}\n\n"
         f"{chars}"
+        f"{npc_hint}"
         f"{gate_block}"
         f"Hintergrundwissen (nur einbauen, wenn es JETZT zur Szene passt; "
         f"NICHT aufzählen):\n{facts or '(keine Treffer)'}{cap}{dyn}\n\n"
         f"{_guidance(cfg, locale)}\n{LANG_INSTRUCTION[locale]}\n"
         f"{SESSION_CONTINUITY_RULE[locale]}\n"
         "Tools still nutzen, das Ergebnis IMMER in einfache, kurze "
-        "Erzählung verwandeln, niemals Fakten oder Listen vorlesen:\n"
+        "Erzählung verwandeln, niemals Fakten oder Listen vorlesen.\n"
         "- BEI EXPLIZITER SPIELER-FRAGE nach Welt-Fakten (Wer ist…? Wo "
         "ist…? Was ist…? Was bedeutet…?) RUFE ZUERST das passende Tool "
         "auf (`retrieve_world_fact` für Orte/Personen/Geschichte, "
         "`lookup_glossary` für Begriffe). Antworte NICHT aus dem "
         "Stegreif — Konsistenz hängt davon ab.\n"
-        "- Andere Tools nach Bedarf: `get_world_overview` für "
-        "Atmosphäre-Reset, `roll_random_event`/`roll_story_dynamic` für "
-        "Wendungen, `track_character` für NPC-Zustände."
+        # PROAKTIV nutzen (war vorher zu passiv formuliert — Narrator hat
+        # die Tools komplett liegen lassen). Klare Trigger pro Tool, statt
+        # generischem "nach Bedarf":
+        "- ATMOSPHÄRE & WENDUNG (proaktiv, nicht warten):\n"
+        "  • `roll_random_event` wenn die Szene einen Welt-Moment oder "
+        "    eine Atem-Pause braucht (mind. 1× pro Substory anstreben).\n"
+        "  • `roll_story_dynamic` wenn die Erzählung in einer Schleife "
+        "    droht ODER beim Übergang in einen neuen Sub-Beat (subtil "
+        "    einweben, NICHT als Hauptthema setzen).\n"
+        "  • `track_character` IMMER wenn ein NPC zum ZWEITEN Mal "
+        "    auftaucht oder eine klare Reaktion/Position zeigt "
+        "    (Truppführer, Wirt, KI-Stimmen, Kapitän). State knapp "
+        "    halten: Stimmung, Status, ein offenes Versprechen. "
+        "    Ohne diese Tracks reagieren NPCs jeden Zug aus dem Nichts.\n"
+        "  • `remember_fact` für DAUERHAFTE Welt-/Story-Bezugspunkte, "
+        "    die der Spieler eingebracht oder gerade entdeckt hat "
+        "    (Items, Hinweise, Verbündete, Schauplätze)."
         + nudge
         + (BRIEF_RULE if brief else "")
     )
@@ -424,6 +457,8 @@ def init_turn(state: dict, config: RunnableConfig) -> dict:
         out["direction_window"] = []
     if "dormant_substory" not in state:
         out["dormant_substory"] = None
+    if "recent_npc_candidates" not in state:
+        out["recent_npc_candidates"] = []
     if "locale" not in state:
         out["locale"] = _locale(state, ctx)
     return out
@@ -854,6 +889,16 @@ def dispatch_tools(state: dict, config: RunnableConfig) -> dict:
             just_completed = True
         if name == "advance_beat":
             advanced_beat = True
+        # Once the narrator actually tracks a character, drop them from
+        # the recent_npc_candidates hint list (they're now in char_state).
+        if name == "track_character":
+            tracked_name = (args.get("name") or "").strip().lower()
+            if tracked_name:
+                npc_cands = list(state.get("recent_npc_candidates") or [])
+                npc_cands = [c for c in npc_cands
+                             if c.strip().lower() != tracked_name]
+                # We'll write this back at the end via `out["recent_npc_candidates"]`
+                state["recent_npc_candidates"] = npc_cands
 
         tool_messages.append({
             "role": "tool",
@@ -893,6 +938,10 @@ def dispatch_tools(state: dict, config: RunnableConfig) -> dict:
         "char_state": char_state,
         "pending_tool_calls": [],
         "just_completed_substory": just_completed,
+        # Persist any track_character-induced filtering of the NPC
+        # candidate hint list (see the track_character branch above).
+        "recent_npc_candidates": list(
+            state.get("recent_npc_candidates") or []),
     }
     if substory is not None:
         out["substory"] = substory.model_dump()
@@ -1019,6 +1068,26 @@ def finalize(state: dict, config: RunnableConfig) -> dict:
     # Clear transition flag so the next turn doesn't keep saying "ÜBERGANG"
     update["transition"] = False
 
+    # Auto-NPC-candidate extraction: scan the narrator's reply for
+    # capitalised proper-noun-looking tokens that aren't world entities
+    # AND aren't tracked yet. Merge into recent_npc_candidates (FIFO,
+    # cap _NPC_CANDIDATE_CAP). build_system_prompt renders these as a
+    # short track_character hint NEXT turn so the narrator doesn't
+    # re-introduce the same NPC from scratch each turn. dispatch_tools
+    # removes a name from this list when track_character actually fires.
+    if text and not state.get("brief", False):
+        new_candidates = _extract_npc_candidates(
+            text, ctx.world, state.get("char_state") or {})
+        if new_candidates:
+            current = list(state.get("recent_npc_candidates") or [])
+            # Skip duplicates, append at end, FIFO-cap.
+            cur_low = {c.lower() for c in current}
+            for n in new_candidates:
+                if n.lower() not in cur_low:
+                    current.append(n)
+                    cur_low.add(n.lower())
+            update["recent_npc_candidates"] = current[-_NPC_CANDIDATE_CAP:]
+
     # Soft-replan after extreme dwell: if the same sub-beat has run for
     # >= cfg.story.beat_stagnation_replan turns without advance_beat
     # firing, mark the current substory as `planning_failed`. The next
@@ -1135,6 +1204,112 @@ def _collect_tool_calls_this_turn(memory: list[dict]) -> list[dict]:
             out.append({"name": fn.get("name") or "",
                         "args": args})
     return out
+
+
+_NPC_CANDIDATE_CAP = 6                 # FIFO cap on the recent-candidates list
+_NPC_MIN_LEN = 4                       # ignore tokens shorter than this
+_NPC_SENTENCE_BOUNDARY = (".", "!", "?", "…", ":", ";", "\n", "—")
+# Common German sentence-start words we filter out — they're capitalised
+# because they sit at sentence start, not because they're proper nouns.
+_NPC_DENY_STARTS = {
+    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer",
+    "einen", "einem", "eines", "kein", "keine", "keinen", "keiner",
+    "und", "oder", "aber", "doch", "denn", "weil", "wenn", "als",
+    "auch", "noch", "schon", "nur", "bis", "seit", "ohne", "mit",
+    "von", "vom", "zur", "zum", "für", "ihr", "ihre", "ihren",
+    "sein", "seine", "seinen", "dein", "deine", "deinen", "mein",
+    "meine", "meinen", "unser", "unsere", "euer", "diese", "dieser",
+    "dieses", "diesen", "jene", "jener", "jenes", "jeden", "jeder",
+    "alles", "alle", "allen", "viel", "viele", "wenige", "manche",
+    "ich", "du", "er", "sie", "es", "wir", "the", "and", "or",
+    "but", "with", "without", "from", "into", "onto", "this", "that",
+    "these", "those", "what", "which", "where", "when", "while",
+}
+
+
+def _world_entity_names(world) -> set[str]:
+    """Lowercase set of every named entity the world already knows about
+    — places, persons, items, glossary terms, regions, factions,
+    random-table names. Used to filter NPC-candidate extraction so we
+    don't auto-track world objects that the curator/RAG layer already
+    handles."""
+    names: set[str] = set()
+    for collection_name in ("places", "persons", "items", "glossary",
+                             "regions", "factions", "random_tables"):
+        for entry in (getattr(world, collection_name, None) or []):
+            n = (getattr(entry, "name", None)
+                 or getattr(entry, "term", None) or "")
+            if isinstance(n, str) and n.strip():
+                names.add(n.strip().lower())
+    # World-level identity bits the narrator may say but never as an NPC:
+    if getattr(world, "name", None):
+        names.add(world.name.lower())
+    return names
+
+
+def _extract_npc_candidates(text: str,
+                             world,
+                             char_state: dict | None) -> list[str]:
+    """Heuristic: pull capitalised proper-noun-looking tokens from the
+    narrator's last reply, filter against known world entities + already-
+    tracked characters + common sentence-start words. Returns at most a
+    handful — the system prompt's `track_character` hint is just a
+    suggestion, the narrator decides what's actually worth tracking."""
+    import re
+    if not text:
+        return []
+    denylist = _world_entity_names(world)
+    denylist.update(k.lower() for k in (char_state or {}).keys())
+    # Tokenise on whitespace + soft sentence boundaries. Strip trailing
+    # punctuation but keep mid-word hyphens (so "WR-Frau" stays one
+    # token).
+    out: list[str] = []
+    seen: set[str] = set()
+    # Mark which tokens come right after a sentence boundary so we can
+    # skip leading capitalised function-words ("Der Wirt schweigt." —
+    # the "Der" is a sentence-starter, not a name).
+    after_boundary = True
+    for raw in re.split(r"(\s+)", text):
+        if not raw or raw.isspace():
+            if any(b in raw for b in ("\n",)):
+                after_boundary = True
+            continue
+        # Strip leading/trailing punctuation (each char in this string
+        # is removed independently; the noqa marks B005 — using a multi-
+        # character string with .strip() is the intent here).
+        tok = raw.strip(",.!?;:()[]\"'„«»…")  # noqa: B005
+        if not tok:
+            after_boundary = raw[-1:] in _NPC_SENTENCE_BOUNDARY
+            continue
+        is_first = after_boundary
+        after_boundary = raw[-1:] in _NPC_SENTENCE_BOUNDARY
+        # Length gate: mixed-case tokens need ≥4 chars (skips "Ich", "Mit"
+        # etc.); ALL-UPPERCASE tokens are kept down to 3 chars because
+        # short acronyms like "JAM", "AIR", "WR" are typical NPC/agent
+        # names in sci-fi worlds.
+        if len(tok) < 3:
+            continue
+        if len(tok) < _NPC_MIN_LEN and not tok.isupper():
+            continue
+        # Must be capitalised. German nouns ARE capitalised everywhere,
+        # so we lean heavily on the world-entity denylist + the
+        # sentence-start skip + a small stopword list.
+        if not tok[0].isupper():
+            continue
+        if is_first and tok.lower() in _NPC_DENY_STARTS:
+            continue
+        low = tok.lower()
+        if low in denylist:
+            continue
+        # Compound nouns longer than 18 chars are almost always concepts
+        # (Spiegelsplitter-Gürtel) not NPCs — skip to keep the hint clean.
+        if len(tok) > 18:
+            continue
+        if low in seen:
+            continue
+        seen.add(low)
+        out.append(tok)
+    return out[:6]
 
 
 def _signal_kind(sig) -> str:
