@@ -11,6 +11,12 @@
 # The `./data/` directory is created on first run and is owned by the
 # container user (uid 1000). Persists across `docker compose down`.
 
+# Compose project name. Without this, docker would derive it from the folder
+# ("docker"), producing ugly resource names like "docker_default" /
+# "docker_caddy-data". With this set, network = storyteller_default,
+# volumes = storyteller_caddy-data / storyteller_caddy-config.
+name: storyteller
+
 services:
   web-ui:
     image: storyteller-web:local
