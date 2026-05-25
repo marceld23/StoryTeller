@@ -862,6 +862,17 @@ def _trim_and_fold(
     return memory, synopsis, pending_fold
 
 
+# Floor: if the new synopsis loses more than this fraction of the old
+# synopsis's length, we assume the summariser dropped established
+# content and retry / fall back. Tuned empirically — content density
+# usually grows or stays constant when new turns get added, so a
+# significant shrink almost always means lost facts.
+_SYNOPSIS_SHRINK_FLOOR = 0.7
+# Only enforce the floor when the old synopsis is already substantial;
+# tiny synopses (early in a session) can legitimately get reshaped.
+_SYNOPSIS_FLOOR_MIN_OLD = 300
+
+
 def _fold_into_synopsis(
     cfg: Config, synopsis: str, dropped: list[dict], transcript,
 ) -> tuple[bool, str]:
@@ -876,28 +887,77 @@ def _fold_into_synopsis(
         return True, synopsis  # nothing worth keeping
 
     limit = int(cfg.story.synopsis_max_chars)
+    old_len = len(synopsis or "")
     user_msg = (
         f"BISHERIGE ZUSAMMENFASSUNG:\n{synopsis or '(noch nichts)'}\n\n"
         f"NEUER ABSCHNITT (chronologisch danach):\n{convo}\n\n"
         f"Aktualisiere die Zusammenfassung. Maximal {limit} Zeichen, "
         f"knapp, faktentreu, nur Fließtext."
     )
-    try:
+
+    def _ask(extra_user: str = "") -> str:
+        msgs = [{"role": "system", "content": SUMMARIZER_SYS[locale]},
+                {"role": "user", "content": user_msg}]
+        if extra_user:
+            msgs.append({"role": "user", "content": extra_user})
         resp = get_chat_client(cfg, "planner").chat.completions.create(
             model=cfg.models.planner,
-            messages=[
-                {"role": "system", "content": SUMMARIZER_SYS[locale]},
-                {"role": "user", "content": user_msg},
-            ],
+            messages=msgs,
             **chat_extras(cfg, "planner",
                           temperature=cfg.models.planner_temperature),
         )
         CostLedger(cfg).record_chat_usage(
             role="planner", model=cfg.models.planner, usage=resp.usage)
-        txt = (resp.choices[0].message.content or "").strip()
+        return (resp.choices[0].message.content or "").strip()
+
+    try:
+        txt = _ask()
         if not txt:
             return False, synopsis
         new_syn = txt[:limit]
+
+        # Shrink-floor: when the LLM came back with a much shorter
+        # synopsis than the old one, it almost always silently
+        # dropped established content. Re-ask once with a sharper
+        # corrective; if it still shrinks too much, fall through to
+        # heuristic_fold (lossless concat of old + dropped) via
+        # returning False. Old synopsis IS preserved that way.
+        if (old_len >= _SYNOPSIS_FLOOR_MIN_OLD
+                and len(new_syn) < _SYNOPSIS_SHRINK_FLOOR * old_len):
+            log.warning("synopsis shrink suspicious: old=%d new=%d "
+                        "(<%.0f%%) — retrying", old_len, len(new_syn),
+                        _SYNOPSIS_SHRINK_FLOOR * 100)
+            correction = (
+                "Deine vorige Antwort war ZU KURZ — du hast Inhalte "
+                "aus der bisherigen Zusammenfassung verloren. "
+                "Versuch's nochmal: die NEUE Zusammenfassung muss "
+                "mindestens so lang sein wie die alte, und JEDEN "
+                "etablierten Fakt, jede Person, jeden Ort, jede "
+                "Beziehung und jeden offenen Faden aus der alten "
+                "übernehmen. Ergänze sie um das Neue, lasse nichts "
+                "weg."
+                if locale == "de" else
+                "Your previous reply was TOO SHORT — you lost "
+                "content from the prior summary. Try again: the NEW "
+                "summary must be at least as long as the old one, "
+                "and retain EVERY established fact, person, place, "
+                "relationship and open thread from the prior summary. "
+                "Add the new part, drop nothing.")
+            try:
+                txt2 = _ask(extra_user=correction)
+                cand = (txt2 or "")[:limit]
+                if cand and len(cand) >= _SYNOPSIS_SHRINK_FLOOR * old_len:
+                    new_syn = cand
+                else:
+                    log.warning("retry still shrunk (old=%d new=%d) "
+                                "— falling back to heuristic_fold",
+                                old_len, len(cand))
+                    return False, synopsis
+            except Exception as exc:
+                log.warning("synopsis-retry failed: %r — falling "
+                            "back to heuristic_fold", exc)
+                return False, synopsis
+
         if transcript:
             transcript.note(
                 f"[Langzeit-Synopse aktualisiert, {len(new_syn)} Zeichen]")

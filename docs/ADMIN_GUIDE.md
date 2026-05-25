@@ -207,17 +207,41 @@ embeddings (where there's no good drop-in alternative).
 **Audio** → `data/audio.json`: output backend (`auto` / `alsa_softvol` /
 `portable` / `pipewire`) and an optional PipeWire sink.
 
-**Story** → `data/story.json` (optional, per-deployment): override any
-field of `[story]` from `config.toml`. Common tweak: a smaller
-`short_term_memory_turns` (e.g. `8`) on a Pi running a local LLM —
-shorter narrator prompt = noticeably faster per turn. Example:
+**Erzählung & Memory** — section in the Settings page (also
+backed by `data/story.json`). Overrides any field of `[story]`
+from `config.toml`; empty fields fall back to the default
+(placeholder shows what that default is). Hot-reloaded — changes
+apply on the next turn, no service restart.
+
+Knobs the UI exposes:
+
+| Knopf | Default | Wann tunen |
+|---|---:|---|
+| `short_term_memory_turns` | **24** | Cloud (gpt-5.x, claude, gemini): 24–48 trägt jedes Modell trivial. Local 32k-ctx (qwen3-30b-32k): 12–16. Tiny 8k-ctx local: 6–8. Höher = bessere Kontinuität gegen Input-Tokens pro Turn. |
+| `synopsis_max_chars` | 900 | Längere Rolling-Summary für sehr lange Sessions (1200–1800). |
+| `synopsis_batch` | 8 | Wieviele alte Messages pro Fold-Pass weggefoldet werden — größer = seltener LLM-Call, gröbere Synopsis. |
+| `rag_top_k` | 4 | Mehr Welt-Fakten pro Turn injiziert. |
+| `beat_nudge_after` | 3 | Turns auf demselben Sub-Beat bevor Narrator höflich an `advance_beat` erinnert wird (0 = aus). |
+| `known_facts_cap` | 30 | Cap auf KnownFacts-Liste; älteste ohne Note werden evicted. |
+| `narration_gate_max_reveals` | 3 | Max authored Reveals pro Turn vom Curator. |
+| `long_term_memory` (Checkbox) | ✓ | Aus = kein Synopsis-Folding (nur sinnvoll bei minimalen Sessions). |
+| `narration_gate_enabled` (Checkbox) | ✓ | Aus = Curator-LLM-Call wird übersprungen (Algorithmus-Only Spoiler-Schutz). |
+
+Beispiel-`data/story.json` für ein Local-32k-Setup mit etwas
+sparsameren Reveals:
 
 ```json
-{ "short_term_memory_turns": 8, "narration_gate_max_reveals": 2 }
+{ "short_term_memory_turns": 12, "narration_gate_max_reveals": 2 }
 ```
 
-Empty/missing fields fall back to the `config.toml` defaults; the file is
-hot-reloaded the same way as `data/models.json`.
+**Synopsis-Härtung** — wenn der Summarizer-LLM eine deutlich
+kürzere Zusammenfassung als die vorige produziert (`< 70 %` der
+alten Länge, ab `old ≥ 300 chars`), wird er einmal mit
+verschärfter Korrektur-Anweisung nochmal gefragt; greift auch das
+nicht, fällt das System auf einen verlustfreien Heuristik-Fold
+zurück (alte Synopsis + Auszug der gedropptem Messages
+konkateniert). So geht nie etablierter Kontext aus der bisherigen
+Synopsis verloren, auch wenn das Modell sich verkürzt.
 
 **Moderation** → `data/moderation.json`: an **"Moderation aktiviert"
 checkbox** (uncheck to fully disable the OpenAI moderation gate — inputs

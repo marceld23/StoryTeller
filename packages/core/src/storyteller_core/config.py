@@ -231,7 +231,13 @@ class FXCfg(BaseModel):
 
 
 class StoryCfg(BaseModel):
-    short_term_memory_turns: int = 12
+    # How many full turns (= 2× messages user+assistant) the narrator
+    # sees inline in its system prompt before older content is folded
+    # into the rolling synopsis. Cloud models comfortably take 24-48
+    # turns; local 32k-context models (qwen3-30b-32k etc.) are happy
+    # at 12-16; tiny 8k-context models need 6-8. Higher = better
+    # continuity at the cost of input tokens per turn.
+    short_term_memory_turns: int = 24
     rag_top_k: int = 4
     cost_cap_usd_per_session: float = 2.0
     max_substory_beats: int = 5

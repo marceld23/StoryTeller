@@ -21,6 +21,8 @@ Endpoints (Phase 4b scope):
   PUT    /api/settings/audio                      update audio backend override
   GET    /api/settings/moderation                 moderation thresholds
   PUT    /api/settings/moderation                 update moderation thresholds
+  GET    /api/settings/story                      narration / memory overrides
+  PUT    /api/settings/story                      update story overrides
 
   POST   /api/worlds/generate                     async LLM world generation (job)
   POST   /api/worlds/{world_id}/reindex           async RAG reindex (job)
@@ -113,6 +115,10 @@ def _audio_path() -> Path:
 
 def _moderation_path() -> Path:
     return ROOT / "data" / "moderation.json"
+
+
+def _story_path() -> Path:
+    return ROOT / "data" / "story.json"
 
 
 def _read_json(p: Path, default: Any) -> Any:
@@ -399,6 +405,56 @@ def get_moderation() -> dict:
 @app.put("/api/settings/moderation")
 def put_moderation(payload: dict) -> dict:
     _write_json(_moderation_path(), payload)
+    return {"ok": True}
+
+
+@app.get("/api/settings/story")
+def get_story() -> dict:
+    """Effective story / memory settings — defaults from
+    config.toml's [story] section + admin overrides from
+    data/story.json. The UI shows defaults as input placeholders so
+    operators see what they're tuning away from."""
+    cfg = _cfg()
+    return {
+        "defaults": cfg.story.model_dump(),
+        "overrides": _read_json(_story_path(), {}),
+    }
+
+
+@app.put("/api/settings/story")
+def put_story(payload: dict) -> dict:
+    """Replace data/story.json wholesale. Only keys present in the
+    body are persisted; missing fields fall back to the config.toml
+    default. Coerces numeric fields to int / float so frontend
+    `<input type=number>` strings don't end up as strings in the
+    JSON file (which would then crash StoryCfg validation)."""
+    cleaned: dict = {}
+    int_fields = {"short_term_memory_turns", "rag_top_k",
+                   "max_substory_beats", "synopsis_max_chars",
+                   "synopsis_batch", "beat_nudge_after",
+                   "known_facts_cap", "narration_gate_max_reveals",
+                   "checkpoint_keep_per_thread",
+                   "world_design_reminder_after",
+                   "world_design_max_turns"}
+    float_fields = {"cost_cap_usd_per_session", "dynamic_event_prob"}
+    bool_fields = {"dynamics_in_planning", "long_term_memory",
+                    "narration_gate_enabled"}
+    for k, v in (payload or {}).items():
+        if v is None or v == "":
+            continue
+        try:
+            if k in int_fields:
+                cleaned[k] = int(v)
+            elif k in float_fields:
+                cleaned[k] = float(v)
+            elif k in bool_fields:
+                cleaned[k] = bool(v)
+            else:
+                cleaned[k] = v
+        except (TypeError, ValueError):
+            raise HTTPException(422, f"invalid value for {k!r}: {v!r}") \
+                from None
+    _write_json(_story_path(), cleaned)
     return {"ok": True}
 
 

@@ -515,13 +515,26 @@ SUMMARIZER_SYS = {
            "Gedächtnis. Schreibe NUR Fließtext: etablierte Ereignisse, "
            "Entscheidungen, Beziehungen und offene Fäden. Keine "
            "Ausschmückung, keine Wiederholung, keine Anrede, keine "
-           "Überschriften. Behalte Wichtiges aus der bisherigen "
-           "Zusammenfassung und integriere das Neue chronologisch."),
+           "Überschriften.\n\n"
+           "STRENG WICHTIG: Die NEUE Zusammenfassung MUSS jeden Inhalt "
+           "der bisherigen behalten. Du darfst nur ergänzen, präziser "
+           "formulieren oder Redundanzen zusammenführen — NIEMALS "
+           "etablierte Fakten, Personen, Orte, Beziehungen oder offene "
+           "Fäden aus der vorigen Zusammenfassung weglassen. Wenn die "
+           "neue Zusammenfassung kürzer als die alte ist, hast du "
+           "etwas Wichtiges verloren. Integriere das Neue zusätzlich, "
+           "chronologisch eingeordnet."),
     "en": ("You compress the play so far into a terse, faithful memory. "
            "Write ONLY prose: established events, decisions, relationships "
            "and open threads. No embellishment, no repetition, no "
-           "salutations, no headings. Keep what matters from the prior "
-           "summary and integrate the new part chronologically."),
+           "salutations, no headings.\n\n"
+           "STRICTLY IMPORTANT: The NEW summary MUST retain every "
+           "piece of the prior summary. You may only add, sharpen "
+           "phrasing, or fold duplicates — NEVER drop established "
+           "facts, people, places, relationships or open threads from "
+           "the prior summary. If your new summary is shorter than the "
+           "previous one, you have lost something important. Integrate "
+           "the new part in addition, placed chronologically."),
 }
 SYNOPSIS_LABEL = {
     "de": ("BISHER GESCHEHEN (Langzeit-Gedächtnis — als Kontinuität nutzen, "

@@ -30,6 +30,11 @@ export type ModerationSettings = {
   overrides: Record<string, unknown>;
 };
 
+export type StorySettings = {
+  defaults: Record<string, unknown>;
+  overrides: Record<string, unknown>;
+};
+
 function authToken(): string {
   try { return localStorage.getItem('st-token') || ''; } catch { return ''; }
 }
@@ -216,12 +221,14 @@ export async function resetSave(threadId: string): Promise<unknown> {
   );
 }
 
-export async function getSettings<T>(kind: 'models' | 'audio' | 'moderation'): Promise<T> {
+type SettingsKind = 'models' | 'audio' | 'moderation' | 'story';
+
+export async function getSettings<T>(kind: SettingsKind): Promise<T> {
   return _json(await afetch(`${BACKEND}/api/settings/${kind}`));
 }
 
 export async function putSettings(
-  kind: 'models' | 'audio' | 'moderation',
+  kind: SettingsKind,
   data: unknown
 ): Promise<unknown> {
   return _json(

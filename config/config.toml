@@ -143,7 +143,7 @@ reverb_dry_level     = 0.85
 distortion_drive_db  = 0.0   # 0 = off; light distortion ~4–8
 
 [story]
-short_term_memory_turns   = 12   # smaller (e.g. 8) trims the narrator prompt and noticeably speeds up local LLMs
+short_term_memory_turns   = 24   # how many turns the narrator sees inline before older content is folded into the rolling synopsis. Cloud (gpt-5.x, claude, gemini): 24-48 fits trivially. Local 32k-ctx (qwen3-30b-32k): 12-16. Tiny 8k local: 6-8.
 rag_top_k                 = 4    # fewer facts -> less detail flood
 cost_cap_usd_per_session  = 2.0
 max_substory_beats        = 5    # length of the mini tension arc per substory

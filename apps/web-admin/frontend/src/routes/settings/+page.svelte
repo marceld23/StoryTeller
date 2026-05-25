@@ -5,7 +5,8 @@
     putSettings,
     type ModelsSettings,
     type AudioSettings,
-    type ModerationSettings
+    type ModerationSettings,
+    type StorySettings
   } from '$lib/api';
 
   let defaults: Record<string, unknown> = $state({});
@@ -15,6 +16,40 @@
   let moderation: ModerationSettings | null = $state(null);
   let modEnabled: boolean = $state(true);
   let moderationRaw: string = $state('');
+  let story: StorySettings | null = $state(null);
+  // Narrative / memory editable fields. Numbers stay as strings in
+  // state so empty fields cleanly fall back to the config.toml
+  // default (the backend drops empty values before writing
+  // data/story.json).
+  type StoryNumKey =
+    | 'short_term_memory_turns'
+    | 'rag_top_k'
+    | 'synopsis_max_chars'
+    | 'synopsis_batch'
+    | 'beat_nudge_after'
+    | 'known_facts_cap'
+    | 'narration_gate_max_reveals';
+  const STORY_NUMS: { key: StoryNumKey; label: string; hint: string }[] = [
+    { key: 'short_term_memory_turns', label: 'Memory turns',
+      hint: 'How many turns (= 2× messages) the narrator sees inline. Cloud: 24–48. Local 32k: 12–16. Tiny 8k: 6–8.' },
+    { key: 'rag_top_k', label: 'RAG top-k',
+      hint: 'Retrieved world facts per turn.' },
+    { key: 'synopsis_max_chars', label: 'Synopsis max chars',
+      hint: 'Rolling long-term memory length cap.' },
+    { key: 'synopsis_batch', label: 'Synopsis batch',
+      hint: 'How many old messages get folded per pass.' },
+    { key: 'beat_nudge_after', label: 'Beat nudge after',
+      hint: 'Turns on the same sub-beat before reminding the narrator (0 = off).' },
+    { key: 'known_facts_cap', label: 'Known-facts cap',
+      hint: 'Max KnownFacts entries before the oldest noteless one is evicted.' },
+    { key: 'narration_gate_max_reveals', label: 'Gate max reveals/turn',
+      hint: 'Cap on authored reveals the curator may permit per turn.' },
+  ];
+  let storyNums: Record<StoryNumKey, string> = $state(
+    Object.fromEntries(STORY_NUMS.map((n) => [n.key, ''])) as Record<StoryNumKey, string>
+  );
+  let storyLongTermMemory: boolean = $state(true);
+  let storyGateEnabled: boolean = $state(true);
   let error: string = $state('');
   let status: string = $state('');
 
@@ -188,6 +223,17 @@
       modEnabled = (mov.enabled as boolean | undefined) ?? moderation.enabled_default;
       const { enabled: _omit, ...rest } = mov;
       moderationRaw = JSON.stringify(rest, null, 2);
+
+      story = await getSettings<StorySettings>('story');
+      const sov = (story.overrides ?? {}) as Record<string, unknown>;
+      for (const { key } of STORY_NUMS) {
+        const v = sov[key];
+        storyNums[key] = v === undefined || v === null ? '' : String(v);
+      }
+      storyLongTermMemory = (sov.long_term_memory as boolean | undefined)
+        ?? (story.defaults.long_term_memory as boolean | undefined) ?? true;
+      storyGateEnabled = (sov.narration_gate_enabled as boolean | undefined)
+        ?? (story.defaults.narration_gate_enabled as boolean | undefined) ?? true;
     } catch (e) {
       error = String(e);
     }
@@ -224,6 +270,26 @@
       status = modEnabled ? 'Moderation gespeichert (aktiv).'
                           : 'Moderation gespeichert — DEAKTIVIERT.';
     } catch (e) { error = `Moderation: ${e}`; }
+  }
+
+  async function saveStory() {
+    error = ''; status = '';
+    const payload: Record<string, unknown> = {};
+    for (const { key } of STORY_NUMS) {
+      const v = storyNums[key].trim();
+      if (v !== '') payload[key] = Number(v);   // backend coerces to int
+    }
+    payload.long_term_memory = storyLongTermMemory;
+    payload.narration_gate_enabled = storyGateEnabled;
+    try {
+      await putSettings('story', payload);
+      status = 'Erzählung / Memory gespeichert (greift bei neuen Turns).';
+    } catch (e) { error = `Erzählung: ${e}`; }
+  }
+
+  function storyDef(k: string): string {
+    const v = (story?.defaults ?? {})[k];
+    return v === undefined || v === null ? '' : String(v);
   }
 
   function def(k: string): string { return String(defaults[k] ?? ''); }
@@ -337,6 +403,48 @@
     {/each}
   {/if}
   <div class="actions"><button onclick={saveModels}>Speichern</button></div>
+</section>
+
+<section>
+  <h2>Erzählung &amp; Memory</h2>
+  {#if story}
+    <p class="hint">
+      Leere Felder = Default aus <code>config.toml</code>. Gespeichert
+      wird in <code>data/story.json</code>. Greift bei neuen Turns
+      (kein Restart nötig).
+    </p>
+    <div class="grid">
+      {#each STORY_NUMS as n (n.key)}
+        <label>
+          {n.label}
+          <input
+            type="number"
+            bind:value={storyNums[n.key]}
+            placeholder={storyDef(n.key)}
+            title={n.hint}
+            min="0"
+          />
+        </label>
+      {/each}
+    </div>
+    <p class="hint">
+      <strong>{STORY_NUMS[0].label}</strong> ist der wichtigste Knopf
+      hier: {STORY_NUMS[0].hint}
+    </p>
+    <label class="onoff">
+      <input type="checkbox" bind:checked={storyLongTermMemory} />
+      <strong>Langzeit-Memory aktiv</strong>
+      <span class="hint small">— wenn aus, wachsen Sessions ohne
+        Synopsis-Folding (nur bei tiny-context lokalen Modellen).</span>
+    </label>
+    <label class="onoff">
+      <input type="checkbox" bind:checked={storyGateEnabled} />
+      <strong>Narration-Gate (Curator) aktiv</strong>
+      <span class="hint small">— wenn aus, läuft der per-Turn-Spoiler-
+        Schutz nur algorithmisch (kein gate_llm Call).</span>
+    </label>
+    <div class="actions"><button onclick={saveStory}>Speichern</button></div>
+  {/if}
 </section>
 
 <section>
