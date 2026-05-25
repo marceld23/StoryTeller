@@ -36,7 +36,7 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "saved": "Die Geschichte wurde gespeichert.",
         "no_saves": "Es gibt keine gespeicherten Spielstände.",
         "goodbye": "Bis zum nächsten Mal.",
-        "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
+        "error_retry": "Ich habe nichts verstanden.",
         # Differenzierte Fehler-Ansagen (siehe storyteller_core.health). Der
         # Pi-Loop wählt basierend auf EndpointError.kind die passende WAV
         # aus; error_retry bleibt der Fallback für unbekannte Fehler.
@@ -177,7 +177,7 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "saved": "The story has been saved.",
         "no_saves": "There are no saved games.",
         "goodbye": "Until next time.",
-        "error_retry": "There was a glitch. Please say it again.",
+        "error_retry": "I didn't catch that.",
         # Differentiated error announcements (see storyteller_core.health).
         # The Pi loop picks the matching WAV based on EndpointError.kind;
         # error_retry stays the fallback for unknown failures.
