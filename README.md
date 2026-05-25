@@ -4,20 +4,44 @@
   <img src="docs/assets/storyteller_logo.png" alt="Storyteller — your voice, infinite stories." width="320">
 </p>
 
-**Storyteller tells you a story — and pulls you into it.** It narrates, asks
-what you do, listens to you, and weaves your answers back into the tale.
-You're not reading a story; you're living one together with the narrator —
-your choices, your questions, your hints all bend where it goes next.
+**Storyteller tells you a story — and pulls you into it.** The narrator
+listens, asks what you do, weaves your answers *and the world-facts you
+drop along the way* back into the tale — while a planner LLM keeps a
+multi-act arc intact behind the scenes. You're not just answering
+prompts; you're co-building a world.
 
-Interactive, voice-controlled storyteller. Runs on a Raspberry Pi 4 with a
-ReSpeaker USB Mic Array v2.0, on a normal PC (text REPL), or in a browser
-(text or tap-to-talk voice). Built on a LangGraph story engine that talks
-to **any OpenAI-compatible endpoint** — the OpenAI API by default, or
-self-hosted backends like Ollama / vLLM / llama.cpp (LLM + embeddings),
-faster-whisper (STT), and Piper (Wyoming/TCP) or XTTS v2 for TTS. Endpoints
-are configurable per role (story / planner / gen / STT / TTS / embeddings),
-so you can run fully local, fully cloud, or mix and match. Localized for
-German and English.
+Worlds can be **picked**, **generated from a one-page brief** (1–3 min —
+full setting, characters, items, glossary, blueprint, random tables),
+and **replayed with structurally different arcs** thanks to multi-
+blueprint worlds.
+
+**Two ways to run it — same engine, same worlds, same save-state:**
+
+- **As an appliance** — a Raspberry Pi 4 with a ReSpeaker mic and LED
+  ring, boots into voice mode, *"Hey Jarvis"* to wake. The original
+  prototype hid the Pi inside a hollow book at a kid's birthday party;
+  that's still the design intent.
+- **As a self-hosted web service** — run the backend on any machine
+  (a laptop, a NAS, a Mini-PC), and kids reach it in any browser at
+  `https://your-host/`. Text mode or tap-to-talk voice, no Pi or
+  mic-array needed.
+
+Plus a PC text REPL (CLI) for prompt-engineering / debugging the same
+engine without the audio layer.
+
+Under the hood: a **LangGraph** story engine with a planner, an anti-
+spoiler curator gate, and per-session RAG over world content + player-
+introduced facts. The engine talks to **any OpenAI-compatible endpoint**
+— the OpenAI API by default, or self-hosted backends like Ollama /
+vLLM / llama.cpp (LLM + embeddings), faster-whisper (STT), and Piper
+(Wyoming/TCP) or XTTS v2 for TTS. Endpoints are configurable **per role**
+(story / planner / gen / gate / STT / TTS / embeddings), so you can run
+fully local, fully cloud, or mix and match. A **daily cost cap** plus
+per-world / per-model spend rollup prevents a forgotten cloud key from
+running into a surprise bill, and **endpoint health monitoring** lets
+the appliance differentiate "internet is down" from "my local server
+is off" from "API key is wrong" — surfaced both via spoken prompt and
+in the admin UI. Localized for German and English.
 
 Want to go **fully local** with no API key at all? The repo ships a
 turn-key Windows + NVIDIA-GPU server stack in
