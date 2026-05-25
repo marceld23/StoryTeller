@@ -1,0 +1,126 @@
+/* Shared UI primitives for the player web-ui. The text and voice
+   routes both used to ship near-identical copies of these styles —
+   any change in one route silently broke the other. Centralising here. */
+
+.app-main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;          /* mobile-safari address-bar safe */
+  box-sizing: border-box;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  gap: 0.6rem;
+}
+.app-header h1 { margin: 0; font-size: 1.4rem; color: #6fc3df; }
+.app-header .brand {
+  display: flex; align-items: center; gap: 0.5rem;
+  text-decoration: none; color: inherit;
+}
+.app-header .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
+.app-header .mode-link { color: var(--muted); text-decoration: none; font-size: 0.95rem; }
+.app-header .session-label { color: var(--muted); font-size: 0.95rem; }
+.app-header .session-label strong { color: var(--fg); }
+.app-header .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+.app-header .icon-btn {
+  background: transparent; color: var(--fg); border: 1px solid var(--border);
+  padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
+  font-size: 0.95rem; line-height: 1;
+}
+.app-header .icon-btn:hover { background: var(--surface); }
+
+/* Spinner — used by loading indicators and inline thinking states. */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(127,127,127,0.18);
+  border-top-color: #6fc3df; border-radius: 50%;
+  animation: spin 0.9s linear infinite; flex: 0 0 auto;
+}
+.spinner.spinner-inline {
+  width: 10px; height: 10px; border-width: 2px;
+  vertical-align: middle; margin-right: 0.3rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Loading box — "we're doing something, here's an elapsed counter". */
+.loading {
+  display: flex; align-items: center; gap: 0.55rem;
+  background: var(--surface);
+  border-left: 3px solid #6fc3df;
+  padding: 0.55rem 0.8rem; border-radius: 4px;
+  margin: 0.7rem 0; color: var(--fg); font-size: 0.95rem;
+}
+.loading.inline { font-size: 0.92rem; }
+.loading strong { color: #6fc3df; }
+
+/* Status banners (reconnecting, daily cap, autoplay fallback, etc). */
+.banner {
+  background: var(--surface-2); color: var(--fg);
+  border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem;
+  border-radius: 4px; margin: 0.5rem 0;
+  display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center;
+}
+.banner.cap { border-left-color: #c25450; }
+.banner.warn { border-left-color: #d4a200; background: rgba(255, 200, 0, 0.10); }
+.banner.info { border-left-color: #6fc3df; }
+.banner .link {
+  background: none; border: none; color: var(--link, #6fc3df);
+  cursor: pointer; padding: 0; text-decoration: underline; font: inherit;
+}
+
+/* Note input box — same on both routes. */
+.note-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
+}
+.note-box .lbl {
+  display: block; font-size: 0.85rem;
+  color: var(--muted); margin-bottom: 0.2rem;
+}
+.note-box textarea {
+  width: 100%; box-sizing: border-box; padding: 0.4rem;
+  background: var(--input-bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 3px;
+  font-family: inherit; font-size: 0.95rem; resize: vertical;
+}
+.note-box .row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.note-box button {
+  padding: 0.35rem 0.8rem; font-size: 0.9rem;
+  background: #b4d273; color: #10131a; border: none; border-radius: 3px;
+  cursor: pointer;
+}
+.note-box button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+.note-box .ghost {
+  background: transparent; border: 1px solid var(--border); color: var(--fg);
+}
+
+.side-actions {
+  display: flex; gap: 0.5rem; margin-top: 0.4rem; justify-content: flex-end;
+}
+.side-actions .ghost {
+  padding: 0.3rem 0.8rem; font-size: 0.85rem;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--fg); border-radius: 3px; cursor: pointer;
+}
+
+.error { color: #e07a7a; }
+.hint { color: var(--muted); font-size: 0.9rem; }
+.hint.small { font-size: 0.85rem; }
+
+/* Mobile compaction shared across the player routes. */
+@media (max-width: 600px) {
+  .app-main { padding: 0.7rem; }
+  .app-header h1 { font-size: 1.15rem; }
+  .app-header .brand img { width: 28px; height: 28px; }
+  .side-actions { justify-content: stretch; }
+  .side-actions .ghost { flex: 1; }
+}

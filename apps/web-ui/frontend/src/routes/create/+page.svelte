@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { generatePlayerWorld } from '$lib/api';
+  import { theme } from '$lib/theme';
 
   let prompt = $state('');
   let busy = $state(false);
@@ -14,6 +15,48 @@
   let maxChars = $state(300000);
 
   const tooLong = $derived(prompt.length > maxChars);
+
+  // Starter templates — three vibes the writer can dump into the textarea
+  // and adapt. Picked from common asks: dark fantasy, light sci-fi,
+  // detective. Keeps the cold-start moment from being a blank page.
+  const TEMPLATES: { label: string; prompt: string }[] = [
+    {
+      label: '🌲 Fantasy',
+      prompt:
+        'Eine düstere Waldwelt, in der Bäume Erinnerungen speichern und nur '
+        + 'wenige sie noch lesen können. Spielerrolle: ein junger Förster-Lehrling, '
+        + 'der gerade gelernt hat, dass der Wald spricht. Zentrale Spannung: ein '
+        + 'altes Versprechen, das gebrochen wurde — und der Wald beginnt sich daran '
+        + 'zu erinnern. Tonalität: mythisch, mit subtilem Horror. Erste Szene: '
+        + 'Morgennebel, eine Eiche flüstert deinen Namen.',
+    },
+    {
+      label: '🚀 Sci-Fi',
+      prompt:
+        'Eine Generationen-Raumstation, deren ursprüngliches Ziel niemand mehr '
+        + 'kennt. Spielerrolle: Wartungstechniker der Nachtschicht, der gerade '
+        + 'einen Wartungsschacht gefunden hat, der auf KEINEM Plan steht. Zentrale '
+        + 'Spannung: die Station verändert sich seit ein paar Wochen — nicht '
+        + 'kaputt, sondern bewusst. Tonalität: melancholisch, ruhig, mit einem '
+        + 'Hauch Unheimlichkeit. Erste Szene: du stehst vor einer Tür, die du '
+        + 'gestern noch nicht gesehen hast.',
+    },
+    {
+      label: '🕵 Krimi',
+      prompt:
+        'Eine kleine Hafenstadt in den 1950ern, in der seit drei Tagen Briefe '
+        + 'verschwinden — nicht zugestellt, nicht zurückgeschickt, einfach weg. '
+        + 'Spielerrolle: junger Polizist, frisch aus der Provinz versetzt. '
+        + 'Zentrale Spannung: die verschwundenen Briefe haben ein Muster, das '
+        + 'niemand außer dir sieht. Tonalität: nüchtern, regnerisch, mit langen '
+        + 'Schweige-Momenten. Erste Szene: ein Anwohner steht vor deinem Schreibtisch '
+        + 'und legt einen sehr alten Brief vor dich hin.',
+    },
+  ];
+  function useTemplate(t: { prompt: string }) {
+    if (busy) return;
+    prompt = t.prompt;
+  }
 
   onMount(async () => {
     try {
@@ -56,7 +99,13 @@
       <img src="/favicon.png" alt="" />
       <h1>Neue Welt erstellen</h1>
     </a>
-    <a class="back" href="/">← zurück</a>
+    <div class="header-side">
+      <a class="back" href="/">← zurück</a>
+      <button class="icon-btn" onclick={() => theme.toggle()}
+              title="Hell/Dunkel umschalten" aria-label="Theme">
+        {theme.value === 'light' ? '🌙' : '☀️'}
+      </button>
+    </div>
   </header>
 
   <p class="hint">
@@ -73,6 +122,15 @@
   {#if error}
     <p class="error">{error}</p>
   {/if}
+
+  <div class="templates">
+    <span class="tpl-label">Vorlage:</span>
+    {#each TEMPLATES as t (t.label)}
+      <button class="tpl" onclick={() => useTemplate(t)} disabled={busy}>
+        {t.label}
+      </button>
+    {/each}
+  </div>
 
   <textarea bind:value={prompt} rows="14"
             placeholder="z. B. 'Eine düstere Unterwasserstadt, in der Erinnerungen als Währung gehandelt werden. Spielerrolle: ein versinkender Bibliothekar. Tonalität: melancholisch mit subtilem Horror …'"
@@ -115,6 +173,24 @@
            color: inherit; text-decoration: none; }
   .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
   .back { color: var(--muted, #888); text-decoration: none; font-size: 0.95rem; }
+  .header-side { display: flex; gap: 0.5rem; align-items: center; }
+  .icon-btn {
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+    padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
+    font-size: 0.95rem; line-height: 1;
+  }
+  .templates {
+    display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;
+    margin: 0.4rem 0;
+  }
+  .tpl-label { color: var(--muted); font-size: 0.85rem; }
+  .tpl {
+    background: var(--surface); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.25rem 0.7rem; cursor: pointer; font-size: 0.85rem;
+  }
+  .tpl:hover { border-color: #6fc3df; color: #6fc3df; }
+  .tpl:disabled { opacity: 0.4; cursor: not-allowed; }
   @media (max-width: 600px) {
     main { padding: 0.7rem; }
     header h1 { font-size: 1.05rem; }

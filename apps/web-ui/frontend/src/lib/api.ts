@@ -101,6 +101,23 @@ export async function generatePlayerWorld(
   return r.json();
 }
 
+/** Fetch the last narration's TTS audio for replay. Returns a Blob URL
+ * the caller can hand to a `new Audio(url)` or a `<audio>` element.
+ * The browser will cache nothing (server sends Cache-Control:no-store),
+ * so each click costs one TTS call — that's intentional for the text-
+ * mode 🔊 button: silent reading should stay free. */
+export async function fetchReplayUrl(
+  thread_id: string, world_id: string
+): Promise<string> {
+  const r = await fetch(
+    `${BACKEND}/api/sessions/${encodeURIComponent(thread_id)}/replay?world_id=${encodeURIComponent(world_id)}`,
+    { headers: authHeaders() }
+  );
+  if (!r.ok) { on401(r); throw new Error(`replay: ${r.status}`); }
+  const blob = await r.blob();
+  return URL.createObjectURL(blob);
+}
+
 /** Send a player-introduced world fact ("Vermerken: …") via REST.
  * The text gets classified + indexed in the per-world JSONL + RAG. */
 export async function sessionNote(

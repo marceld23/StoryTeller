@@ -153,13 +153,24 @@ If the daily cost cap is reached mid-turn, the CLI prints a clear "Tagesbudget e
 
 The browser-based player UI mirrors the same features as voice and CLI:
 
-* **World picker** (text mode at `/`, voice mode at `/voice`). Saved sessions auto-resume. A link to **"Neue Welt erstellen"** opens `/create`, where a free-form prompt produces a new world (1–3 min synchronous request, browser shows a counting spinner). On success the new world is auto-selected in the picker.
+* **World picker** (text mode at `/`, voice mode at `/voice`). Worlds appear as **cards** (genre, your role, snippet) rather than a flat dropdown; the last world you played is highlighted with a ▶ Fortsetzen badge so resuming is one tap. A link to **"Neue Welt erstellen"** opens `/create`, where three vibe templates (Fantasy / Sci-Fi / Krimi) seed the prompt — pick one and adapt, or write from scratch. The page produces a new world (1–3 min synchronous request) and auto-selects it in the picker on success.
+* **Session header** — once a story is running the header shows **the world name and genre** (not the internal `thread_id`). The 🌙 / ☀️ theme toggle and (voice mode) the 🔊 / 🔇 wait-sound toggle sit in the same header so they're out of the thumb zone.
 * **In-game actions** (both text + voice pages):
   * **"+ Notiz"** — opens a small textarea; the input is sent over WS as `{type: 'note', text}` and the backend wraps `create_user_note` (Vermerken-equivalent).
-  * **"Geschichte beenden"** — sends `{type: 'end_story'}`; the server closes the engine, the client drops back to the world picker. State is auto-saved as usual.
-  * **Voice page only**: saying *"Wiederhole"* / *"Repeat"* / *"Sag das nochmal"* re-plays the last narration via TTS — no LLM call, no story turn. Same matching as on the Pi (short ≤3-token phrase).
-* **Daily cost cap pause** — when the server raises `DailyCapExceeded`, the WS sends `{type: 'daily_cap_exceeded', message, …}`. Both pages show a red banner with a "Zurück zur Welt-Auswahl" button; player input is disabled until the player navigates back. State on disk is untouched.
-* **Voice page only**: a soft ambient drone (the same `generic_waiting.wav` the Pi uses) loops while the server is thinking, so the player has audible feedback during the LLM wait window. The voice page also surfaces a red mic-warning banner when the browser refuses microphone access — typical reason: the page is loaded over plain `http://<lan-ip>:…` (no secure context). See [docs/SETUP_HTTPS.md](SETUP_HTTPS.md) for a one-shot HTTPS setup that unblocks voice from remote devices.
+  * **"Geschichte beenden"** — now asks for confirmation first (Fehlklick-Schutz), then sends `{type: 'end_story'}`; the server closes the engine, the client drops back to the world picker. State is auto-saved as usual.
+  * Errors are filtered to friendly one-liners ("Der Erzähler ist gerade überlastet…", "Verbindung zum Erzähler verloren…") instead of leaking Python exception reprs to the player.
+* **Text mode** specifics:
+  * The composer textarea stays **enabled while the narrator is generating** — you can pre-type the next move; only the **Senden** button gates on `thinking=false`. Enter sends, Shift+Enter inserts a newline, and a live char-counter shows the configured `web.max_turn_chars` limit (input that overflows is highlighted red).
+  * Each narrator line has an opt-in **🔊 button** (visible on hover / always on mobile) — clicking it fetches a one-shot TTS via `GET /api/sessions/<thread>/replay` and plays it without touching the chat state. Silent reading stays free; the click costs one TTS call.
+  * Autoscroll only kicks in if the player is near the bottom; otherwise a **"neue Antwort ↓" pill** appears so reading earlier text isn't interrupted.
+* **Voice mode** specifics:
+  * The push-to-talk button shows a **live mic-level meter** (five bars) plus the elapsed recording time `0:03`. A subtle hint under the button reminds the player of the **Leertaste** shortcut and the **stille-stoppt-automatisch** behaviour.
+  * **VAD auto-stop** — after the player has spoken for ≥350 ms, ~1.5 s of silence ends the recording automatically (browser-side VAD; the existing tap-to-stop still works).
+  * Saying *"Wiederhole"* / *"Repeat"* / *"Sag das nochmal"* re-plays the last narration via TTS — no LLM call, no story turn. There's also a **🔁 Sag das nochmal** button below the chat when no audio is playing, which calls the same `/replay` endpoint.
+  * During narrator playback two distinct controls are exposed: **⏸ Pause** (purely local — resumes the same audio) and **✋ Unterbrechen** (local pause + sends `{type: 'interrupt'}` to the server).
+  * Defensive WS handling: the binary frame is checked for `ArrayBuffer | Blob` instead of blindly wrapping `ev.data`, so a stray non-binary payload no longer crashes the audio path.
+* **Daily cost cap pause** — when the server raises `DailyCapExceeded`, the WS sends `{type: 'daily_cap_exceeded', usd_today, cap_usd, message}`. Both pages show a red banner including the **current/cap USD** and a hint that the day resets at **midnight UTC** (or an admin can reset earlier). State on disk is untouched.
+* **Wait-sound** — the voice page loops a soft ambient drone (same `generic_waiting.wav` the Pi uses) while the server is thinking. The 🔊 / 🔇 header toggle disables it and the preference persists in `localStorage` (`st-wait-sound`). The voice page also surfaces a red mic-warning banner when the browser refuses microphone access — typical reason: the page is loaded over plain `http://<lan-ip>:…` (no secure context). See [docs/SETUP_HTTPS.md](SETUP_HTTPS.md) for a one-shot HTTPS setup that unblocks voice from remote devices.
 
 ## Talking to the narrator (voice loop)
 

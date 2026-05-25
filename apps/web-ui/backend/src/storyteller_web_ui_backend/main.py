@@ -247,6 +247,30 @@ def wait_sound():
     return FileResponse(str(p), media_type="audio/wav")
 
 
+@app.get("/api/sessions/{thread_id}/replay")
+def session_replay(thread_id: str, world_id: str = Query(...)):
+    """Synthesize the last narration as WAV.
+
+    Two callers:
+      * text-mode "🔊 anhören" button on a narration line — opt-in
+        TTS without leaving the text UI;
+      * voice-mode "Sag das nochmal" replay control.
+
+    Returns 404 if the session has no narration yet (fresh thread).
+    Cost: one TTS call per click — text-mode replay is opt-in to keep
+    silent reading free.
+    """
+    from fastapi.responses import Response
+    cfg = _cfg()
+    engine = _make_engine(world_id, thread_id)
+    text = engine.last_narration()
+    if not text or not text.strip():
+        raise HTTPException(404, "no narration to replay")
+    wav = _synthesize_wav(cfg, text)
+    return Response(content=wav, media_type="audio/wav",
+                    headers={"Cache-Control": "no-store"})
+
+
 # --------------------------------------------------------------------------
 # REST: player-side world generation (text-input parallel to the Pi voice-
 # mode interview). Synchronous: the request blocks 1–3 minutes while the

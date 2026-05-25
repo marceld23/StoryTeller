@@ -1,8 +1,8 @@
 <script lang="ts">
   import '../app.css';
+  import '$lib/ui.css';
   import { onMount } from 'svelte';
 
-  let theme = $state('dark');
   let { children } = $props();
   let storyteller_available = $state(true);
 
@@ -19,17 +19,10 @@
   }
 
   onMount(() => {
-    theme = document.documentElement.dataset.theme || 'dark';
     refreshHealth();
     const id = setInterval(refreshHealth, 30000);
     return () => clearInterval(id);
   });
-
-  function toggle() {
-    theme = theme === 'light' ? 'dark' : 'light';
-    document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem('st-theme', theme); } catch { /* ignore */ }
-  }
 </script>
 
 {#if !storyteller_available}
@@ -40,11 +33,6 @@
 {/if}
 
 {@render children()}
-
-<button class="theme-toggle" onclick={toggle}
-        title="Hell/Dunkel umschalten" aria-label="Theme umschalten">
-  {theme === 'light' ? '🌙' : '☀️'}
-</button>
 
 <style>
   .storyteller-unavailable {

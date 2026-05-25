@@ -1,61 +1,120 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { listWorlds, createSession, openPlaySocket, type WorldSummary } from '$lib/api';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import {
+    listWorlds, createSession, openPlaySocket, fetchReplayUrl,
+    type WorldSummary,
+  } from '$lib/api';
+  import { theme } from '$lib/theme';
+  import WorldCard from '$lib/components/WorldCard.svelte';
+  import ChatLine from '$lib/components/ChatLine.svelte';
 
-  type ChatLine = { who: 'narrator' | 'player' | 'system'; text: string };
+  type ChatItem = {
+    who: 'narrator' | 'player' | 'system';
+    text: string;
+    audioUrl?: string;        // cached replay-WAV blob URL
+    replaying?: boolean;
+  };
 
   let worlds: WorldSummary[] = $state([]);
   let chosenWorld: string = $state('');
   let threadId: string = $state('');
-  let lines: ChatLine[] = $state([]);
+  let lines: ChatItem[] = $state([]);
   let input: string = $state('');
   let thinking: boolean = $state(false);
   let connected: boolean = $state(false);
   let status: 'idle' | 'connected' | 'reconnecting' | 'closed' = $state('idle');
   let error: string = $state('');
-  let starting: boolean = $state(false);   // true while createSession is in flight
+  let starting: boolean = $state(false);
   let startingElapsed: number = $state(0);
   let startingTick: number | undefined = undefined;
-  let capPaused: boolean = $state(false);  // daily cost cap reached
+  let capPaused: boolean = $state(false);
+  let capInfo: { usd_today?: number; cap_usd?: number } = $state({});
   let noteInput: string = $state('');
   let showNote: boolean = $state(false);
+  let confirmEnd: boolean = $state(false);
   let ws: WebSocket | null = null;
-  let closing = false;          // user navigated away -> don't reconnect
-  let attempts = 0;             // reconnect backoff counter
+  let closing = false;
+  let attempts = 0;
 
-  // A previously-started session for the chosen world (resume offer).
-  let resumable = $derived(chosenWorld ? savedThread(chosenWorld) : null);
+  // Server-side char limit; fetched from /api/health so the counter
+  // matches whatever the operator set (web.max_turn_chars).
+  let maxTurnChars = $state(2000);
+
+  // Autoscroll bookkeeping — only autoscroll when the player is already
+  // near the bottom. Otherwise show a "neue Nachricht ↓"-Pill.
+  let chatEl: HTMLElement | undefined = $state();
+  let stickToBottom = $state(true);
+  let hasUnread = $state(false);
+
+  let chosenWorldObj = $derived(worlds.find((w) => w.id === chosenWorld));
+  let lastPlayedId = $state<string>('');
 
   function savedThread(world: string): string | null {
     try { return localStorage.getItem('st-thread-' + world); } catch { return null; }
   }
   function rememberThread(world: string, thread: string) {
-    try { localStorage.setItem('st-thread-' + world, thread); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('st-thread-' + world, thread);
+      localStorage.setItem('st-last-played', world);
+    } catch { /* ignore */ }
   }
+  let resumable = $derived(chosenWorld ? savedThread(chosenWorld) : null);
 
   onMount(async () => {
     try {
       worlds = await listWorlds();
-      // Auto-select: a freshly-generated world (set in /create) wins,
-      // otherwise pre-select if there's only one world to pick from.
       let last: string | null = null;
       try { last = localStorage.getItem('st-last-world'); } catch { /* ignore */ }
+      let lp: string | null = null;
+      try { lp = localStorage.getItem('st-last-played'); } catch { /* ignore */ }
+      lastPlayedId = lp || '';
       if (last && worlds.some((w) => w.id === last)) {
         chosenWorld = last;
         try { localStorage.removeItem('st-last-world'); } catch { /* ignore */ }
+      } else if (lp && worlds.some((w) => w.id === lp)) {
+        chosenWorld = lp;
       } else if (worlds.length === 1) {
         chosenWorld = worlds[0].id;
       }
     } catch (e) {
-      error = String(e);
+      error = friendlyError(e);
     }
+    try {
+      const r = await fetch('/api/health');
+      if (r.ok) {
+        const j = await r.json();
+        if (typeof j?.limits?.max_turn_chars === 'number')
+          maxTurnChars = j.limits.max_turn_chars;
+      }
+    } catch { /* keep fallback */ }
   });
 
   onDestroy(() => {
     closing = true;
     ws?.close();
+    for (const l of lines) if (l.audioUrl) URL.revokeObjectURL(l.audioUrl);
   });
 
+  // --- error formatting ---------------------------------------------------
+  // The backend may forward Python exception reprs ("OpenAIError(...)",
+  // "ConnectionRefused 502"). The player has no use for those — strip
+  // anything that looks like a stack/repr and show a one-liner instead.
+  function friendlyError(e: unknown): string {
+    const raw = e instanceof Error ? e.message : String(e);
+    if (/(401|403|auth)/i.test(raw)) return 'Zugriff verweigert.';
+    if (/(429|rate.?limit)/i.test(raw))
+      return 'Der Erzähler ist gerade überlastet. Bitte gleich nochmal versuchen.';
+    if (/(timeout|timed out)/i.test(raw))
+      return 'Der Erzähler antwortet gerade nicht. Bitte erneut versuchen.';
+    if (/connect/i.test(raw))
+      return 'Verbindung zum Erzähler verloren.';
+    // Hide raw Python reprs from the player.
+    if (raw.includes('Error(') || raw.length > 140)
+      return 'Es gab eine Störung. Bitte erneut versuchen.';
+    return raw;
+  }
+
+  // --- WS -----------------------------------------------------------------
   function connect() {
     ws = openPlaySocket(threadId, chosenWorld);
     ws.onopen = () => { connected = true; status = 'connected'; attempts = 0; };
@@ -76,17 +135,17 @@
           thinking = true;
         } else if (msg.type === 'narration') {
           thinking = false;
-          // Skip the narration echoed on (re)connect if we already have it.
           const last = lines[lines.length - 1];
           if (!(last && last.who === 'narrator' && last.text === msg.text)) {
-            lines.push({ who: 'narrator', text: msg.text });
+            pushLine({ who: 'narrator', text: msg.text });
           }
         } else if (msg.type === 'daily_cap_exceeded') {
           thinking = false;
           capPaused = true;
-          lines.push({ who: 'system', text: msg.message });
+          capInfo = { usd_today: msg.usd_today, cap_usd: msg.cap_usd };
+          pushLine({ who: 'system', text: msg.message });
         } else if (msg.type === 'note_saved') {
-          lines.push({
+          pushLine({
             who: 'system',
             text: `Vermerk gespeichert: ${msg.name} (${msg.kind})`
           });
@@ -99,13 +158,46 @@
           lines = [];
         } else if (msg.type === 'error') {
           thinking = false;
-          error = msg.message;
-          lines.push({ who: 'system', text: `Fehler: ${msg.message}` });
+          error = friendlyError(msg.message);
+          // No second copy in the chat — one error indicator is enough.
         }
       } catch {
         console.error('bad ws message', ev.data);
       }
     };
+  }
+
+  function pushLine(l: ChatItem) {
+    lines.push(l);
+    queueScroll();
+  }
+
+  function queueScroll() {
+    // After Svelte renders the new line, either scroll to bottom (player
+    // was at bottom = engaged), or set the "new message" flag.
+    tick().then(() => {
+      if (!chatEl) return;
+      if (stickToBottom) {
+        chatEl.scrollTop = chatEl.scrollHeight;
+        hasUnread = false;
+      } else {
+        hasUnread = true;
+      }
+    });
+  }
+
+  function onChatScroll() {
+    if (!chatEl) return;
+    const dist = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight;
+    stickToBottom = dist < 80;
+    if (stickToBottom) hasUnread = false;
+  }
+
+  function scrollToBottom() {
+    if (!chatEl) return;
+    chatEl.scrollTop = chatEl.scrollHeight;
+    stickToBottom = true;
+    hasUnread = false;
   }
 
   function sendNote() {
@@ -116,17 +208,17 @@
     showNote = false;
   }
 
-  function endStory() {
+  function endStoryRequested() { confirmEnd = true; }
+  function endStoryCancel()    { confirmEnd = false; }
+  function endStoryConfirm() {
+    confirmEnd = false;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // Connection already down — just drop client state.
       closing = true;
       threadId = '';
       lines = [];
       return;
     }
     ws.send(JSON.stringify({ type: 'end_story' }));
-    // The server replies with {type: 'story_ended'} which the handler
-    // above picks up; if that never comes, give it ~1 s and bail out.
     setTimeout(() => {
       if (threadId) {
         closing = true; ws?.close(); ws = null; threadId = ''; lines = [];
@@ -141,26 +233,23 @@
   async function startSession(resume: boolean) {
     if (!chosenWorld || starting) return;
     error = ''; lines = []; thinking = false; closing = false; attempts = 0;
-    capPaused = false;
-    // The /api/sessions POST runs engine.opening() server-side, which is
-    // a real LLM call (10–60 s for a fresh world). Show a loading state
-    // with a counter so the player doesn't think nothing happened.
+    capPaused = false; capInfo = {};
     starting = true;
     startingElapsed = 0;
     startingTick = window.setInterval(() => (startingElapsed += 1), 1000);
     try {
       if (resume && savedThread(chosenWorld)) {
-        // Resume: reuse the thread; the server replays the last narration.
         threadId = savedThread(chosenWorld) as string;
       } else {
         const sess = await createSession(chosenWorld);
         threadId = sess.thread_id;
-        lines.push({ who: 'narrator', text: sess.opening });
+        pushLine({ who: 'narrator', text: sess.opening });
       }
       rememberThread(chosenWorld, threadId);
+      stickToBottom = true;
       connect();
     } catch (e) {
-      error = String(e);
+      error = friendlyError(e);
     } finally {
       starting = false;
       if (startingTick !== undefined) {
@@ -170,38 +259,82 @@
     }
   }
 
+  // Player input: Enter sends (Shift+Enter = newline). Eingabe bleibt
+  // während `thinking` aktiv — der Spieler kann seinen nächsten Schritt
+  // schon tippen während die aktuelle Antwort generiert wird; nur der
+  // Senden-Knopf bleibt gated.
+  let inputOverflow = $derived(input.length > maxTurnChars);
   function send() {
     const text = input.trim();
-    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-    lines.push({ who: 'player', text });
+    if (!text || thinking || inputOverflow || !ws
+        || ws.readyState !== WebSocket.OPEN) return;
+    pushLine({ who: 'player', text });
     input = '';
     ws.send(JSON.stringify({ type: 'turn', text }));
     thinking = true;
   }
-
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
     }
   }
+
+  // ---- on-demand TTS for a single narrator line ("🔊 anhören") ---------
+  let activeAudio: HTMLAudioElement | null = null;
+  async function playLine(idx: number) {
+    const line = lines[idx];
+    if (!line || line.who !== 'narrator') return;
+    // Stop anything currently playing — at most one line plays at a time.
+    if (activeAudio) {
+      try { activeAudio.pause(); } catch { /* ignore */ }
+      activeAudio = null;
+    }
+    // Mark this line as loading. Subsequent clicks reuse the cached URL.
+    if (!line.audioUrl) {
+      line.replaying = true;
+      try {
+        line.audioUrl = await fetchReplayUrl(threadId, chosenWorld);
+      } catch (e) {
+        error = friendlyError(e);
+        line.replaying = false;
+        return;
+      }
+    }
+    activeAudio = new Audio(line.audioUrl);
+    activeAudio.onended = () => { if (line) line.replaying = false; };
+    activeAudio.onpause  = () => { if (line) line.replaying = false; };
+    line.replaying = true;
+    activeAudio.play().catch(() => { line.replaying = false; });
+  }
 </script>
 
-<main>
-  <header>
+<main class="app-main">
+  <header class="app-header">
     <a class="brand" href="/" title="StoryTeller">
       <img src="/favicon.png" alt="" />
       <h1>StoryTeller</h1>
     </a>
-    {#if threadId}
-      <small>session: <code>{threadId}</code></small>
-    {:else}
-      <a class="mode-link" href="/voice">🎤 Sprachmodus</a>
-    {/if}
+    <div class="header-actions">
+      {#if threadId && chosenWorldObj}
+        <span class="session-label">
+          <strong>{chosenWorldObj.name}</strong>
+          <span class="hint small">· {chosenWorldObj.genre}</span>
+        </span>
+      {:else}
+        <a class="mode-link" href="/voice">🎤 Sprachmodus</a>
+      {/if}
+      <button class="icon-btn" onclick={() => theme.toggle()}
+              title="Hell/Dunkel umschalten" aria-label="Theme">
+        {theme.value === 'light' ? '🌙' : '☀️'}
+      </button>
+    </div>
   </header>
 
   {#if error}
-    <p class="error">{error}</p>
+    <p class="banner warn"><span>⚠ {error}</span>
+      <button class="link" onclick={() => (error = '')}>schließen</button>
+    </p>
   {/if}
 
   {#if !threadId}
@@ -210,24 +343,31 @@
       {#if worlds.length === 0}
         <p>Lade Welten…</p>
       {:else}
-        <select bind:value={chosenWorld}>
-          <option value="">– bitte wählen –</option>
+        <div class="cards">
           {#each worlds as w (w.id)}
-            <option value={w.id}>{w.name} ({w.genre})</option>
+            <WorldCard world={w}
+                       selected={chosenWorld === w.id}
+                       highlighted={lastPlayedId === w.id}
+                       onSelect={(id) => (chosenWorld = id)} />
           {/each}
-        </select>
-        {#if resumable}
-          <button onclick={() => startSession(true)} disabled={starting}>
-            {starting ? `…lade… (${startingElapsed}s)` : 'Fortsetzen'}
-          </button>
-          <button class="ghost" onclick={() => startSession(false)} disabled={starting}>
-            {starting ? '…' : 'Neu beginnen'}
-          </button>
-        {:else}
-          <button onclick={() => startSession(false)} disabled={!chosenWorld || starting}>
-            {starting ? `…lade Geschichte… (${startingElapsed}s)` : 'Geschichte beginnen'}
-          </button>
-        {/if}
+        </div>
+        <div class="pick-actions">
+          {#if resumable}
+            <button class="primary" onclick={() => startSession(true)}
+                    disabled={!chosenWorld || starting}>
+              {starting ? `…lade… (${startingElapsed}s)` : '▶ Fortsetzen'}
+            </button>
+            <button class="ghost" onclick={() => startSession(false)}
+                    disabled={!chosenWorld || starting}>
+              Neu beginnen
+            </button>
+          {:else}
+            <button class="primary" onclick={() => startSession(false)}
+                    disabled={!chosenWorld || starting}>
+              {starting ? `…lade Geschichte… (${startingElapsed}s)` : 'Geschichte beginnen'}
+            </button>
+          {/if}
+        </div>
         {#if starting}
           <div class="loading">
             <span class="spinner"></span>
@@ -250,20 +390,35 @@
     {/if}
     {#if capPaused}
       <p class="banner cap">
-        ⛔ Tagesbudget erreicht. Spielstand ist gespeichert.
-        <button class="link" onclick={endStory}>Zurück zur Welt-Auswahl</button>
+        <span>⛔ Tagesbudget erreicht
+          {#if capInfo.usd_today != null && capInfo.cap_usd != null}
+            ({capInfo.usd_today.toFixed(2)} / {capInfo.cap_usd.toFixed(2)} USD)
+          {/if}. Spielstand ist gespeichert; der Tag setzt sich um Mitternacht
+          (UTC) zurück, ein Erwachsener kann es auch früher freischalten.
+        </span>
+        <button class="link" onclick={endStoryRequested}>Zur Welt-Auswahl</button>
       </p>
     {/if}
-    <section class="chat">
+    <section class="chat" bind:this={chatEl} onscroll={onChatScroll}>
       {#each lines as line, i (i)}
-        <div class={'line ' + line.who}>{line.text}</div>
+        <ChatLine who={line.who} text={line.text}
+                  onReplay={line.who === 'narrator' && i === lines.length - 1
+                            ? () => playLine(i) : null}
+                  replaying={!!line.replaying} />
       {/each}
       {#if thinking}
-        <div class="line system">
-          <span class="spinner spinner-inline"></span> …erzählt nach…
+        <div class="line system thinking">
+          <span class="spinner spinner-inline"></span>
+          <span>der Erzähler überlegt…</span>
         </div>
       {/if}
     </section>
+
+    {#if hasUnread}
+      <button class="new-pill" onclick={scrollToBottom}>
+        neue Antwort ↓
+      </button>
+    {/if}
 
     {#if showNote}
       <section class="note-box">
@@ -283,137 +438,136 @@
       </section>
     {/if}
 
-    <footer>
+    {#if confirmEnd}
+      <section class="confirm-box">
+        <span>Geschichte beenden? Spielstand bleibt erhalten — du kannst
+              jederzeit fortsetzen.</span>
+        <div class="row">
+          <button class="danger" onclick={endStoryConfirm}>Ja, beenden</button>
+          <button class="ghost" onclick={endStoryCancel}>Abbrechen</button>
+        </div>
+      </section>
+    {/if}
+
+    <footer class="composer">
       <textarea
         bind:value={input}
         onkeydown={onKey}
-        placeholder="Was tust du?"
-        disabled={!connected || thinking || capPaused}
+        placeholder="Was tust du? (Enter zum Senden, Shift+Enter für neue Zeile)"
+        disabled={!connected || capPaused}
         rows="2"
       ></textarea>
-      <button onclick={send} disabled={!connected || thinking || !input.trim() || capPaused}>
-        Senden
-      </button>
+      <div class="composer-side">
+        <div class="char-counter" class:over={inputOverflow}
+             title="Zeichen-Limit pro Zug">
+          {input.length}/{maxTurnChars}
+        </div>
+        <button class="primary send" onclick={send}
+                disabled={!connected || thinking || !input.trim()
+                          || inputOverflow || capPaused}>
+          {thinking ? '…' : 'Senden'}
+        </button>
+      </div>
     </footer>
     <div class="side-actions">
       <button class="ghost" onclick={() => { showNote = !showNote; }}>
         {showNote ? 'Notiz schließen' : '+ Notiz'}
       </button>
-      <button class="ghost" onclick={endStory}>Geschichte beenden</button>
+      <button class="ghost" onclick={endStoryRequested}>Geschichte beenden</button>
     </div>
   {/if}
 </main>
 
 <style>
-  main {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    min-height: 100dvh;          /* mobile-safari address-bar safe */
-    box-sizing: border-box;
+  .picker { padding: 1.4rem 0; }
+  .picker h2 { margin: 0 0 0.7rem; font-size: 1.2rem; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 1rem;
   }
-  .brand {
-    display: flex; align-items: center; gap: 0.5rem;
-    text-decoration: none; color: inherit;
+  .pick-actions {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;
   }
-  .brand img { width: 32px; height: 32px; border-radius: 4px; display: block; }
-  .mode-link { color: var(--muted); text-decoration: none; font-size: 0.95rem; }
-  .banner {
-    background: var(--surface-2); color: var(--fg);
-    border-left: 3px solid #e0a85a; padding: 0.4rem 0.7rem; border-radius: 4px;
+  .pick-actions .primary {
+    padding: 0.55rem 1.1rem; background: #6fc3df; color: #10131a;
+    border: none; border-radius: 4px; cursor: pointer; font-weight: 600;
   }
-  .banner.cap { border-left-color: #c25450; }
-  .hint { color: var(--muted); font-size: 0.9rem; }
-  .hint.small { font-size: 0.85rem; }
-  .loading {
-    display: flex; align-items: center; gap: 0.55rem;
-    background: var(--surface);
-    border-left: 3px solid #6fc3df;
-    padding: 0.55rem 0.8rem; border-radius: 4px;
-    margin: 0.7rem 0; color: var(--fg); font-size: 0.95rem;
+  .pick-actions .primary:disabled {
+    background: var(--border); color: var(--muted); cursor: not-allowed;
   }
-  .loading strong { color: #6fc3df; }
-  .spinner {
-    display: inline-block; width: 14px; height: 14px;
-    border: 2px solid rgba(127,127,127,0.18);
-    border-top-color: #6fc3df; border-radius: 50%;
-    animation: spin 0.9s linear infinite; flex: 0 0 auto;
-  }
-  .spinner.spinner-inline {
-    width: 10px; height: 10px; border-width: 2px;
-    vertical-align: middle; margin-right: 0.3rem;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .note-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 4px; padding: 0.6rem; margin-top: 0.6rem;
-  }
-  .note-box .lbl { display: block; font-size: 0.85rem;
-                    color: var(--muted); margin-bottom: 0.2rem; }
-  .note-box textarea {
-    width: 100%; box-sizing: border-box; padding: 0.4rem;
-    background: var(--input-bg); color: var(--fg);
-    border: 1px solid var(--border); border-radius: 3px;
-    font-family: inherit; font-size: 0.95rem; resize: vertical;
-  }
-  .note-box .row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
-  .side-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem;
-                   justify-content: flex-end; }
-  .side-actions .ghost {
-    padding: 0.3rem 0.8rem; font-size: 0.85rem;
-  }
-  .ghost { background: transparent; border: 1px solid var(--border); color: var(--fg); }
-  .link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0; text-decoration: underline; }
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.5rem;
-  }
-  h1 { margin: 0; font-size: 1.4rem; color: #6fc3df; }
-  small { color: var(--muted); }
-  .picker { padding: 2rem 0; }
-  .picker select { padding: 0.4rem; margin-right: 0.5rem; }
-  .picker button {
-    padding: 0.4rem 1rem; background: #6fc3df; color: #10131a;
-    border: none; border-radius: 3px; cursor: pointer;
+  .pick-actions .ghost {
+    padding: 0.55rem 1rem; background: transparent;
+    border: 1px solid var(--border); color: var(--fg); border-radius: 4px;
+    cursor: pointer;
   }
   .chat {
     flex: 1; overflow-y: auto; padding: 1rem 0;
-    display: flex; flex-direction: column; gap: 0.75rem;
+    display: flex; flex-direction: column; gap: 0.65rem;
+    scroll-behavior: smooth;
   }
-  .line { padding: 0.6rem 0.9rem; border-radius: 6px; max-width: 90%; white-space: pre-wrap; }
-  .line.narrator { background: var(--surface); align-self: flex-start; border-left: 3px solid #6fc3df; }
-  .line.player { background: var(--surface-2); align-self: flex-end; border-right: 3px solid #b4d273; }
-  .line.system { background: transparent; align-self: center; color: var(--muted); font-style: italic; font-size: 0.85rem; }
-  footer { display: flex; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
-  footer textarea {
+  .line.system.thinking {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: transparent; align-self: center;
+    color: var(--muted); font-style: italic; font-size: 0.9rem;
+  }
+  .new-pill {
+    position: sticky; bottom: 4.5rem; align-self: center;
+    background: #6fc3df; color: #10131a; border: none;
+    border-radius: 999px; padding: 0.3rem 0.85rem; cursor: pointer;
+    font-weight: 600; font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .composer {
+    display: flex; gap: 0.5rem; padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    align-items: flex-end;
+  }
+  .composer textarea {
     flex: 1; padding: 0.5rem; background: var(--input-bg); color: var(--fg);
-    border: 1px solid var(--border); border-radius: 3px; resize: vertical;
-    font-family: inherit; font-size: 1rem;
+    border: 1px solid var(--border); border-radius: 4px; resize: vertical;
+    font-family: inherit; font-size: 1rem; min-height: 2.6em;
   }
-  footer button {
-    padding: 0 1.2rem; background: #b4d273; color: #10131a;
-    border: none; border-radius: 3px; cursor: pointer; font-weight: 600;
+  .composer-side {
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 0.25rem; min-width: 5.5rem;
   }
-  footer button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
-  .error { color: #e07a7a; }
+  .char-counter {
+    font-size: 0.74rem; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .char-counter.over { color: #c25450; font-weight: 600; }
+  .send {
+    padding: 0.45rem 1rem; background: #b4d273; color: #10131a;
+    border: none; border-radius: 4px; cursor: pointer; font-weight: 600;
+  }
+  .send:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .confirm-box {
+    background: rgba(220, 50, 50, 0.10);
+    border-left: 3px solid #c25450;
+    padding: 0.55rem 0.8rem; border-radius: 4px;
+    margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;
+    font-size: 0.92rem;
+  }
+  .confirm-box .row { display: flex; gap: 0.4rem; }
+  .confirm-box .danger {
+    background: #c25450; color: #fff; border: none;
+    padding: 0.35rem 0.85rem; border-radius: 3px; cursor: pointer;
+  }
+  .confirm-box .ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--fg); padding: 0.35rem 0.85rem; border-radius: 3px;
+    cursor: pointer;
+  }
   @media (max-width: 600px) {
-    main { padding: 0.7rem; }
-    h1 { font-size: 1.15rem; }
-    .brand img { width: 28px; height: 28px; }
-    .picker { padding: 1rem 0; }
-    .picker select { width: 100%; margin-right: 0; }
-    .picker button { width: 100%; margin-top: 0.4rem; }
-    .line { max-width: 95%; padding: 0.5rem 0.7rem; font-size: 0.96rem; }
-    footer { flex-direction: column; gap: 0.4rem; }
-    footer textarea { width: 100%; box-sizing: border-box; font-size: 1rem; }
-    footer button { width: 100%; padding: 0.6rem; }
-    .side-actions { justify-content: stretch; }
-    .side-actions .ghost { flex: 1; }
+    .cards { grid-template-columns: 1fr; }
+    .composer { flex-direction: column; align-items: stretch; }
+    .composer textarea { width: 100%; box-sizing: border-box; font-size: 1rem; }
+    .composer-side { flex-direction: row; justify-content: space-between;
+                      align-items: center; min-width: 0; }
+    .composer-side .send { flex: 1; padding: 0.7rem; }
+    .pick-actions { flex-direction: column; }
+    .pick-actions .primary, .pick-actions .ghost { width: 100%; }
   }
 </style>
