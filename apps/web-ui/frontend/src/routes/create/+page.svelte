@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { generatePlayerWorld } from '$lib/api';
+  import { generatePlayerWorld, adminUrl } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
 
   let prompt = $state('');
@@ -101,6 +101,11 @@
     </a>
     <div class="header-side">
       <a class="back" href="/">← zurück</a>
+      <a class="icon-btn" href={adminUrl()} target="_blank"
+         rel="noopener noreferrer"
+         title="Admin-Oberfläche (neuer Tab)" aria-label="Admin">
+        ⚙
+      </a>
       <button class="icon-btn" onclick={() => theme.toggle()}
               title="Hell/Dunkel umschalten" aria-label="Theme">
         {theme.value === 'light' ? '🌙' : '☀️'}
@@ -177,8 +182,10 @@
   .icon-btn {
     background: transparent; color: var(--fg); border: 1px solid var(--border);
     padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
-    font-size: 0.95rem; line-height: 1;
+    font-size: 0.95rem; line-height: 1; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
   }
+  .icon-btn:hover { background: var(--surface); }
   .templates {
     display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;
     margin: 0.4rem 0;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import {
-    listWorlds, createSession, openPlaySocket, fetchReplayUrl,
+    listWorlds, createSession, openPlaySocket, fetchReplayUrl, adminUrl,
     type WorldSummary,
   } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
@@ -323,6 +323,13 @@
         </span>
       {:else}
         <a class="mode-link" href="/voice">🎤 Sprachmodus</a>
+      {/if}
+      {#if !threadId}
+        <a class="icon-btn" href={adminUrl()} target="_blank"
+           rel="noopener noreferrer"
+           title="Admin-Oberfläche (neuer Tab)" aria-label="Admin">
+          ⚙
+        </a>
       {/if}
       <button class="icon-btn" onclick={() => theme.toggle()}
               title="Hell/Dunkel umschalten" aria-label="Theme">

@@ -34,7 +34,8 @@
 .app-header .icon-btn {
   background: transparent; color: var(--fg); border: 1px solid var(--border);
   padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
-  font-size: 0.95rem; line-height: 1;
+  font-size: 0.95rem; line-height: 1; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .app-header .icon-btn:hover { background: var(--surface); }
 

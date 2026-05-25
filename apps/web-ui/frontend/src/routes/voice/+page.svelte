@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import {
-    listWorlds, createSession, openVoiceSocket, fetchReplayUrl,
+    listWorlds, createSession, openVoiceSocket, fetchReplayUrl, adminUrl,
     type WorldSummary,
   } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
@@ -434,6 +434,13 @@
               aria-label="Hintergrundklang umschalten">
         {waitSoundEnabled ? '🔊' : '🔇'}
       </button>
+      {#if !threadId}
+        <a class="icon-btn" href={adminUrl()} target="_blank"
+           rel="noopener noreferrer"
+           title="Admin-Oberfläche (neuer Tab)" aria-label="Admin">
+          ⚙
+        </a>
+      {/if}
       <button class="icon-btn" onclick={() => theme.toggle()}
               title="Hell/Dunkel umschalten" aria-label="Theme">
         {theme.value === 'light' ? '🌙' : '☀️'}

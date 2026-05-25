@@ -7,6 +7,23 @@ export const BACKEND =
   (import.meta.env.VITE_BACKEND as string | undefined) ??
   (_browser ? window.location.origin : 'http://localhost:8090');
 
+// Sibling admin UI URL. The player web-ui (this app) runs on :8090 directly
+// or behind Caddy at :443; the admin web-ui runs on :8080 directly or :8443
+// behind Caddy. We derive the admin URL from the current `window.location`
+// so the same SPA build works on `localhost:8090`, `story.local`, etc.
+//
+// Returns "" during SSR (no window) — callers gate the link on that.
+export function adminUrl(): string {
+  if (!_browser) return '';
+  const { protocol, hostname, port } = window.location;
+  // HTTPS via Caddy (default 443, or any non-8090 port assumed proxy).
+  if (protocol === 'https:') return `https://${hostname}:8443/`;
+  // Direct HTTP — the player-direct port is 8090; admin-direct is 8080.
+  // Falls back to :8080 for any other plain-HTTP port too.
+  void port;
+  return `http://${hostname}:8080/`;
+}
+
 export type WorldSummary = {
   id: string;
   name: string;
