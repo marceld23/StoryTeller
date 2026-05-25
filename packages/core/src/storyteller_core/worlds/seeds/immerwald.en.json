@@ -1,0 +1,1596 @@
+{
+  "id": "immerwald",
+  "name": "The Everwood Realm",
+  "display_name": "Everwood",
+  "genre": "High Fantasy",
+  "description": "The Everwood Realm is an epic high-fantasy world at the end of a long, weary age. Ancient forests, crumbling kingdoms, half-forgotten powers turning in their sleep. The stars stand differently than they did three generations ago, the elders in the border villages say, and the forest has stopped breathing in the right rhythm.\n\nGeography: at the heart of the known world lies the Everwood — a forest so old and so vast that its borders have never been charted. It is not merely trees and animals; it is a power, a contract partner, an observer. Around it: fractured kingdoms, border keeps in varying decay, villages clustered in valleys. In the north, ice and pacts with beings whose names one does not speak. In the south, warm provinces with cleverer bureaucracy and darker secrets. In the east, the Ashlands, where once a kingdom burned. In the west, the sea no one likes.\n\nPolitics: the kingdoms that once framed the wood have all failed in one way or another. Some broken, some hollowed out, some bound by pact-inheritances to powers that wait patiently. In their place stand captains, mage councils, old families with thin claims, and the rangers — a brotherhood at the border, half scouts, half mediators, half executioners. To act politically in this world is to think in generations, not weeks.\n\nMagic: rare, dangerous, costly. It is not a tool but a contract. Every spell draws on an old pact with the forest, the Otherworld, a stone, a star. And every pact demands a price: memory, time, blood, or the small things that make a life pleasant — your favourite colour, your mother's laugh, the taste of summer rain. Mages are rarely old and never rich.\n\nThe Otherworld lies everywhere and nowhere at once — thin at moonstone places, dense at iron lattices, open at pact stones. It sometimes sends emissaries: faeries, changelings, talking animals, the dead with warm smiles. One negotiates with them as with nobles — with names, gifts, patience, and the constant possibility that something fundamentally foreign will misunderstand your offer.\n\nThreat: the old pacts are crumbling. Some are broken from within, by ambitious mage councils and fanatic royal houses who think they would be better off without the forest. Some shatter from outside, because something that was bound has waited long enough. In the heart of the Everwood something stirs. In the Ashlands a child finds her grandmother again in her sleep, though the woman has been dead for twenty years. In the border villages dogs fall silent, and in the court archives names appear that no one wrote.\n\nHere every story begins with a simple truth: you are a ranger or kin to one, you know the old words, and somewhere between keep and forest a task waits that no one else will take.",
+  "player_role": "Ranger in the service of a threatened borderland",
+  "starting_situation": "You stand at the gate of an old border keep. Behind you, the last familiar world — guards, lamps, the smell of bread. Ahead, the forest, which has been silent for three days. No bird, no insect, only your own breath. A sealed order in your pocket; an iron dagger on your belt; and the knowledge that the old pacts are tearing somewhere out there.",
+  "narration_style": "Epic, vivid, with a saga tone; sensory nature description, menacing undertones. Address the ranger as 'you'. Concrete perceptions before mystical hints.",
+  "voice_sample": "The forest breathes slowly. Dew clings to the spiderwebs like cold glass beads. Something larger than a wolf has cut through the snow in the night — and it has not moved on.",
+  "mood": "Reverent, melancholy, threaded with lurking threat — but with room for quiet beauty.",
+  "ambience": "Moss and wet leaves, scent of resin, distant cracking, dim light through ancient crowns, a silence in which you hear your own heartbeat.",
+  "magic_physics": "Magic draws on old pacts with the forest and the Otherworld. Every spell exacts a price — memory, time, blood. Iron disturbs fae magic; moonstone places thin the border to the Otherworld; old names hold power over what knows them.",
+  "complexity": "rich",
+  "story_patterns": [],
+  "audience": "erwachsene",
+  "tone": {
+    "darkness": 3,
+    "humor": 1,
+    "romance": 2,
+    "action": 3,
+    "horror": 2,
+    "pacing": "medium",
+    "notes": ""
+  },
+  "regions": [
+    {
+      "name": "The Everwood",
+      "description": "At the heart of the realm lies The Everwood, an ancient forest so vast its true borders have never been charted. Its paths shift, its silences listen, and deep within its boughs lie places such as Moonstone Glade and the Pact Grove of the Three Birches, where old bargains are still spoken aloud.",
+      "tags": [
+        "forest",
+        "ancient",
+        "pacts",
+        "shifting-paths",
+        "sacred"
+      ]
+    },
+    {
+      "name": "The Ashlands",
+      "description": "The Ashlands mark the eastern ruin of a kingdom that burned but never truly cooled. Black-frozen fields, warm ash, ancestral dreams, and hollow keeps define the land, where the dead return in sleep and old bloodlines like that of Lord Eldwin Ash still cling to what remains.",
+      "tags": [
+        "burned-kingdom",
+        "eastern",
+        "haunted",
+        "ruins",
+        "cinders"
+      ]
+    },
+    {
+      "name": "The Otherworld",
+      "description": "The Otherworld lies everywhere and nowhere at once, pressing close at moonstone places and recoiling from iron. It is a courtless domain of emissaries, bargains, and beautiful misunderstandings, and legends such as The Glass City Beneath the Lake are said to belong more to it than to mortal geography.",
+      "tags": [
+        "fae",
+        "parallel-realm",
+        "moonstone",
+        "pacts",
+        "unnatural"
+      ]
+    },
+    {
+      "name": "Korr",
+      "description": "Korr is one of the warm southern powers, outwardly ruled by orderly courts, clerks, and polished law, though mage ambition and inherited secrets run beneath its surface. Its crumbling urban underworks shelter places like The Brun Black Market, while old monastic estates such as The Library of Nethrá persist in uneasy decline.",
+      "tags": [
+        "southern",
+        "bureaucracy",
+        "courtly",
+        "mages",
+        "intrigue"
+      ]
+    },
+    {
+      "name": "Grayhold Marches",
+      "description": "The Grayhold Marches are the threatened borderlands between settled valleys and the first true shadow of the wood. Grayhold, Ellenhag village, and the old crossing of The Wayward Stone of Vehl all stand here, watched over by rangers who serve as scouts, judges, and the last thin line before the forest.",
+      "tags": [
+        "borderland",
+        "rangers",
+        "valleys",
+        "keeps",
+        "frontier"
+      ]
+    },
+    {
+      "name": "The Frostbound North",
+      "description": "Beyond the gentler valleys rises the Frostbound North, a land of ice, oath-traditions, and pacts with beings whose names are not spoken openly. Frostkeep endures here under hard discipline, and remote defenses like The Iron Garden of Vorgst show how far northern lords will go to keep the Otherworld at bay.",
+      "tags": [
+        "northern",
+        "ice",
+        "pact-traditions",
+        "fortresses",
+        "iron"
+      ]
+    }
+  ],
+  "places": [
+    {
+      "name": "Grayhold",
+      "description": "Last border bastion before the Everwood; weary garrison, old secrets, a commander's tower untouched by repair for three generations.",
+      "region": "Grayhold Marches",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "start",
+        "fortress"
+      ]
+    },
+    {
+      "name": "The Everwood",
+      "description": "Endless, ancient forest that seems to remember and to watch. The paths shift at night.",
+      "region": "The Everwood",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "wilderness",
+        "mystic"
+      ]
+    },
+    {
+      "name": "Moonstone Glade",
+      "description": "Place of old rites where the border to the Otherworld is thin. Stone circle, knee-high grass, three very old birches.",
+      "region": "The Everwood",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "magic",
+        "danger"
+      ]
+    },
+    {
+      "name": "Ellenhag village",
+      "description": "Last farming village before the wood. Smoked fish, a suspicious innkeeper, bells that have been silent for three days.",
+      "region": "Grayhold Marches",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "civil",
+        "info"
+      ]
+    },
+    {
+      "name": "The Wayward Stone of Vehl",
+      "description": "Pact stone at an old crossing. Supplicants leave bread and coins; some prayers are answered.",
+      "region": "Grayhold Marches",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "magic",
+        "pact"
+      ]
+    },
+    {
+      "name": "The Ashlands",
+      "description": "Burned kingdom on the eastern horizon. Black-frozen fields, village ruins, ashes that stay warm.",
+      "region": "The Ashlands",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "ruin",
+        "tragic"
+      ]
+    },
+    {
+      "name": "The Library of Nethrá",
+      "description": "Half-collapsed monastery library. Monks who no longer pray, books that sometimes turn their own pages.",
+      "region": "Korr",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "knowledge",
+        "mystic"
+      ]
+    },
+    {
+      "name": "Cave of the Forgotten Queen",
+      "description": "Cave behind a waterfall. Inside, a sarcophagus whose lid has not been opened for 200 years.",
+      "region": "",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "danger",
+        "lore"
+      ]
+    },
+    {
+      "name": "The Brun Black Market",
+      "description": "Half-legal market beneath the stairs of a crumbling city. Spell merchants, iron traders, rumours.",
+      "region": "Korr",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "city",
+        "trade"
+      ]
+    },
+    {
+      "name": "Pact Grove of the Three Birches",
+      "description": "Sacred grove deep in the Everwood. Here the rangers invite supplicants who are truly desperate.",
+      "region": "The Everwood",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "magic",
+        "contract"
+      ]
+    },
+    {
+      "name": "The Glass City Beneath the Lake",
+      "description": "Legendary Otherworld city some see on clear nights beneath the surface of a mountain lake. A moonstone place.",
+      "region": "The Otherworld",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "mystic",
+        "otherworld"
+      ]
+    },
+    {
+      "name": "The Iron Garden of Vorgst",
+      "description": "Fortress garden made of iron rods — a magical ward against the Otherworld. Some rods are missing. No one talks about it.",
+      "region": "The Frostbound North",
+      "contains": [],
+      "adjacent": [],
+      "tags": [
+        "fortress",
+        "anti_magic"
+      ]
+    }
+  ],
+  "factions": [
+    {
+      "name": "the rangers",
+      "description": "A weathered border brotherhood based from keeps such as Grayhold, serving as scouts, judges, guides, and executioners where the laws of men blur against the old will of The Everwood.",
+      "goals": "To hold the borderlands together and keep the old pacts from collapsing faster than the realm can endure.",
+      "allies": [
+        "Frostkeep Pact Wardens"
+      ],
+      "enemies": [
+        "Mage Council of Korr",
+        "House Ash"
+      ],
+      "relations": "They bargain with Otherworld emissaries when they must, distrust Korr's cleverness on principle, and are still respected in frightened places like Ellenhag village.",
+      "tags": [
+        "rangers",
+        "borderlands",
+        "pacts",
+        "Grayhold",
+        "wardens"
+      ]
+    },
+    {
+      "name": "Mage Council of Korr",
+      "description": "The most ambitious of the southern mage councils, an orderly but ruthless body of contract-mages and legalists whose influence runs from court chambers to underworks like The Brun Black Market, with Mage Councillor Vesna of Korr among its rising powers.",
+      "goals": "To bring pact magic, border law, and access to the Everwood under Korrish control before the old order fails completely.",
+      "allies": [
+        "The Embassy of Birch and Glass"
+      ],
+      "enemies": [
+        "the rangers",
+        "House Ash",
+        "Frostkeep Pact Wardens"
+      ],
+      "relations": "Publicly the council speaks of stability and lawful stewardship, but many suspect it is testing how much of the forest's price can be shifted onto other people.",
+      "tags": [
+        "Korr",
+        "mages",
+        "bureaucracy",
+        "contracts",
+        "ambition"
+      ]
+    },
+    {
+      "name": "House Ash",
+      "description": "The last scorched remnant of an eastern royal bloodline, clinging to ruined claims in The Ashlands beneath the shadow of Lord Eldwin Ash and the older, more dangerous memory of The Ash King.",
+      "goals": "To restore its burned inheritance in the east by waking or mastering whatever power still smolders beneath the Ashlands.",
+      "allies": [],
+      "enemies": [
+        "the rangers",
+        "Mage Council of Korr",
+        "The Embassy of Birch and Glass"
+      ],
+      "relations": "Some in the house seem to resist The Ash King while others serve him knowingly, making every bargain with them feel like speaking to a family in the middle of possession.",
+      "tags": [
+        "Ashlands",
+        "nobility",
+        "ruin",
+        "bloodline",
+        "Ash King"
+      ]
+    },
+    {
+      "name": "Frostkeep Pact Wardens",
+      "description": "A hard northern order of captains, oath-keepers, and iron-bound sentries centered on Frostkeep and outworks such as The Iron Garden of Vorgst, holding ancient anti-Otherworld disciplines at terrible human cost.",
+      "goals": "To preserve the northern pact-traditions and seal every breach through which the Otherworld might gain lasting purchase in mortal lands.",
+      "allies": [
+        "the rangers"
+      ],
+      "enemies": [
+        "Mage Council of Korr",
+        "The Embassy of Birch and Glass"
+      ],
+      "relations": "Captain Yrkenn of Ice keeps formal courtesy with the rangers, but his order believes most southerners have already forgotten too much to be trusted with sacred wards.",
+      "tags": [
+        "north",
+        "oaths",
+        "iron",
+        "Frostkeep",
+        "wards"
+      ]
+    },
+    {
+      "name": "The Embassy of Birch and Glass",
+      "description": "A shifting fellowship of Otherworld emissaries, name-brokers, dream visitors, and beautiful liars tied to moonstone places, the Birch Messenger, the Singing Wolf, and rumors of The Glass City Beneath the Lake.",
+      "goals": "To renew, revise, or exploit failing pacts so that the terms of contact between worlds favor the Otherworld again.",
+      "allies": [
+        "Mage Council of Korr"
+      ],
+      "enemies": [
+        "Frostkeep Pact Wardens",
+        "House Ash"
+      ],
+      "relations": "They treat the rangers as respectable provincial negotiators, which is flattering right up until one realizes they may be speaking to the bloodline rather than the person.",
+      "tags": [
+        "Otherworld",
+        "emissaries",
+        "moonstone",
+        "bargains",
+        "fae"
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "name": "Captain Eldra Vunn",
+      "role": "Mentor",
+      "description": "Scarred commander of Grayhold. Wears her weapons as casually as others wear their cloaks.",
+      "relations": "Sends rangers down dangerous paths — and writes letters every night to her dead brother.",
+      "faction": "the rangers",
+      "faction_role": "captain",
+      "tags": [
+        "mentor",
+        "keep"
+      ]
+    },
+    {
+      "name": "The Ash King",
+      "role": "Antagonist",
+      "description": "Recurring, half-forgotten power from the heart of the forest. Appears rarely, acts always.",
+      "relations": "Wants to break the old pacts — or renegotiate them, depending on whom you ask.",
+      "faction": "House Ash",
+      "faction_role": "forebear",
+      "tags": [
+        "antagonist",
+        "mystic"
+      ]
+    },
+    {
+      "name": "Mage Councillor Vesna of Korr",
+      "role": "Politics",
+      "description": "Young, cool mage councillor of a southern court. Wears seven rings and a glass-hard ambition.",
+      "relations": "Wants to disenchant the forest so that magic becomes more reliable.",
+      "faction": "Mage Council of Korr",
+      "faction_role": "councillor",
+      "tags": [
+        "politics",
+        "mage"
+      ]
+    },
+    {
+      "name": "Hekka the Healer",
+      "role": "Ally",
+      "description": "Old village healer in Ellenhag. Knows the names of every plant and most of the dead.",
+      "relations": "Helps rangers if they ask respectfully; curses them if they don't.",
+      "faction": "",
+      "faction_role": "",
+      "tags": [
+        "healer",
+        "info"
+      ]
+    },
+    {
+      "name": "The Silent Scout Vorn",
+      "role": "Ranger colleague",
+      "description": "A ranger with a sewn-shut tongue — communicates in gestures and arrow-whistles. Still speaks clearly.",
+      "relations": "Knows the paths of the deep wood; trusts few.",
+      "faction": "the rangers",
+      "faction_role": "scout",
+      "tags": [
+        "colleague",
+        "scout"
+      ]
+    },
+    {
+      "name": "Lord Eldwin Ash",
+      "role": "Antagonist?",
+      "description": "Last heir of a house that burned in the Ashlands. Lives in a ruin he cannot or will not leave.",
+      "relations": "Claims that breaking the pacts is his right.",
+      "faction": "House Ash",
+      "faction_role": "lord",
+      "tags": [
+        "politics",
+        "tragic"
+      ]
+    },
+    {
+      "name": "The Birch Messenger",
+      "role": "Otherworld being",
+      "description": "A fae dressed in birch bark. Smiles too kindly, breathes too slowly.",
+      "relations": "Delivers messages from the Otherworld — for memories.",
+      "faction": "The Embassy of Birch and Glass",
+      "faction_role": "emissary",
+      "tags": [
+        "otherworld",
+        "contact"
+      ]
+    },
+    {
+      "name": "Brother Halen",
+      "role": "Knowledge",
+      "description": "Last scribe of the Nethrá library. Mute for ten years, writes fast.",
+      "relations": "Trades knowledge for books that you rescue.",
+      "faction": "",
+      "faction_role": "",
+      "tags": [
+        "knowledge",
+        "neutral"
+      ]
+    },
+    {
+      "name": "The old twins Krin and Krak",
+      "role": "Contact",
+      "description": "Two iron traders in Brun who don't talk much but know everything.",
+      "relations": "Sell iron goods for stories; rarely for coin.",
+      "faction": "",
+      "faction_role": "",
+      "tags": [
+        "trade",
+        "info"
+      ]
+    },
+    {
+      "name": "The girl Eyla",
+      "role": "Foundling",
+      "description": "A child from the Ashlands. Remembers things that happened before her birth.",
+      "relations": "Looks for someone who takes her memories seriously.",
+      "faction": "",
+      "faction_role": "",
+      "tags": [
+        "foundling",
+        "mystic"
+      ]
+    },
+    {
+      "name": "Captain Yrkenn of Ice",
+      "role": "Politics",
+      "description": "Captain of the northern Frostkeep. Taciturn, religious, fanatically loyal to a pact-tradition almost no one understands anymore.",
+      "relations": "Would die for the pact; kills those who touch it.",
+      "faction": "Frostkeep Pact Wardens",
+      "faction_role": "captain",
+      "tags": [
+        "politics",
+        "antagonist?"
+      ]
+    },
+    {
+      "name": "The Singing Wolf",
+      "role": "Otherworld being",
+      "description": "A wolf who speaks like a human — sometimes gently, sometimes commanding. Plays by old rules.",
+      "relations": "Offers guidance for a name you know.",
+      "faction": "The Embassy of Birch and Glass",
+      "faction_role": "emissary",
+      "tags": [
+        "otherworld",
+        "contact"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "name": "Iron Dagger of Grayhold",
+      "description": "A plain old blade with a scratched grip.",
+      "properties": "Disturbs fae magic; breaks minor wards; burns Otherworld emissaries on touch.",
+      "tags": [
+        "weapon",
+        "anti_magic"
+      ]
+    },
+    {
+      "name": "Moonstone Amulet",
+      "description": "Pale shimmering stone on a thin chain.",
+      "properties": "Reveals nearby Otherworld borders by a cold flicker; also draws gazes from there.",
+      "tags": [
+        "magic",
+        "clue"
+      ]
+    },
+    {
+      "name": "Pact-stone splinter",
+      "description": "Finger-sized splinter of a broken pact stone.",
+      "properties": "Allows a single-use ward against an Otherworld being — then exhausted.",
+      "tags": [
+        "magic",
+        "one-shot"
+      ]
+    },
+    {
+      "name": "Ranger's cloak",
+      "description": "Camouflage-green cloak with birch leaves sewn in.",
+      "properties": "Keeps you overlooked in the Everwood if you stay quiet; loses its effect near iron.",
+      "tags": [
+        "gear",
+        "stealth"
+      ]
+    },
+    {
+      "name": "Bell of Ellenhag",
+      "description": "Small bronze hand-bell from the village.",
+      "properties": "Drives off Otherworld shadows; every ring costs you a minute of life.",
+      "tags": [
+        "magic",
+        "price"
+      ]
+    },
+    {
+      "name": "Birch pipe",
+      "description": "Pipe of white birch bark.",
+      "properties": "Calls the Singing Wolf — at most once a year, otherwise he stops coming.",
+      "tags": [
+        "mystic",
+        "ritual"
+      ]
+    },
+    {
+      "name": "Iron ring of the Brotherhood",
+      "description": "Plain iron ring with a birch engraving.",
+      "properties": "Sign of every ranger; opens doors at border keeps, closes them at royal courts.",
+      "tags": [
+        "sign",
+        "politics"
+      ]
+    },
+    {
+      "name": "Burned letter",
+      "description": "Half-charred letter from the Ashlands.",
+      "properties": "Changes its text when no one is watching. Reads slightly different every time.",
+      "tags": [
+        "mystic",
+        "info"
+      ]
+    },
+    {
+      "name": "Herbal pouch",
+      "description": "Leather pouch with twelve herbs neatly sorted by family.",
+      "properties": "Stops bleeding, clears shock; one herb is missing — no one talks about it.",
+      "tags": [
+        "medicine",
+        "everyday"
+      ]
+    },
+    {
+      "name": "Moondisc of the Three Birches",
+      "description": "Silver, finger-sized disc with etched constellations.",
+      "properties": "Shows its bearer the way to the nearest pact grove — even if she doesn't want it.",
+      "tags": [
+        "magic",
+        "navigation"
+      ]
+    }
+  ],
+  "creatures": [
+    {
+      "name": "The Singing Wolf",
+      "description": "A great wolf with a silver-gray coat and eyes too knowing for any natural beast, The Singing Wolf speaks in a human voice that can sound like a lullaby or a command from a lord's hall. It keeps to old courtesies, bargains for names and promises, and turns merciless when those forms are broken.",
+      "habitat": "The Otherworld",
+      "threat_level": "high",
+      "tags": [
+        "otherworld",
+        "talking animal",
+        "pact-bound",
+        "predator"
+      ]
+    },
+    {
+      "name": "Mossback Stag",
+      "description": "These immense forest stags wear curtains of moss, pale fungi, and old twigs across their antlers, as if the wood itself had grown into them. They stand motionless for hours among the trunks, then move without a sound, often drawing travelers off true paths by making themselves seem just close enough to follow.",
+      "habitat": "The Everwood",
+      "threat_level": "medium",
+      "tags": [
+        "beast",
+        "forest",
+        "illusion-lure",
+        "ancient"
+      ]
+    },
+    {
+      "name": "Ashglass Hounds",
+      "description": "Born from heat, soot, and old ruin, Ashglass Hounds are lean black scavengers with translucent teeth and cracked hides that glow faintly at the joints. They roam in packs through the warm cinders, feeding on carrion by day and stalking sleepers whose dreams burn too brightly by night.",
+      "habitat": "The Ashlands",
+      "threat_level": "high",
+      "tags": [
+        "pack hunter",
+        "ashlands",
+        "unnatural",
+        "dream-scent"
+      ]
+    },
+    {
+      "name": "Bell-Thrushes",
+      "description": "Small brown-gray birds common around old crossings and hedgerows, Bell-Thrushes have hollow chests that make their calls sound uncannily like distant handbells. Rangers watch them closely, because whole flocks often fall silent or take wing in one direction shortly before something from the wood crosses the border.",
+      "habitat": "Grayhold Marches",
+      "threat_level": "low",
+      "tags": [
+        "bird",
+        "omen",
+        "borderland",
+        "mundane"
+      ]
+    },
+    {
+      "name": "Ledger Mites",
+      "description": "These pale, six-legged things look like scraps of folded parchment until they begin to move across shelves in soft papery waves. Found in neglected archives and underworks, they feed on ink, wax, and glue, sometimes leaving behind altered letters that have started rumors, accusations, and worse.",
+      "habitat": "Korr",
+      "threat_level": "medium",
+      "tags": [
+        "vermin",
+        "archive",
+        "ink-eater",
+        "urban"
+      ]
+    },
+    {
+      "name": "Ironvine Crawlers",
+      "description": "Knotted masses of root, frost, and rusted wire, Ironvine Crawlers drag themselves over snow and stone on many hooked limbs, quietly repairing broken wards by instinct—or tearing apart what they judge impure. They gather near old defensive works and react violently to open sorcery or the scent of fae glamour.",
+      "habitat": "The Frostbound North",
+      "threat_level": "medium",
+      "tags": [
+        "construct-like",
+        "ward-beast",
+        "iron",
+        "cold"
+      ]
+    }
+  ],
+  "glossary": [
+    {
+      "term": "The Pacts",
+      "definition": "Ancient treaties between humans, forest and Otherworld that bind the powers."
+    },
+    {
+      "term": "Otherworld",
+      "definition": "Ghostly parallel world behind thin border places; own rules, own nobles."
+    },
+    {
+      "term": "Ranger",
+      "definition": "Border scout of the Brotherhood, mediator between keep, wood and Otherworld."
+    },
+    {
+      "term": "Ash King",
+      "definition": "Sleeping power in the heart of the Everwood; wakes when the pacts break."
+    },
+    {
+      "term": "Pact stone",
+      "definition": "Ritual border stone embodying a specific pact; breaking it dissolves the contract."
+    },
+    {
+      "term": "Moonstone place",
+      "definition": "Spot where the border to the Otherworld is naturally thin; dangerous."
+    },
+    {
+      "term": "Brotherhood (of Rangers)",
+      "definition": "Loose union of all rangers; own honour, own rules, own courts."
+    },
+    {
+      "term": "Mage Council",
+      "definition": "Advisory body at a royal court; often rival of the ranger tradition."
+    },
+    {
+      "term": "Otherworld emissary",
+      "definition": "Being from 'across' that carries a message — faerie, wolf, shadow."
+    },
+    {
+      "term": "Changeling",
+      "definition": "Child replaced by an Otherworld being; rare, hard to detect."
+    },
+    {
+      "term": "Iron ward",
+      "definition": "Iron lattice or ring; prevents crossings from the Otherworld."
+    },
+    {
+      "term": "Pact price",
+      "definition": "What a spell costs: memory, time, blood or a favourite thing."
+    },
+    {
+      "term": "Healer",
+      "definition": "Village-recognized magical practitioner; works with plants, bones, small pacts."
+    },
+    {
+      "term": "Border keep",
+      "definition": "Fortified garrison at a wood or Otherworld border; mostly outdated, often understaffed."
+    },
+    {
+      "term": "The Ashlands",
+      "definition": "Burned kingdom in the east; result of a broken pact three generations ago."
+    },
+    {
+      "term": "Grove",
+      "definition": "Sacred wood place; prayer, pact, or gathering ground."
+    },
+    {
+      "term": "Ward (minor / greater)",
+      "definition": "Magical barrier; minor wards stop individual beings, greater wards entire powers. Brittle over time."
+    },
+    {
+      "term": "Nethrá",
+      "definition": "Half-collapsed monastery library; the only written archive of pact records."
+    },
+    {
+      "term": "Shadow path",
+      "definition": "Path that shortens through the Otherworld; saves time, always costs something."
+    },
+    {
+      "term": "The Silence",
+      "definition": "When the forest falls mute — an omen that something great is waking."
+    }
+  ],
+  "history": [
+    {
+      "when": "in the First Age",
+      "title": "The Great Pact",
+      "description": "Human and forest made peace; the Ash King was bound, the first moonstone places sealed."
+    },
+    {
+      "when": "in the Second Age",
+      "title": "The Seven Kingdoms",
+      "description": "Seven realms rose around the wood; each had its own pact, its own duties."
+    },
+    {
+      "when": "500 years ago",
+      "title": "The Northern Break",
+      "description": "A kingdom broke its pact; winter came and never quite left."
+    },
+    {
+      "when": "200 years ago",
+      "title": "The Sealing of the Ash King",
+      "description": "An alliance of rangers and mage councils sealed the Ash King once more; many died, the sarcophagus stands in a cave."
+    },
+    {
+      "when": "three generations ago",
+      "title": "The Burning of the Ashlands",
+      "description": "A broken pact left a kingdom in ashes; the ground in the east still smoulders."
+    },
+    {
+      "when": "80 years ago",
+      "title": "The Silence of Ellenhag",
+      "description": "An entire village vanished for three days and returned older; no one speaks of it."
+    },
+    {
+      "when": "40 years ago",
+      "title": "Rise of the Mage Councils",
+      "description": "Mage councils gained political influence at the courts; rangers became eccentrics."
+    },
+    {
+      "when": "15 years ago",
+      "title": "The Iron Garden Incident",
+      "description": "In the Iron Garden of Vorgst a third of the rods disappeared overnight; the ward holds nonetheless — barely."
+    },
+    {
+      "when": "5 years ago",
+      "title": "The Return of the Messenger",
+      "description": "An Otherworld messenger reappeared after a hundred-year absence; her message was not made public."
+    },
+    {
+      "when": "one moon-cycle ago",
+      "title": "The silent birds",
+      "description": "In the Everwood all creatures fell silent; the rangers sent scouts who did not return."
+    }
+  ],
+  "fragments": [
+    {
+      "title": "The silenced birds",
+      "text": "In the Everwood every creature has been silent for three days. Even the crows that usually call over the Ashlands are gone. Something old is awake.",
+      "tags": [
+        "hook",
+        "omen"
+      ]
+    },
+    {
+      "title": "The broken pact stone",
+      "text": "A boundary stone of the old treaties has been shattered. The break is not weathered — fresh. Beside it three coins of a mint not struck for two hundred years.",
+      "tags": [
+        "stakes",
+        "hook"
+      ]
+    },
+    {
+      "title": "The sleeper in the sarcophagus",
+      "text": "In the cave of the Forgotten Queen the sarcophagus is sweating. Water drips that is not water. The sealing holds — barely.",
+      "tags": [
+        "mystery",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Letter from a dead uncle",
+      "text": "In the post box at Grayhold lies a letter in the handwriting of a man dead for 20 years. It names your birth name, which no one alive knows.",
+      "tags": [
+        "hook",
+        "otherworld"
+      ]
+    },
+    {
+      "title": "The bells of Ellenhag",
+      "text": "The village bells have been silent for three days. The innkeeper says they were stolen. You see them hanging — they simply make no sound.",
+      "tags": [
+        "mystery",
+        "ambient"
+      ]
+    },
+    {
+      "title": "The child in the ashes",
+      "text": "A child sits on the warm ground of the Ashlands and laughs. It has your face, only younger. It waves.",
+      "tags": [
+        "horror",
+        "otherworld"
+      ]
+    },
+    {
+      "title": "Sealed orders",
+      "text": "Eldra Vunn hands over a sealed letter with the instruction to open it only in the Pact Grove of the Three Birches. The wax seal trembles in your hand.",
+      "tags": [
+        "hook",
+        "politics"
+      ]
+    },
+    {
+      "title": "Tracks that lead in a circle",
+      "text": "In the snow at the wood's edge you find fresh tracks — your size, your step. They go in a circle. You haven't been here yet.",
+      "tags": [
+        "anomaly",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Mage council emissary",
+      "text": "An emissary of councillor Vesna of Korr comes to Grayhold. Polite, but too polite. His horse sweats; the emissary does not.",
+      "tags": [
+        "politics",
+        "intrigue"
+      ]
+    },
+    {
+      "title": "The messenger's request",
+      "text": "The Birch Messenger meets you at the way stone. She asks for three memories — the smallest you have. In exchange: a name the Ash King does not know.",
+      "tags": [
+        "otherworld",
+        "trade"
+      ]
+    },
+    {
+      "title": "Iron Garden gap",
+      "text": "In the Iron Garden of Vorgst a rod is missing. The ward holds — barely. Three guards vanished in the night without a trace.",
+      "tags": [
+        "fortress",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Library whisper",
+      "text": "In the Nethrá library a book turns its own page. Brother Halen hands you paper and pen so you can transcribe.",
+      "tags": [
+        "knowledge",
+        "mystery"
+      ]
+    },
+    {
+      "title": "The singing wolf",
+      "text": "At the wood's edge a wolf sits and hums a tune you know from childhood. He waits until you look at him, then nods.",
+      "tags": [
+        "otherworld",
+        "hook"
+      ]
+    },
+    {
+      "title": "Pact grove silence",
+      "text": "In the Pact Grove of the Three Birches the silence is so total that your own heartbeat sounds loud. One of the birches has a fresh wound in its trunk.",
+      "tags": [
+        "magic",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Ash dust in the bread",
+      "text": "In Ellenhag the bread tastes of ash today. The innkeeper won't take it back; she looks away while you eat.",
+      "tags": [
+        "ambient",
+        "omen"
+      ]
+    },
+    {
+      "title": "Lord Ash invites",
+      "text": "A messenger of Lord Eldwin Ash invites you to his ruin. He says he has answers. He does not say to which questions.",
+      "tags": [
+        "politics",
+        "hook"
+      ]
+    },
+    {
+      "title": "Late-summer frost",
+      "text": "Frost forms at the wood's edge though it is late summer. The healing herb withers before your eyes. Hekka says she has never seen this.",
+      "tags": [
+        "anomaly",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Two-moon night",
+      "text": "Tonight a second moon hangs in the sky, pale and offset. No one in the keep sees it but you and an old soldier who weeps.",
+      "tags": [
+        "otherworld",
+        "mystery"
+      ]
+    },
+    {
+      "title": "The Silent Scout does not stay silent",
+      "text": "Vorn the Silent Scout whistles three notes in the order every ranger knows — retreat, now, no explanation. He does not look back.",
+      "tags": [
+        "scout",
+        "stakes"
+      ]
+    },
+    {
+      "title": "Eyla remembers",
+      "text": "The girl Eyla describes to you a battle that happened a hundred years ago in the Ashlands. In detail. She is nine.",
+      "tags": [
+        "foundling",
+        "mystery"
+      ]
+    }
+  ],
+  "tech_magic": {
+    "kind": "magic",
+    "description": "Magic in the Everwood Realm feels like negotiation with ancient, watchful powers rather than the wielding of a personal force. Every working is a pact enacted through names, offerings, places, and inherited words, and even small miracles carry a sense of trespass. In play, magic is rare, solemn, and intimate: useful when nothing else will do, but never casual and never clean.",
+    "rules": [
+      "No spell can be worked without invoking an existing pact or bargaining with a named power, place, object, or being.",
+      "Old true names grant leverage over beings and forces that recognize them, but speaking a name also invites that thing's attention.",
+      "Moonstone places thin the border to the Otherworld, making visions, crossings, and summons easier and more dangerous.",
+      "Iron disrupts fae and Otherworld magic, breaks glamours, and can bar passage across a threshold if properly set.",
+      "The dead may be contacted, dreamed of, or briefly embodied through a pact, but they cannot be returned whole and unchanged to ordinary life.",
+      "Powerful workings must be anchored to a fitting site such as a pact stone, sacred grove, grave, star-marked night, or forest crossing."
+    ],
+    "cost_or_risk": "Every use of magic exacts a real payment: blood, lost time, erased memory, or the surrender of some small human pleasure or certainty. Repeated pact-work leaves the user diminished and may attract notice from the Everwood, the Otherworld, or whatever was listening when the bargain was made."
+  },
+  "blueprint": {
+    "premise": "A minor obligation at the edge of safety slowly reveals deeper emotional and spiritual weight. The arc begins and ends in the same immediate frame, but the player's understanding of duty changes in between.",
+    "beats": [
+      {
+        "name": "Hook / Inciting Incident",
+        "goal": "A routine task or quiet request acquires unexpected urgency and pulls the player into a contained conflict.",
+        "tension": 2
+      },
+      {
+        "name": "Deepening Commitment / Rising Action",
+        "goal": "What first seemed manageable gains moral complexity, requiring the player to take responsibility rather than merely observe.",
+        "tension": 5
+      },
+      {
+        "name": "Crisis / Climax",
+        "goal": "The player must make one decisive choice between preserving order, honoring obligation, or paying a meaningful personal price.",
+        "tension": 9
+      },
+      {
+        "name": "Return / Resolution",
+        "goal": "The framing situation is revisited so the consequences can be felt in silence, relief, or quiet loss.",
+        "tension": 3
+      }
+    ],
+    "escalation_rule": "Tension should rise by narrowing options and making the personal cost of inaction or intervention increasingly concrete."
+  },
+  "blueprints": [
+    {
+      "name": "Ember Vigil",
+      "description": "Good for a quieter, intimate session after heavier events. A contained duty in a sheltered place becomes a moral test, then returns the player to the starting frame with altered meaning.",
+      "length": "short",
+      "structure": "frame",
+      "twist_kind": "",
+      "trigger_hints": [
+        "intimate tone",
+        "aftermath session",
+        "single-location feel",
+        "costly choice"
+      ],
+      "blueprint": {
+        "premise": "A minor obligation at the edge of safety slowly reveals deeper emotional and spiritual weight. The arc begins and ends in the same immediate frame, but the player's understanding of duty changes in between.",
+        "beats": [
+          {
+            "name": "Hook / Inciting Incident",
+            "goal": "A routine task or quiet request acquires unexpected urgency and pulls the player into a contained conflict.",
+            "tension": 2
+          },
+          {
+            "name": "Deepening Commitment / Rising Action",
+            "goal": "What first seemed manageable gains moral complexity, requiring the player to take responsibility rather than merely observe.",
+            "tension": 5
+          },
+          {
+            "name": "Crisis / Climax",
+            "goal": "The player must make one decisive choice between preserving order, honoring obligation, or paying a meaningful personal price.",
+            "tension": 9
+          },
+          {
+            "name": "Return / Resolution",
+            "goal": "The framing situation is revisited so the consequences can be felt in silence, relief, or quiet loss.",
+            "tension": 3
+          }
+        ],
+        "escalation_rule": "Tension should rise by narrowing options and making the personal cost of inaction or intervention increasingly concrete."
+      }
+    },
+    {
+      "name": "Split Omen",
+      "description": "Good when the player already understands the setting well enough to enjoy divided pressure and cross-cutting suspense. It works especially well for sessions that should widen local trouble into broader implications.",
+      "length": "medium",
+      "structure": "parallel",
+      "twist_kind": "revelation",
+      "trigger_hints": [
+        "player knows local tensions",
+        "investigative mood",
+        "multiple obligations",
+        "wider stakes"
+      ],
+      "blueprint": {
+        "premise": "Two separate signs of trouble unfold at once: one practical and immediate, one strange and difficult to interpret. As both threads advance in parallel, it becomes clear they are symptoms of the same deeper fault.",
+        "beats": [
+          {
+            "name": "Hook / Inciting Incident",
+            "goal": "Two demands arrive close together, forcing divided attention and preventing an easy single-track response.",
+            "tension": 2
+          },
+          {
+            "name": "Parallel Track A / Rising Action",
+            "goal": "The practical thread develops visible stakes, showing what will be lost if the player delays.",
+            "tension": 4
+          },
+          {
+            "name": "Parallel Track B / Rising Action",
+            "goal": "The uncanny thread introduces ambiguity, suggesting older causes and less predictable consequences.",
+            "tension": 5
+          },
+          {
+            "name": "First Convergence / First Turn",
+            "goal": "A clue from one thread overturns an assumption about the other, proving the problems are not independent.",
+            "tension": 7
+          },
+          {
+            "name": "Midpoint / Revelation",
+            "goal": "The hidden connection between both pressures becomes clear, raising the scale of the conflict and clarifying the true danger.",
+            "tension": 8
+          },
+          {
+            "name": "Crisis / Climax",
+            "goal": "The player must address both threads through one risky action under time pressure and incomplete certainty.",
+            "tension": 10
+          },
+          {
+            "name": "Resolution / Fallout",
+            "goal": "The immediate crisis settles, while the revealed underlying fault leaves a lingering implication for future stories.",
+            "tension": 3
+          }
+        ],
+        "escalation_rule": "Alternate between the two pressure lines so that progress in one thread complicates, reframes, or endangers the other."
+      }
+    },
+    {
+      "name": "Pact Spiral",
+      "description": "Good for a mythic, relentless session that should feel deeper and older than ordinary border duty. It suits moments when the player is ready for mounting dread, repeated returns, and a costly ending.",
+      "length": "long",
+      "structure": "spiral",
+      "twist_kind": "sacrifice",
+      "trigger_hints": [
+        "mythic tone",
+        "deep forest mood",
+        "player accepts hard costs",
+        "end-of-chapter feel"
+      ],
+      "blueprint": {
+        "premise": "A disturbance refuses to stay contained and draws the player into repeated attempts at correction. Each apparent solution exposes a deeper layer of obligation, until resolution demands an irreversible price.",
+        "beats": [
+          {
+            "name": "Hook / Inciting Incident",
+            "goal": "A localized irregularity suggests a duty that appears limited, urgent, and solvable.",
+            "tension": 2
+          },
+          {
+            "name": "First Descent / Rising Action",
+            "goal": "Initial action yields a partial answer while hinting that the problem is older or broader than first believed.",
+            "tension": 4
+          },
+          {
+            "name": "Echo / Complication",
+            "goal": "The same pattern returns in altered form, proving that simple remedies will not hold.",
+            "tension": 5
+          },
+          {
+            "name": "Second Turn / Escalation",
+            "goal": "An apparent source of help, order, or authority imposes terms that increase the player's burden.",
+            "tension": 6
+          },
+          {
+            "name": "Midpoint / False Containment",
+            "goal": "The player achieves a temporary stabilization that feels like success and invites hope.",
+            "tension": 7
+          },
+          {
+            "name": "Spiral Return / Reversal",
+            "goal": "The threat re-emerges closer, sharper, or more personal, revealing that the earlier success only postponed the true crisis.",
+            "tension": 8
+          },
+          {
+            "name": "Deepening Crisis / Recognition",
+            "goal": "The player learns that resolution cannot be achieved without surrendering something of lasting value.",
+            "tension": 9
+          },
+          {
+            "name": "Climax / Sacrifice",
+            "goal": "The decisive act succeeds only if the player accepts an irreversible loss, burden, or renunciation.",
+            "tension": 10
+          },
+          {
+            "name": "Quiet Aftermath / Resolution",
+            "goal": "Danger recedes and the new order is measured through absence, cost, and subdued relief.",
+            "tension": 3
+          }
+        ],
+        "escalation_rule": "Each loop should seem to improve the situation briefly, then reopen it at a deeper level with a steeper cost and less room to withdraw."
+      }
+    }
+  ],
+  "random_tables": [
+    {
+      "name": "Forest signs",
+      "description": "What the protagonist perceives while travelling the Everwood.",
+      "entries": [
+        {
+          "weight": 3,
+          "text": "Fresh tracks that lead in a circle."
+        },
+        {
+          "weight": 2,
+          "text": "A shrine with a fresh offering — bread, three coins, a lock of hair."
+        },
+        {
+          "weight": 1,
+          "text": "A voice calls your true name from the thicket."
+        },
+        {
+          "weight": 2,
+          "text": "Twisted birch wood, grown in spirals."
+        },
+        {
+          "weight": 1,
+          "text": "Three dead crows laid out in a precise row."
+        },
+        {
+          "weight": 1,
+          "text": "A clearing that was not here yesterday."
+        },
+        {
+          "weight": 2,
+          "text": "A path that opens ahead of you and closes behind."
+        },
+        {
+          "weight": 1,
+          "text": "A pact stone with fresh scratches."
+        },
+        {
+          "weight": 1,
+          "text": "Frost on a stone, though it is late summer."
+        },
+        {
+          "weight": 1,
+          "text": "A footprint in snow, though no snow lies."
+        },
+        {
+          "weight": 1,
+          "text": "A tree that hums when no one is looking."
+        },
+        {
+          "weight": 2,
+          "text": "Glowing mushrooms in rows like inscriptions."
+        },
+        {
+          "weight": 1,
+          "text": "A footprint three times your size."
+        },
+        {
+          "weight": 1,
+          "text": "A spring that flows backwards — briefly."
+        },
+        {
+          "weight": 1,
+          "text": "An old song in the air, with no singer."
+        },
+        {
+          "weight": 1,
+          "text": "Spider webs spelling out a word."
+        },
+        {
+          "weight": 1,
+          "text": "A crow feather with etched runes."
+        },
+        {
+          "weight": 1,
+          "text": "A creaking silence in which a single bird calls once and stops."
+        },
+        {
+          "weight": 1,
+          "text": "Moon flowers opening at the wrong time of day."
+        },
+        {
+          "weight": 1,
+          "text": "A forgotten travel cloak on a branch — your size."
+        },
+        {
+          "weight": 1,
+          "text": "A stone with your name on it — very old."
+        }
+      ]
+    },
+    {
+      "name": "Encounter on the path",
+      "description": "Whom the protagonist meets along the way.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A family fleeing the forest."
+        },
+        {
+          "weight": 2,
+          "text": "A scout of the Ash King in borrowed shape."
+        },
+        {
+          "weight": 1,
+          "text": "A talking animal with a plea."
+        },
+        {
+          "weight": 2,
+          "text": "A pilgrim to the pact stone at Vehl with three coins."
+        },
+        {
+          "weight": 1,
+          "text": "A wanderer without eyebrows, pointing north."
+        },
+        {
+          "weight": 1,
+          "text": "A distraught peasant embracing a bell."
+        },
+        {
+          "weight": 2,
+          "text": "Another ranger with a crossed cloak — distress sign."
+        },
+        {
+          "weight": 1,
+          "text": "A mage council emissary with an unwilling horse."
+        },
+        {
+          "weight": 1,
+          "text": "A horse caravan with locked goods."
+        },
+        {
+          "weight": 2,
+          "text": "A changeling pretending to be a child."
+        },
+        {
+          "weight": 1,
+          "text": "A witch offering remedies — for a memory."
+        },
+        {
+          "weight": 1,
+          "text": "A dead man who does not know he is dead."
+        },
+        {
+          "weight": 1,
+          "text": "An iron trader from Brun with a cart full of rods."
+        },
+        {
+          "weight": 1,
+          "text": "A monk from Nethrá burning paper."
+        },
+        {
+          "weight": 1,
+          "text": "A noble rider without a crest — southern accent."
+        },
+        {
+          "weight": 1,
+          "text": "A child alone in the snow humming an old song."
+        },
+        {
+          "weight": 1,
+          "text": "A woman claiming to be your mother — whom you believe lost."
+        },
+        {
+          "weight": 1,
+          "text": "A wagon with mourning bells no one is touching."
+        },
+        {
+          "weight": 1,
+          "text": "A pact supplicant, bloodied, on the edge of giving up."
+        },
+        {
+          "weight": 1,
+          "text": "A patrol of the Frostkeep, much too far south."
+        },
+        {
+          "weight": 1,
+          "text": "A minstrel who sings only backwards."
+        }
+      ]
+    },
+    {
+      "name": "Ward complication",
+      "description": "What goes wrong when the protagonist acts magically or needs a ward.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A minor ward only half holds — something gets through."
+        },
+        {
+          "weight": 2,
+          "text": "The pact price turns out higher than expected."
+        },
+        {
+          "weight": 1,
+          "text": "A memory you needed vanishes."
+        },
+        {
+          "weight": 1,
+          "text": "Iron nearby weakens the ward unintentionally."
+        },
+        {
+          "weight": 2,
+          "text": "The ward holds, but the warder visibly ages."
+        },
+        {
+          "weight": 1,
+          "text": "Other things are drawn: small beings, many."
+        },
+        {
+          "weight": 1,
+          "text": "The ward holds longer than wanted — you can't leave."
+        },
+        {
+          "weight": 1,
+          "text": "An animal nearby dies, seemingly without cause."
+        },
+        {
+          "weight": 2,
+          "text": "The pact stone develops a fine crack."
+        },
+        {
+          "weight": 1,
+          "text": "An Otherworld emissary steps forward immediately, polite, demanding."
+        },
+        {
+          "weight": 1,
+          "text": "The weather turns — frost in summer."
+        },
+        {
+          "weight": 1,
+          "text": "The bell of Ellenhag falls silent for three days."
+        },
+        {
+          "weight": 1,
+          "text": "A sound wanders off — no echo in your voice anymore."
+        },
+        {
+          "weight": 1,
+          "text": "A second shadow walks with you briefly."
+        },
+        {
+          "weight": 1,
+          "text": "The sun stands for seconds in the wrong direction."
+        },
+        {
+          "weight": 1,
+          "text": "A song begins in your head that you cannot stop."
+        },
+        {
+          "weight": 1,
+          "text": "A pact from your childhood comes due — no one warned you."
+        },
+        {
+          "weight": 1,
+          "text": "A coin in your pocket turns hot."
+        },
+        {
+          "weight": 1,
+          "text": "Your iron dagger goes blunt without contact."
+        },
+        {
+          "weight": 1,
+          "text": "For three days water tastes of iron."
+        },
+        {
+          "weight": 1,
+          "text": "One eye dreams awake; the other sleeps standing."
+        }
+      ]
+    },
+    {
+      "name": "Otherworld trade",
+      "description": "What Otherworld beings offer — and what they demand.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A name the Ash King does not know — for three small memories."
+        },
+        {
+          "weight": 2,
+          "text": "A safe path through the wood — for your favourite colour."
+        },
+        {
+          "weight": 1,
+          "text": "Healing of an injury — for seven hours of lifespan."
+        },
+        {
+          "weight": 1,
+          "text": "A truthful answer to a question — for the taste of summer rain."
+        },
+        {
+          "weight": 2,
+          "text": "A message to a dead person — for a lock of hair."
+        },
+        {
+          "weight": 1,
+          "text": "A vision of the future — for the ability to cry for a year."
+        },
+        {
+          "weight": 1,
+          "text": "Sleep without dreams — for a tear of your mother's."
+        },
+        {
+          "weight": 1,
+          "text": "A song that lulls guards to sleep — for your favourite melody."
+        },
+        {
+          "weight": 2,
+          "text": "A pact-stone splinter — for a memory of your father."
+        },
+        {
+          "weight": 1,
+          "text": "Translation of an Otherworld word — for an hour of your voice."
+        },
+        {
+          "weight": 1,
+          "text": "A shadow that fights for you — for your reflection for three days."
+        },
+        {
+          "weight": 1,
+          "text": "A gift for a loved one — for the knowledge of how it was sent."
+        },
+        {
+          "weight": 1,
+          "text": "Protection from a specific being — for the name of a friend."
+        },
+        {
+          "weight": 1,
+          "text": "A language you never learned — for your mother tongue for a moon-cycle."
+        },
+        {
+          "weight": 1,
+          "text": "A sword no one sees — for the profession of your choice."
+        },
+        {
+          "weight": 1,
+          "text": "Three days of luck — for three years of vigilance."
+        },
+        {
+          "weight": 1,
+          "text": "A second chance in one matter — for your first choice."
+        },
+        {
+          "weight": 1,
+          "text": "A dog that never dies — for the day of your birthday."
+        },
+        {
+          "weight": 1,
+          "text": "A map of the Everwood — for the taste of bread."
+        },
+        {
+          "weight": 1,
+          "text": "A step through the Otherworld — for the courage to return."
+        },
+        {
+          "weight": 1,
+          "text": "A true pact — for every future pact."
+        }
+      ]
+    },
+    {
+      "name": "Political complication",
+      "description": "How the royal court, mage council and Brotherhood make the protagonist's life difficult.",
+      "entries": [
+        {
+          "weight": 2,
+          "text": "A mage council demands a report — before the Brotherhood gets one."
+        },
+        {
+          "weight": 2,
+          "text": "Eldra Vunn receives orders from above to recall you."
+        },
+        {
+          "weight": 1,
+          "text": "A royal court messenger invites you to court — with escort."
+        },
+        {
+          "weight": 2,
+          "text": "Vesna of Korr sends an 'observer' along."
+        },
+        {
+          "weight": 1,
+          "text": "An iron trader is arrested; your contacts in Brun dry up."
+        },
+        {
+          "weight": 1,
+          "text": "Lord Ash claims salvage rights on a find — and sends mercenaries."
+        },
+        {
+          "weight": 1,
+          "text": "The northern captain Yrkenn of Ice demands an oath of loyalty."
+        },
+        {
+          "weight": 1,
+          "text": "A pact supplicant at the wayward stone at Vehl later sues you."
+        },
+        {
+          "weight": 2,
+          "text": "The mage councils ban entering the Iron Garden without permission."
+        },
+        {
+          "weight": 1,
+          "text": "An audience is postponed — you lose time you don't have."
+        },
+        {
+          "weight": 1,
+          "text": "An anonymous letter claims you broke a pact yourself."
+        },
+        {
+          "weight": 1,
+          "text": "Ellenhag delivers no provisions — orders from above."
+        },
+        {
+          "weight": 1,
+          "text": "Brother Halen sends warning: someone is copying your file."
+        },
+        {
+          "weight": 1,
+          "text": "The Brotherhood sends an arbitrator who does not speak a word."
+        },
+        {
+          "weight": 1,
+          "text": "A mage council envoy offers protection for an oath."
+        },
+        {
+          "weight": 1,
+          "text": "Yrkenn sends a patrol operating too far south."
+        },
+        {
+          "weight": 1,
+          "text": "The black market of Brun is raided; your sources disappear."
+        },
+        {
+          "weight": 1,
+          "text": "An envoy of Vesna of Korr offers a trade — Iron Garden for silence."
+        },
+        {
+          "weight": 1,
+          "text": "A child appears, claiming to be heir to a burned house."
+        },
+        {
+          "weight": 1,
+          "text": "An old family invites you to dinner — with iron at the table."
+        },
+        {
+          "weight": 1,
+          "text": "The Frostkeep sends a ward stone as a gift — poisoned?"
+        }
+      ]
+    }
+  ],
+  "wait_sound": "fantasy_waiting.wav",
+  "fx_preset": {
+    "reverb_room_size": 0.7,
+    "reverb_damping": null,
+    "reverb_wet_level": 0.22,
+    "reverb_dry_level": null,
+    "distortion_drive_db": null
+  }
+}
