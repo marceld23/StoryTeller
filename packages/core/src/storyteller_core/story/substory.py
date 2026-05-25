@@ -157,7 +157,10 @@ def choose_blueprint_variant(cfg: Config, world, *, known_summary: str = "",
                                      "completion_tokens", 0) or 0)
         data = json.loads(resp.choices[0].message.content or "{}")
         choice = int(data.get("choice", 0))
-        why = (data.get("why") or "").strip()[:160]
+        # 400 chars covers ~3 short sentences — the variant-pick reasoning
+        # is the most-useful planner note for understanding session arc
+        # choices, and 160 chars truncated mid-word ("...zwei para").
+        why = (data.get("why") or "").strip()[:400]
         if 0 <= choice < len(variants):
             if transcript:
                 transcript.note(

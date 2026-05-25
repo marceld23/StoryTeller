@@ -922,12 +922,12 @@ def dispatch_tools(state: dict, config: RunnableConfig) -> dict:
                         f"[planner] advance_beat → beat #{_cur + 1}/"
                         f"{len(_beats)} '{_name}'")
                 elif name == "complete_substory":
-                    summ = (args.get("summary") or "")[:120]
+                    summ = (args.get("summary") or "")[:400]
                     ctx.transcript.note(
                         f"[planner] complete_substory: '{substory.title}'"
                         + (f" — {summ}" if summ else ""))
                 else:
-                    chg = (args.get("change") or "")[:160]
+                    chg = (args.get("change") or "")[:400]
                     ctx.transcript.note(
                         f"[planner] adjust_substory_plan: {chg}")
 
