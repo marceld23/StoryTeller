@@ -285,6 +285,24 @@ spontaneous new facts stay free — only the pre-written plot points are
 gated. Toggle: `[story] narration_gate_enabled` in `config.toml`. See
 [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md#narration-gate-anti-spoiler-curator).
 
+**Storymodus — soft plot-pressure** — instead of a hard "with plot vs.
+free play" toggle the engine carries a continuous **plot-pressure**
+value (0–1) that gradually fades the planner, curator, beat-nudges
+and substory-tools in and out as the player's behaviour drifts.
+A tiny per-turn heuristic (tools fired + lexical match against the
+arc + explicit phrases like *"lass uns einfach…"* or *"was war
+nochmal die Mission?"*) drives an EMA-smoothed target; an optional
+cheap planner-LLM tiebreaker handles the ambiguous zone. The active
+substory isn't discarded when pressure drops — it's parked as
+`dormant_substory` so the next pressure spike can pick it up
+exactly where it was. An admin-pinnable **Storymodus** setting
+(`auto` | `planner` | `frei`) overrides the heuristic when needed;
+on the Pi the sysmenu has a "Storymodus" entry and the bare phrase
+*"Storymodus frei / Plan / Auto"* works mid-story too. The admin
+transcripts viewer surfaces every pressure decision as a
+`[pressure]` marker line so operators can see what the heuristic
+chose and why.
+
 Per-session cost cap (graceful wrap-up). Follow-up questions get short
 answers and don't advance beats.
 

@@ -303,6 +303,92 @@ Tools (`retrieve_world_fact`, `lookup_glossary`) honour the gate too — they
 won't return authored-fragment / history results that aren't permitted or
 already known to the player.
 
+## Storymodus — soft plot-pressure
+
+Replaces the older binary "with plot vs. without plot" intuition with a
+continuous **plot-pressure** dial (0..1) that the engine carries per
+session. The dial governs five things, all faded smoothly:
+
+| Layer | What happens as pressure drops |
+|---|---|
+| Curator gate (`gate_llm`) | At ≥ `pressure_gate_strict` (0.70) → full strictness (max_reveals from `narration_gate_max_reveals`). Between 0.10 and 0.70 → linearly fewer reveals + the call still runs. Below 0.10 → call is **skipped** entirely (no LLM cost, no forbidden_topics). |
+| Substory in narrator prompt | ≥ 0.70 → full block (premise, hook, beats, current beat, transition hint). 0.30–0.70 → **ambient** one-liner (hook + current beat name; explicitly tells the narrator *not* to push). < 0.30 → **free-exploration** block (no substory at all). |
+| Substory tools (`advance_beat`, `complete_substory`, `get/adjust_substory_plan`) | Hidden from the tool list when pressure < 0.30. |
+| Beat-nudge | Threshold scales inverse: at 1.0 → after `beat_nudge_after` turns; at 0.5 → twice as long; at 0 → never. |
+| Planner (`ensure_substory` / `replan`) | Below `pressure_substory_plan` (0.20) the planner doesn't run. The active substory is **parked** as `dormant_substory` (status `dormant`) so a future pressure spike can revive that arc instead of forcing a new plan. |
+
+### Driving the pressure
+
+By default a small heuristic in `pressure.py` builds a per-turn
+`TurnSignal` from already-existing telemetry: tools fired (e.g.
+`advance_beat` → strong on-arc), lexical match between player input
+and the substory's `involved_persons` / `involved_places` / current
+beat goal, off-arc world queries (`retrieve_world_fact` on
+`fact_type=history|fragment`), and two phrase patterns (`explicit_free`
+like "lass uns einfach…" / "kein plot"; `explicit_plot` like "was war
+nochmal die mission?"). Six-turn sliding window, recency-weighted,
+EMA-smoothed via `pressure_ema_alpha` (default 0.4).
+
+An optional **tiebreaker** (`cfg.story.engagement_tiebreaker_enabled`,
+default on) fires ONE planner-LLM call when the score has stayed in
+the uncertain band [0.30, 0.60] for 3 consecutive turns; the JSON
+verdict `{direction: on_arc | lateral | off_arc, confidence: 0..1}`
+overrides that turn's heuristic signal when confidence ≥ 0.7.
+
+### The `story_mode` setting
+
+`data/settings.json` field `story_mode` pins the pressure:
+
+| Value | Effect |
+|---|---|
+| `auto` *(default)* | Heuristic drives — pressure follows the EMA-smoothed target. |
+| `planner` | Pinned at **1.0** — full plot machinery always. |
+| `frei` | Pinned at **0.0** — no plot machinery; narrator reacts only to the player. |
+
+Edit it in **Einstellungen → Storymodus** in the admin UI, on the Pi
+via the sysmenu's *"Storymodus"* entry, or directly mid-story by saying
+*"Storymodus frei / Plan / Auto"*. The change applies on the very next
+turn — no restart.
+
+### Tuning thresholds
+
+All thresholds live in `config.toml [story]` and override per-machine
+via `data/story.json` (PUT `/api/settings/story`):
+
+| Field | Default | Meaning |
+|---|---|---|
+| `pressure_ema_alpha` | 0.4 | Smoothing factor; higher = faster reaction to the per-turn target. |
+| `pressure_gate_min` | 0.10 | Curator skipped below. |
+| `pressure_gate_strict` | 0.70 | Curator uses full `max_reveals` above. |
+| `pressure_substory_ambient` | 0.30 | Ambient one-liner above; free-exploration below. |
+| `pressure_substory_full` | 0.70 | Full substory block above. |
+| `pressure_substory_tools` | 0.30 | Substory-tools visible above. |
+| `pressure_substory_plan` | 0.20 | Planner runs above; below = park as dormant. |
+| `engagement_tiebreaker_enabled` | true | Run the one-call tiebreaker in the uncertain band. |
+
+### Watching what the heuristic does
+
+Every turn emits a transcript marker (visible in **Verläufe** as a small
+blue inline line):
+
+```
+[pressure] mode=auto signal=on_arc target=0.78 smoothed=0.74 effective=0.74
+```
+
+* `mode` — current `story_mode` setting at decision time.
+* `signal` — dominant per-turn kind: `advanced` / `on_arc` / `lateral` /
+  `off_arc` / `explicit_plot` / `explicit_free`.
+* `target` — raw target from the sliding-window aggregate.
+* `smoothed` — actual pressure after EMA.
+* `effective` — what each layer reads (= smoothed for `auto`, pinned
+  value for `planner`/`frei`).
+
+Additional markers appear at transition points:
+- `[pressure] parking substory '<title>' — pressure=0.18`
+- `[pressure] reviving dormant substory '<title>' — pressure=0.42`
+- `[pressure] gate skipped (pressure=0.07)`
+- `[pressure] replan skipped (pressure=0.15); completed substory parked as dormant`
+
 ## When changes take effect
 
 The admin process picks up its own display immediately. The **engine**

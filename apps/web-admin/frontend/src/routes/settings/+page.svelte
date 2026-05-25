@@ -6,7 +6,8 @@
     type ModelsSettings,
     type AudioSettings,
     type ModerationSettings,
-    type StorySettings
+    type StorySettings,
+    type GeneralSettings
   } from '$lib/api';
 
   let defaults: Record<string, unknown> = $state({});
@@ -50,6 +51,10 @@
   );
   let storyLongTermMemory: boolean = $state(true);
   let storyGateEnabled: boolean = $state(true);
+  // Storymodus pin — soft plot-pressure controller (auto/planner/frei).
+  // Stored in data/settings.json alongside intro_enabled.
+  let general: GeneralSettings | null = $state(null);
+  let storyMode: 'auto' | 'planner' | 'frei' = $state('auto');
   let error: string = $state('');
   let status: string = $state('');
 
@@ -234,6 +239,9 @@
         ?? (story.defaults.long_term_memory as boolean | undefined) ?? true;
       storyGateEnabled = (sov.narration_gate_enabled as boolean | undefined)
         ?? (story.defaults.narration_gate_enabled as boolean | undefined) ?? true;
+      // General settings (data/settings.json) — Storymodus etc.
+      general = await getSettings<GeneralSettings>('general');
+      storyMode = general.story_mode ?? 'auto';
     } catch (e) {
       error = String(e);
     }
@@ -270,6 +278,14 @@
       status = modEnabled ? 'Moderation gespeichert (aktiv).'
                           : 'Moderation gespeichert — DEAKTIVIERT.';
     } catch (e) { error = `Moderation: ${e}`; }
+  }
+
+  async function saveStoryMode() {
+    error = ''; status = '';
+    try {
+      await putSettings('general', { story_mode: storyMode });
+      status = `Storymodus gespeichert: ${storyMode}. (Greift sofort beim nächsten Spielzug.)`;
+    } catch (e) { error = `Storymodus: ${e}`; }
   }
 
   async function saveStory() {
@@ -403,6 +419,26 @@
     {/each}
   {/if}
   <div class="actions"><button onclick={saveModels}>Speichern</button></div>
+</section>
+
+<section>
+  <h2>Storymodus</h2>
+  <p class="hint">
+    Steuert den <strong>Plot-Druck</strong> des Erzählers — wie stark er auf
+    einem geplanten Bogen besteht. <code>Auto</code> lässt eine kleine
+    Heuristik pro Spielzug entscheiden (siehe Verlauf-Marker <code>[pressure]</code>);
+    <code>Plan</code> nagelt vollen Plot-Druck fest, <code>Frei</code>
+    schaltet die Plot-Maschinerie komplett aus und macht den Erzähler
+    reaktiv. Auf dem Pi via Sysmenu „Storymodus" überschreibbar.
+  </p>
+  <label>Modus:
+    <select bind:value={storyMode}>
+      <option value="auto">Auto — Heuristik entscheidet</option>
+      <option value="planner">Plan — voller Plot-Druck</option>
+      <option value="frei">Frei — kein Plot-Druck</option>
+    </select>
+  </label>
+  <div class="actions"><button onclick={saveStoryMode}>Speichern</button></div>
 </section>
 
 <section>

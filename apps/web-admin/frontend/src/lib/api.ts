@@ -221,7 +221,13 @@ export async function resetSave(threadId: string): Promise<unknown> {
   );
 }
 
-type SettingsKind = 'models' | 'audio' | 'moderation' | 'story';
+type SettingsKind = 'models' | 'audio' | 'moderation' | 'story' | 'general';
+
+export type GeneralSettings = {
+  intro_enabled: boolean;
+  intro_commands_enabled: boolean;
+  story_mode: 'auto' | 'planner' | 'frei';
+};
 
 export async function getSettings<T>(kind: SettingsKind): Promise<T> {
   return _json(await afetch(`${BACKEND}/api/settings/${kind}`));

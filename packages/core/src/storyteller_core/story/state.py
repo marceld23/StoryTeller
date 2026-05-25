@@ -30,6 +30,20 @@ class StoryState(TypedDict, total=False):
     locale: str
     memory: list[dict]              # OpenAI-shaped chat messages
     substory: dict | None           # SubstoryPlan.model_dump()
+    # When the soft plot-pressure drops below cfg.story.pressure_substory_plan
+    # the active substory is moved here with status="dormant" — preserved,
+    # not discarded — so the next time pressure climbs back the planner
+    # can resume the same arc instead of inventing a fresh one. None when
+    # there's nothing to revive (initial state or already in-flight).
+    dormant_substory: dict | None
+    # Continuous 0..1 plot-pressure (heuristic-driven EMA-smoothed value).
+    # Read by ensure_substory / curate / build_prompt / narrate to decide
+    # how much plot machinery to engage this turn. Default 1.0 = full plot.
+    plot_pressure: float
+    # Sliding window of the last N TurnSignals (see pressure.signal_to_dict)
+    # — the recency-weighted aggregate of these IS the pressure target.
+    # Capped at WINDOW_SIZE inside pressure.py.
+    direction_window: list[dict]
     macro_index: int
     # Index into world.blueprints picked for the CURRENT substory arc
     # (single-variant worlds keep this at 0 implicitly via

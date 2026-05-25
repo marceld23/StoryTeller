@@ -195,10 +195,38 @@ planned sub-stories, with occasional surprises that never derail the arc.
 1. Be in listening mode (wake word, or the follow-up window).
 2. Say just **"System"** (or "Menu") — short.
 3. You hear: *save, quit, undo turn, **reset world**, audio (Bluetooth)
-   on/off, intro on/off, close menu.*
+   on/off, intro on/off, commands info on/off, **Storymodus**, close menu.*
 4. Answer freely (destructive actions like undo / reset ask a yes/no safety
    question first). Then the last narrator message is replayed and play
    continues.
+
+## Storymodus (free vs. planned)
+
+The narrator runs a **plot-pressure** dial that gradually fades the
+planner / curator / beat-nudges in and out depending on how engaged
+you are with the active arc. Three settings let you override it:
+
+- **`Auto`** (default) — a heuristic per turn watches your inputs and
+  decides how strongly to push toward the planned beats. You stay free
+  to invent facts, ask world questions and improvise — that's still
+  on-arc engagement. Only **consistent drift away from the active
+  arc** (e.g. several turns of pure world-tourism, or explicit phrases
+  like *"lass uns einfach…"*) gradually lowers the pressure.
+- **`Plan`** — pins full plot-pressure. The narrator always works on
+  the planned arc and pushes for beat progress.
+- **`Frei`** — pins zero plot-pressure. The narrator becomes purely
+  reactive: greets your ideas, lets the world breathe, no beat
+  pressure, no anti-spoiler curator. The active arc (if any) is
+  parked as `dormant_substory` — switching back to `Plan` or `Auto`
+  resumes it where it was.
+
+Set it via:
+- **Pi voice (mid-story)** — say *"Storymodus frei"* / *"Storymodus
+  Plan"* / *"Storymodus Auto"* directly, or open the system menu and
+  pick "Storymodus".
+- **Admin UI** — Einstellungen → Storymodus → dropdown.
+
+The setting is global (per appliance), not per-world.
 
 In **chat** mode there is no spoken menu — type `/undo` to roll back a turn,
 `/state` to inspect, `/quit` (or Ctrl-D) to exit.

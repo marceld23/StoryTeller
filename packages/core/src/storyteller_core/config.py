@@ -265,6 +265,29 @@ class StoryCfg(BaseModel):
     narration_gate_enabled: bool = True
     # Each turn the gate picks at most this many authored reveals to allow.
     narration_gate_max_reveals: int = 3
+    # ---- soft plot-pressure (storyteller_core.story.pressure) ------------
+    # Continuous 0..1 dial replacing the older "always planned" mode. The
+    # heuristic in `pressure.py` derives a target each turn from player
+    # signals (tools fired + lexical match against arc + explicit phrases);
+    # the actual pressure follows that target via EMA so it doesn't snap.
+    # The thresholds below decide what each downstream consumer does at
+    # the current pressure level (defaults match the soft-fade design).
+    pressure_ema_alpha: float = 0.4              # smoothing: high = faster reaction
+    pressure_gate_min: float = 0.10              # gate skipped below
+    pressure_gate_strict: float = 0.70           # full max_reveals above
+    pressure_substory_ambient: float = 0.30      # ambient substory hint above
+    pressure_substory_full: float = 0.70         # full substory block above
+    pressure_substory_tools: float = 0.30        # show substory tools above
+    pressure_substory_plan: float = 0.20         # planner runs above; below
+                                                  # the active substory goes
+                                                  # dormant (preserved, not
+                                                  # discarded)
+    # Optional tiebreaker: when the score stays in the uncertain band
+    # [0.30, 0.60] for 3 turns straight, one cheap planner-LLM call
+    # classifies direction (on_arc | lateral | off_arc) and overrides
+    # the heuristic for that turn. Costs at most ~one call per uncertain
+    # phase, so leaving it on is essentially free.
+    engagement_tiebreaker_enabled: bool = True
     # Checkpoint retention: keep this many checkpoints per session thread
     # (0 = unlimited). `storyteller-cli prune` enforces it.
     checkpoint_keep_per_thread: int = 100

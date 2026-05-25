@@ -112,6 +112,21 @@ MEMORY_TOOLS: frozenset[str] = frozenset({
 })
 
 
+def tools_for_pressure(pressure: float, *,
+                       substory_tools_threshold: float = 0.30) -> list[dict]:
+    """Return the tool catalogue tailored to the current plot-pressure.
+
+    Below `substory_tools_threshold` the narrative-substory tools
+    (`advance_beat` / `complete_substory` / `get_substory_plan` /
+    `adjust_substory_plan`) are removed — there's no arc to drive when
+    the pressure has dropped into free-exploration territory. Knowledge
+    + memory + dynamics tools always remain available."""
+    if pressure >= substory_tools_threshold:
+        return TOOLS
+    return [t for t in TOOLS
+            if t.get("function", {}).get("name") not in NARRATIVE_TOOLS]
+
+
 def _gate_filter(
     rows: list[dict],
     gate: dict | None,

@@ -967,6 +967,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                     ("intro", "Einführung an oder aus / toggle the intro"),
                     ("commands", "Befehls-Info an oder aus / toggle the "
                                   "commands info"),
+                    ("story_mode", "Storymodus wechseln (Auto, Plan, "
+                                    "Frei) / change story mode"),
                     ("close", "Menü schließen / close menu and continue")]
             ch = _classify(cfg, pick, opts)
             if ch == "unknown":
@@ -1002,6 +1004,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                 elif any(k in lw for k in ("einführ", "einfuehr", "intro",
                                            "einleitung", "tutorial")):
                     ch = "intro"
+                elif any(k in lw for k in ("storymodus", "story-modus",
+                                            "story modus", "spielmodus",
+                                            "story mode", "play mode")):
+                    ch = "story_mode"
                 elif any(k in lw for k in ("speich", "save")):
                     ch = "save"
                 else:
@@ -1077,6 +1083,51 @@ def cmd_run(args: argparse.Namespace) -> int:
                 save_settings(cfg, st)
                 imsg = "intro_on" if new else "intro_off"
                 prompts.play(imsg, backend) if speak else rp(f"[dim]({imsg})[/dim]")
+            elif ch == "story_mode":
+                # Three-way pin for the soft plot-pressure controller.
+                # Persists in data/settings.json; the engine reads it on
+                # every turn (see story.nodes._effective_pressure).
+                from storyteller_core.i18n import CMD_KEYWORDS, norm
+                from storyteller_hardware.runtime import (
+                    load_settings,
+                    save_settings,
+                )
+
+                if speak:
+                    prompts.play("story_mode_ask", backend)
+                else:
+                    rp("[dim]Storymodus: auto / plan / frei?[/dim]")
+                if text_mode:
+                    pick2 = input("Storymodus: ").strip().lower()
+                else:
+                    leds.listen()
+                    with tempfile.NamedTemporaryFile(
+                            suffix=".wav", delete=False) as t:
+                        w = t.name
+                    backend.record_until_silence(w)
+                    pick2 = stt.transcribe(w).strip().lower()
+                rp(f"[cyan][Du][/cyan] {pick2}")
+                kw_loc = norm(cfg.general.locale)
+                kw = CMD_KEYWORDS.get(kw_loc, {})
+                new_mode = None
+                if any(k in pick2 for k in kw.get("story_mode_auto", ())):
+                    new_mode = "auto"
+                elif any(k in pick2 for k in kw.get("story_mode_free", ())):
+                    new_mode = "frei"
+                elif any(k in pick2 for k in kw.get("story_mode_planner", ())):
+                    new_mode = "planner"
+                if new_mode is None:
+                    prompts.play("story_mode_unclear", backend) if speak \
+                        else rp("[dim](unklar)[/dim]")
+                else:
+                    st = load_settings(cfg)
+                    st["story_mode"] = new_mode
+                    save_settings(cfg, st)
+                    pid = {"auto": "story_mode_set_auto",
+                           "planner": "story_mode_set_planner",
+                           "frei": "story_mode_set_free"}[new_mode]
+                    prompts.play(pid, backend) if speak \
+                        else rp(f"[dim]({new_mode})[/dim]")
             elif ch == "save":
                 # State is checkpointed every turn -> just confirm.
                 prompts.play("saved", backend) if speak \
@@ -1304,6 +1355,45 @@ def cmd_run(args: argparse.Namespace) -> int:
                                 prompts.play("nothing_to_repeat", backend)
                             else:
                                 rp("[dim](nichts zu wiederholen)[/dim]")
+                        pending_follow = follow_enabled
+                        continue
+                    # "Storymodus X" — direct mid-story command, no need
+                    # to go through the sysmenu. Matches short utterances
+                    # like "Storymodus frei", "Storymodus plan",
+                    # "Storymodus auto". Saves the new mode and confirms.
+                    if (toks and len(toks) <= 3
+                            and toks[0] in cmd_kw.get("story_mode", ())):
+                        from storyteller_hardware.runtime import (
+                            load_settings,
+                            save_settings,
+                        )
+                        new_mode = None
+                        for t in toks[1:]:
+                            if t in cmd_kw.get("story_mode_auto", ()):
+                                new_mode = "auto"
+                                break
+                            if t in cmd_kw.get("story_mode_free", ()):
+                                new_mode = "frei"
+                                break
+                            if t in cmd_kw.get("story_mode_planner", ()):
+                                new_mode = "planner"
+                                break
+                        if new_mode is None:
+                            if speak:
+                                prompts.play("story_mode_ask", backend)
+                            else:
+                                rp("[dim](auto/plan/frei?)[/dim]")
+                        else:
+                            st = load_settings(cfg)
+                            st["story_mode"] = new_mode
+                            save_settings(cfg, st)
+                            pid = {"auto": "story_mode_set_auto",
+                                   "planner": "story_mode_set_planner",
+                                   "frei": "story_mode_set_free"}[new_mode]
+                            if speak:
+                                prompts.play(pid, backend)
+                            else:
+                                rp(f"[dim]({new_mode})[/dim]")
                         pending_follow = follow_enabled
                         continue
                     # "Geschichte beenden" / "end story" — save (auto-saved

@@ -51,8 +51,17 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "error_busy": "Die Erzähler-Wolke ist gerade voll. Ich versuch's "
                        "gleich nochmal — frag mich in einer Minute.",
         "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
-                    "Welt zurücksetzen, Audio umschalten, Einführung, oder "
-                    "Menü schließen.",
+                    "Welt zurücksetzen, Audio umschalten, Einführung, "
+                    "Storymodus, oder Menü schließen.",
+        "story_mode_ask": "Storymodus wählen: sage Auto, Plan, oder Frei.",
+        "story_mode_set_auto": "Storymodus auf automatisch. Ich entscheide "
+                                "nach deinem Spielverhalten.",
+        "story_mode_set_planner": "Storymodus auf Plan. Ich folge immer "
+                                    "einem Bogen.",
+        "story_mode_set_free": "Storymodus auf frei. Du gestaltest, ich "
+                                "reagiere.",
+        "story_mode_unclear": "Das habe ich nicht verstanden. Sage Auto, "
+                                "Plan, oder Frei.",
         "undone": "Der letzte Spielzug wurde zurückgenommen.",
         "confirm_reset": "Willst du diese Welt wirklich zurücksetzen? Der "
                          "ganze Spielstand geht verloren. Sage ja oder nein.",
@@ -184,7 +193,16 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "error_busy": "The storyteller cloud is busy right now. I'll try "
                        "again — ask me in a minute.",
         "sys_menu": "System menu. Say: save, quit, undo turn, reset world, "
-                    "switch audio, intro, or close menu.",
+                    "switch audio, intro, story mode, or close menu.",
+        "story_mode_ask": "Story mode: say auto, plan, or free.",
+        "story_mode_set_auto": "Story mode set to automatic. I'll decide "
+                                "based on how you play.",
+        "story_mode_set_planner": "Story mode set to plan. I'll always "
+                                    "follow an arc.",
+        "story_mode_set_free": "Story mode set to free. You shape it, "
+                                "I react.",
+        "story_mode_unclear": "I didn't catch that. Say auto, plan, or "
+                                "free.",
         "undone": "The last turn was undone.",
         "confirm_reset": "Do you really want to reset this world? The whole "
                          "saved game will be lost. Say yes or no.",
@@ -626,6 +644,18 @@ CMD_KEYWORDS = {
         # ≤3-token utterance with the cancel word at the start.
         "cancel": ("abbrechen", "abbruch", "stopp", "stop", "halt",
                      "beenden", "schluss", "aufhören"),
+        # Voice-controlled "Storymodus" — soft plot-pressure pin. Three
+        # values: "auto" (heuristic decides), "plan/planer" (always full
+        # plot), "frei" (no plot pressure). The Pi sysmenu has an
+        # "Storymodus"-Eintrag, the bare phrase also works mid-story.
+        "story_mode": ("storymodus", "story-modus", "story modus",
+                         "spielmodus", "modus"),
+        "story_mode_auto": ("auto", "automatisch", "automatik"),
+        "story_mode_planner": ("plan", "planer", "planner", "geplant",
+                                 "plot", "story", "geschichte"),
+        "story_mode_free": ("frei", "free", "freier", "freies",
+                              "free roam", "explorieren",
+                              "exploration", "erkundung"),
     },
     "en": {
         "shutdown": ("shutdown", "shut", "power off", "poweroff",
@@ -648,6 +678,13 @@ CMD_KEYWORDS = {
                       "done"),
         "cancel": ("cancel", "stop", "abort", "quit", "end",
                      "nevermind"),
+        "story_mode": ("story mode", "storymode", "play mode",
+                         "narrative mode"),
+        "story_mode_auto": ("auto", "automatic"),
+        "story_mode_planner": ("plan", "planner", "plot", "story",
+                                 "planned"),
+        "story_mode_free": ("free", "free roam", "freeform",
+                              "explore", "exploration"),
     },
 }
 

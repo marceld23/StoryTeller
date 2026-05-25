@@ -61,9 +61,16 @@ class Curator:
         user_text: str,
         beat_turns: int,
         locale: str = "de",
+        max_reveals: int | None = None,
     ) -> NarrationGate:
         loc = norm(locale)
-        max_reveals = int(getattr(self.cfg.story, "narration_gate_max_reveals", 3))
+        # `max_reveals` is overridable per call so the pressure controller
+        # can scale the gate's strictness with the current plot-pressure
+        # (more reveals = more permissive). Falls back to the config cap.
+        if max_reveals is None:
+            max_reveals = int(getattr(self.cfg.story,
+                                       "narration_gate_max_reveals", 3))
+        max_reveals = max(1, int(max_reveals))
 
         # Build the curator's input. It sees EVERYTHING — including the
         # substory.resolution_hint — because IT is the one keeping it

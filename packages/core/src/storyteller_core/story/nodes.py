@@ -38,7 +38,7 @@ from .moderation import Moderator
 from .patterns import world_tone_line as _tone_line
 from .state import EngineContext
 from .substory import SubstoryPlan, SubstoryPlanner
-from .tools import TOOLS, dispatch_tool
+from .tools import dispatch_tool, tools_for_pressure
 
 log = logging.getLogger("storyteller.engine")
 
@@ -154,6 +154,21 @@ def _recent(memory: list[dict]) -> str:
     return " ".join(tail)[:600]
 
 
+def _effective_pressure(state: dict, ctx) -> float:
+    """Apply the global `story_mode` override on top of the heuristic
+    pressure carried in state. Settings file is read lazily — it's
+    edited by the admin UI and the Pi sysmenu without restarting."""
+    from storyteller_hardware.runtime import load_settings
+
+    from .pressure import effective_pressure
+    raw = float(state.get("plot_pressure", 1.0))
+    try:
+        story_mode = (load_settings(ctx.cfg).get("story_mode") or "auto")
+    except Exception:
+        story_mode = "auto"
+    return effective_pressure(raw, story_mode)
+
+
 def _guidance(cfg: Config, locale: str) -> str:
     if locale == "de":
         return cfg.story.narration_guidance
@@ -231,18 +246,64 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
 
     beat_turns = state.get("beat_turns", 0)
     brief = state.get("brief", False)
+    # Pressure-aware beat-nudge threshold + substory-block tier.
+    from storyteller_hardware.runtime import load_settings
+
+    from .pressure import (
+        beat_nudge_threshold,
+        effective_pressure,
+        substory_block_mode,
+    )
+    raw_pressure = float(state.get("plot_pressure", 1.0))
+    try:
+        _story_mode = (load_settings(cfg).get("story_mode") or "auto")
+    except Exception:
+        _story_mode = "auto"
+    pressure = effective_pressure(raw_pressure, _story_mode)
+    nudge_thr = beat_nudge_threshold(pressure, cfg)
     nudge = (BEAT_NUDGE[locale]
-             if (not brief and cfg.story.beat_nudge_after
-                 and beat_turns >= cfg.story.beat_nudge_after) else "")
+             if (not brief and nudge_thr < 10**5
+                 and beat_turns >= nudge_thr) else "")
+    block_mode = substory_block_mode(pressure, cfg)
 
     macro = BlueprintTracker(w.active_blueprint(state.get("blueprint_choice", 0)),
                               state.get("macro_index", 0))
 
     sub_dict = state.get("substory")
     sub_block = ""
-    if sub_dict:
-        sub = SubstoryPlan(**sub_dict)
-        sub_block = sub.as_prompt_block(state.get("transition", False))
+    macro_block = ""
+    if block_mode == "full":
+        macro_block = f"MAKRO-SPANNUNGSBOGEN:\n{macro.guidance()}\n\n"
+        if sub_dict:
+            sub = SubstoryPlan(**sub_dict)
+            sub_block = sub.as_prompt_block(state.get("transition", False))
+    elif block_mode == "ambient":
+        # Halbe Höhe: nur Hook + aktueller Beat-Name, kein Goal/Tension.
+        # Der Erzähler weiß, dass es eine Mission im Hinterkopf gibt,
+        # spürt aber keinen Druck sie aktiv voranzutreiben.
+        if sub_dict:
+            sub = SubstoryPlan(**sub_dict)
+            cur = sub.current_beat()
+            beat_name = cur.name if cur else "—"
+            sub_block = (
+                f"AKTIVE STORY-RICHTUNG (locker, nicht dringend): "
+                f"{sub.hook}\n"
+                f"Aktueller Beat: {beat_name}. Trag das im Hintergrund mit, "
+                f"aber dräng den Spieler NICHT in diese Richtung — folge "
+                f"seinen Initiativen.\n"
+            )
+    else:  # "free"
+        sub_block = (
+            "FREIE ERKUNDUNG: Es gibt aktuell keinen vorgegebenen "
+            "Spannungsbogen. Greif Spieler-Initiativen ausdrücklich auf — "
+            "sie sind jetzt der wichtigste Kompass. Lass die Welt "
+            "REAGIEREN, nicht SCHIEBEN. Erfinde kleine Mikro-Momente "
+            "und Beobachtungen, würfle gerne aus den Zufallslisten "
+            "(`roll_random_event`) wenn die Szene Atem braucht. Wenn der "
+            "Spieler einen Aufhänger entwickelt, der Substanz hat, bau "
+            "leise darauf auf — aber niemals einen vor-geplanten Plot "
+            "aufzwingen.\n"
+        )
 
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
 
@@ -283,7 +344,7 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         f"ZUFALLSLISTEN (konkret, bei passender Gelegenheit via "
         f"roll_random_event ziehen): {rtables or '–'}\n\n"
         f"{CO_CREATION}\n\n"
-        f"MAKRO-SPANNUNGSBOGEN:\n{macro.guidance()}\n\n"
+        f"{macro_block}"
         f"{sub_block}\n\n"
         f"{syn}"
         f"Dem Spieler bereits bekannt: {known_summary}\n\n"
@@ -337,6 +398,16 @@ def init_turn(state: dict, config: RunnableConfig) -> dict:
         out["cost"] = {}
     if "pending_fold" not in state:
         out["pending_fold"] = []
+    # Soft plot-pressure defaults — see storyteller_core.story.pressure.
+    # Warm start at 1.0 so a fresh session begins with full plot machinery;
+    # the heuristic in finalize() will pull it down only if the player
+    # actually drifts.
+    if "plot_pressure" not in state:
+        out["plot_pressure"] = 1.0
+    if "direction_window" not in state:
+        out["direction_window"] = []
+    if "dormant_substory" not in state:
+        out["dormant_substory"] = None
     if "locale" not in state:
         out["locale"] = _locale(state, ctx)
     return out
@@ -406,8 +477,39 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
     cfg = ctx.cfg
     locale = _locale(state, ctx)
 
+    pressure = _effective_pressure(state, ctx)
+    from .pressure import substory_planning_enabled
+
     sub_dict = state.get("substory")
-    if sub_dict and sub_dict.get("status") != "complete":
+    dormant = state.get("dormant_substory")
+
+    # Below the planning threshold: skip the planner entirely. If a
+    # substory is live, park it into dormant so the next pressure spike
+    # can revive it instead of forcing a fresh plan.
+    if not substory_planning_enabled(pressure, cfg):
+        if sub_dict and sub_dict.get("status") != "dormant":
+            parked = dict(sub_dict)
+            parked["status"] = "dormant"
+            if ctx.transcript:
+                ctx.transcript.note(
+                    f"[pressure] parking substory '{parked.get('title')}'"
+                    f" — pressure={pressure:.2f}")
+            return {"substory": None, "dormant_substory": parked}
+        return {}
+
+    # Above the planning threshold: if we have a dormant, revive it
+    # rather than asking the planner for a brand-new arc.
+    if (not sub_dict or sub_dict.get("status") == "complete") and dormant:
+        revived = dict(dormant)
+        revived["status"] = "active"
+        if ctx.transcript:
+            ctx.transcript.note(
+                f"[pressure] reviving dormant substory "
+                f"'{revived.get('title')}' — pressure={pressure:.2f}")
+        return {"substory": revived, "dormant_substory": None,
+                "transition": True, "beat_turns": 0}
+
+    if sub_dict and sub_dict.get("status") not in ("complete", "dormant"):
         return {}  # no change
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
@@ -490,10 +592,18 @@ def retrieve_rag(state: dict, config: RunnableConfig) -> dict:
 def curate(state: dict, config: RunnableConfig) -> dict:
     """Run the narration "gate" — a small LLM call that decides per turn
     which AUTHORED reveals the narrator may use, and which authored topics
-    must stay hidden today. Skipped when disabled."""
+    must stay hidden today. Skipped when disabled OR when the soft
+    plot-pressure is below the gate-on threshold (free-exploration tier)."""
     ctx = _ctx(config)
     cfg = ctx.cfg
     if not getattr(cfg.story, "narration_gate_enabled", True):
+        return {}
+    pressure = _effective_pressure(state, ctx)
+    from .pressure import gate_max_reveals, gate_should_run
+    if not gate_should_run(pressure, cfg):
+        if ctx.transcript:
+            ctx.transcript.note(
+                f"[pressure] gate skipped (pressure={pressure:.2f})")
         return {}
     from .curator import Curator
 
@@ -505,6 +615,7 @@ def curate(state: dict, config: RunnableConfig) -> dict:
     future_beats = list(active_bp.beats[macro_idx + 1:])
     known_summary = KnownFacts(state.get("known_facts") or []).summary()
     recent = _recent(state.get("memory") or [])
+    max_reveals = gate_max_reveals(pressure, cfg)
     try:
         gate = Curator(cfg, cost, ledger=CostLedger(cfg),
                        thread_id=_thread_id(config),
@@ -512,7 +623,8 @@ def curate(state: dict, config: RunnableConfig) -> dict:
             ctx.world, sub_dict, future_beats,
             state.get("retrieved") or [],
             known_summary, recent, state.get("user_text", ""),
-            int(state.get("beat_turns", 0)), locale=locale)
+            int(state.get("beat_turns", 0)), locale=locale,
+            max_reveals=max_reveals)
     except Exception as exc:
         log.warning("curator gate failed: %r", exc)
         return {}
@@ -578,7 +690,13 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         tools=use_tools,
     ))
     if use_tools:
-        kw["tools"] = TOOLS
+        # Hide substory-tools (advance_beat / complete_substory / get/adjust)
+        # when pressure has dropped below the substory-tools threshold —
+        # they don't apply when there's no active arc to drive.
+        pressure = _effective_pressure(state, ctx)
+        thr = float(getattr(cfg.story, "pressure_substory_tools", 0.30))
+        kw["tools"] = tools_for_pressure(pressure,
+                                          substory_tools_threshold=thr)
 
     if ctx.transcript and getattr(cfg, "transcripts", None) \
             and cfg.transcripts.capture_prompts:
@@ -748,10 +866,41 @@ def replan(state: dict, config: RunnableConfig) -> dict:
     Reuses the same logic as `ensure_substory` but always runs; produced
     substory replaces the just-completed one. Sets transition=True so the
     next system prompt softly bridges the arcs.
+
+    If the soft plot-pressure has fallen below the planning threshold,
+    we skip the planner instead — the now-completed arc gets parked
+    into dormant so a future pressure spike can revive it (the player
+    just closed an arc and wants to breathe, not be marched into the
+    next one).
     """
     ctx = _ctx(config)
     cfg = ctx.cfg
     locale = _locale(state, ctx)
+
+    from .pressure import substory_planning_enabled
+    pressure = _effective_pressure(state, ctx)
+    if not substory_planning_enabled(pressure, cfg):
+        # Park the just-completed substory as dormant; the engine returns
+        # to a free-exploration tier with no active substory.
+        sub = state.get("substory")
+        parked = None
+        if sub:
+            parked = dict(sub)
+            parked["status"] = "dormant"
+        if ctx.transcript:
+            ctx.transcript.note(
+                f"[pressure] replan skipped (pressure={pressure:.2f}); "
+                f"completed substory parked as dormant")
+        return {
+            "substory": None,
+            "dormant_substory": parked,
+            "transition": False,
+            "beat_turns": 0,
+            "just_completed_substory": False,
+            "system_prompt": build_system_prompt(
+                {**state, "substory": None, "dormant_substory": parked,
+                 "transition": False}, ctx),
+        }
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
     planner = SubstoryPlanner(cfg, cost, ledger=CostLedger(cfg),
@@ -831,6 +980,56 @@ def finalize(state: dict, config: RunnableConfig) -> dict:
         label = "planning" if not sub else sub.get("status", "in_substory")
         ctx.transcript.assistant(text, label, cost.usd)
 
+    # ---- soft plot-pressure update ---------------------------------------
+    # Build this turn's TurnSignal from already-existing telemetry, slide
+    # it into the window, recompute the target, EMA-smooth, and emit a
+    # transcript line so the admin can see what the heuristic decided.
+    if text and not state.get("brief", False):
+        from .pressure import (
+            WINDOW_SIZE,
+            classify,
+            compute_target_pressure,
+            effective_pressure,
+            signal_to_dict,
+            tiebreaker_should_run,
+            update_pressure,
+        )
+        tool_calls = _collect_tool_calls_this_turn(
+            state.get("memory") or [])
+        signal = classify(
+            player_text=state.get("user_text", "") or "",
+            tool_calls=tool_calls,
+            substory=state.get("substory") or state.get("dormant_substory"),
+            beat_dwell=int(state.get("beat_turns", 0)),
+        )
+        window = list(state.get("direction_window") or [])
+        window.append(signal_to_dict(signal))
+        window = window[-WINDOW_SIZE:]
+
+        # Optional tiebreaker — fires only when the score has been in the
+        # uncertain band 3 turns in a row.
+        if tiebreaker_should_run(window, cfg):
+            verdict = _engagement_tiebreaker(cfg, state, ctx)
+            if verdict is not None:
+                window[-1]["tiebreaker_direction"] = verdict["direction"]
+                window[-1]["tiebreaker_confidence"] = verdict["confidence"]
+
+        target = compute_target_pressure(window)
+        cur = float(state.get("plot_pressure", 1.0))
+        new = update_pressure(cur, target,
+                              alpha=float(cfg.story.pressure_ema_alpha))
+        update["direction_window"] = window
+        update["plot_pressure"] = new
+        if ctx.transcript:
+            from storyteller_hardware.runtime import load_settings
+            mode = (load_settings(cfg).get("story_mode") or "auto")
+            eff = effective_pressure(new, mode)
+            sig_kind = _signal_kind(signal)
+            ctx.transcript.note(
+                f"[pressure] mode={mode} signal={sig_kind} "
+                f"target={target:.2f} smoothed={new:.2f} effective={eff:.2f}"
+            )
+
     # Memory trim + synopsis fold
     memory, synopsis, pending_fold = _trim_and_fold(
         cfg=cfg,
@@ -844,6 +1043,107 @@ def finalize(state: dict, config: RunnableConfig) -> dict:
     update["pending_fold"] = pending_fold
 
     return update
+
+
+def _collect_tool_calls_this_turn(memory: list[dict]) -> list[dict]:
+    """Walk back from the end of memory until the most recent user
+    message; collect every tool call invoked along the way. Returns a
+    list of {name, args} dicts the pressure classifier consumes."""
+    out: list[dict] = []
+    for m in reversed(memory):
+        if m.get("role") == "user":
+            break
+        if m.get("role") != "assistant":
+            continue
+        for tc in (m.get("tool_calls") or []):
+            fn = (tc.get("function") or {})
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except Exception:
+                args = {}
+            out.append({"name": fn.get("name") or "",
+                        "args": args})
+    return out
+
+
+def _signal_kind(sig) -> str:
+    """One-word label for the transcript so admins can scan a session
+    quickly: which signal kind dominated this turn's classification."""
+    if sig.explicit_plot:
+        return "explicit_plot"
+    if sig.explicit_free:
+        return "explicit_free"
+    if sig.advanced:
+        return "advanced"
+    if sig.on_arc_lex:
+        return "on_arc"
+    if sig.off_arc_world_query:
+        return "off_arc"
+    return "lateral"
+
+
+def _engagement_tiebreaker(cfg: Config, state: dict, ctx) -> dict | None:
+    """One cheap planner-LLM call that classifies the direction of the
+    last few turns. Used only when the heuristic stayed in the uncertain
+    band [0.30, 0.60] for 3 consecutive turns — answers JSON
+    {direction: on_arc|lateral|off_arc, confidence: 0..1}. Failure-
+    tolerant: any error returns None so the heuristic alone decides."""
+    sub = state.get("substory") or state.get("dormant_substory") or {}
+    locale = _locale(state, ctx)
+    beat = (sub.get("beats") or [{}])[
+        min(int(sub.get("cursor", 0)),
+            len(sub.get("beats") or []) - 1)] if sub.get("beats") else {}
+    goal = beat.get("goal") or "(kein Beat aktiv)"
+    involved = ", ".join(
+        (sub.get("involved_persons") or [])
+        + (sub.get("involved_places") or [])) or "—"
+    mem = state.get("memory") or []
+    last_pairs: list[str] = []
+    for m in mem[-6:]:
+        r = m.get("role")
+        c = m.get("content")
+        if r in ("user", "assistant") and isinstance(c, str):
+            last_pairs.append(f"{r.upper()}: {c[:300]}")
+    if not last_pairs:
+        return None
+    sys_msg = (
+        "Du klassifizierst Engagement mit einem Story-Bogen. WICHTIG: "
+        "Welt-Fakten erfinden oder Welt-Fragen stellen ist NICHT "
+        "automatisch off_arc — wenn das im Dienst des Beat-Ziels steht, "
+        "ist es on_arc. Antworte JSON: "
+        '{"direction": "on_arc"|"lateral"|"off_arc", "confidence": 0..1}.'
+    )
+    user_msg = (
+        f"BEAT-ZIEL: {goal}\nBETEILIGTE: {involved}\n"
+        f"LETZTE SPIELZÜGE:\n" + "\n".join(last_pairs)
+    )
+    try:
+        client = get_chat_client(cfg, "planner")
+        resp = client.chat.completions.create(
+            model=cfg.models.planner,
+            messages=[{"role": "system", "content": sys_msg},
+                      {"role": "user", "content": user_msg}],
+            response_format={"type": "json_object"},
+            **chat_extras(cfg, "planner",
+                          temperature=cfg.models.planner_temperature),
+        )
+        CostLedger(cfg).record_chat_usage(
+            role="planner", model=cfg.models.planner, usage=resp.usage,
+            thread_id=None,
+            world_id=getattr(ctx.world, "id", None))
+        data = json.loads(resp.choices[0].message.content or "{}")
+        direction = data.get("direction")
+        if direction not in ("on_arc", "lateral", "off_arc"):
+            return None
+        # NOTE: classifier uses `toward_beat` internally
+        mapped = {"on_arc": "toward_beat", "lateral": "lateral",
+                  "off_arc": "away_from_beat"}[direction]
+        conf = float(data.get("confidence", 0.0) or 0.0)
+        return {"direction": mapped, "confidence": max(0.0, min(1.0, conf))}
+    except Exception as exc:
+        log.warning("engagement tiebreaker failed: %r", exc)
+    _ = locale  # currently unused — kept for future localised system prompts
+    return None
 
 
 # --------------------------------------------------------------------------

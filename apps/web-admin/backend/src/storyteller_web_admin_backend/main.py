@@ -471,6 +471,48 @@ def get_story() -> dict:
     }
 
 
+@app.get("/api/settings/general")
+def get_general() -> dict:
+    """General per-machine settings stored in data/settings.json.
+
+    Currently exposed:
+      * `intro_enabled` — play the boot greeting + commands info next time
+      * `intro_commands_enabled` — play the in-story command briefing
+      * `story_mode` — soft plot-pressure pin: "auto" | "planner" | "frei"
+    """
+    from storyteller_hardware.runtime import load_settings
+    raw = load_settings(_cfg())
+    return {
+        "intro_enabled": bool(raw.get("intro_enabled", True)),
+        "intro_commands_enabled": bool(raw.get("intro_commands_enabled", True)),
+        "story_mode": (raw.get("story_mode") or "auto"),
+    }
+
+
+@app.put("/api/settings/general")
+def put_general(payload: dict) -> dict:
+    """Update data/settings.json. Validates story_mode; coerces bool
+    fields. Unknown keys are silently dropped so a future field doesn't
+    break existing clients."""
+    from storyteller_core.story.pressure import is_valid_story_mode
+    from storyteller_hardware.runtime import load_settings, save_settings
+    cur = load_settings(_cfg())
+    p = payload or {}
+    if "intro_enabled" in p:
+        cur["intro_enabled"] = bool(p["intro_enabled"])
+    if "intro_commands_enabled" in p:
+        cur["intro_commands_enabled"] = bool(p["intro_commands_enabled"])
+    if "story_mode" in p:
+        sm = (p["story_mode"] or "auto").strip().lower()
+        if not is_valid_story_mode(sm):
+            raise HTTPException(
+                422, f"invalid story_mode: {sm!r} "
+                     "(allowed: auto, planner, frei)")
+        cur["story_mode"] = sm
+    save_settings(_cfg(), cur)
+    return {"ok": True}
+
+
 @app.put("/api/settings/story")
 def put_story(payload: dict) -> dict:
     """Replace data/story.json wholesale. Only keys present in the

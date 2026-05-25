@@ -76,7 +76,14 @@ result: {str(e.result)}</pre>
           {/if}
         </div>
       {:else if e.type === 'note'}
-        <p class="note"><i>{str(e.text)}</i></p>
+        {@const noteText = str(e.text)}
+        {@const isPressure = noteText.startsWith('[pressure]')}
+        {@const isGate = noteText.startsWith('[gate]')}
+        {@const isPlanner = noteText.startsWith('[planner')}
+        <p class="note"
+           class:pressure={isPressure}
+           class:gate={isGate}
+           class:planner={isPlanner}><i>{noteText}</i></p>
       {/if}
     {/each}
   </div>
@@ -93,7 +100,22 @@ result: {str(e.result)}</pre>
   .card.prompt { border-left: 3px solid #9a7ad0; }
   .msg { margin: 0.4rem 0; border-top: 1px solid var(--border); padding-top: 0.3rem; }
   .msg b { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
-  .note { color: var(--muted); }
+  .note { color: var(--muted); margin: 0.25rem 0; font-size: 0.85rem; }
+  .note.pressure {
+    color: #4a90e2; border-left: 2px solid #4a90e2;
+    padding: 0.15rem 0.5rem; background: rgba(74, 144, 226, 0.06);
+    font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem;
+  }
+  .note.gate {
+    color: #9a7ad0; border-left: 2px solid #9a7ad0;
+    padding: 0.15rem 0.5rem; background: rgba(154, 122, 208, 0.06);
+    font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem;
+  }
+  .note.planner {
+    color: #d0a040; border-left: 2px solid #d0a040;
+    padding: 0.15rem 0.5rem; background: rgba(208, 160, 64, 0.06);
+    font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem;
+  }
   pre { white-space: pre-wrap; margin: 0.4rem 0 0; font-size: 0.85rem; }
   .error { color: #c25450; }
   code { background: var(--code-bg); padding: 0 4px; border-radius: 2px; }
