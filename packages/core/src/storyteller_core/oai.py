@@ -168,15 +168,28 @@ def get_chat_client(cfg: Config, role: str = "story") -> OpenAI:
         if ep is None or not (ep.base_url or "").strip():
             ep = _ep(cfg, "story_endpoint")
     key, base = _resolve(cfg, ep)
-    # gen does slow big-model JSON work; the gate runs on the per-turn hot
-    # path and ideally points at a small/fast model (gpt-5.4-mini, qwen2.5:7b
-    # …) — but in single-GPU local setups it shares the narrator's big model,
-    # so the timeout has to be generous enough that the curator doesn't fail
-    # silently every turn. The others are latency-sensitive defaults.
+    # Per-role timeouts and SDK retries. The story-engine sits in a tight
+    # per-turn hot path, so the trade-off is "how long do we wait for ONE
+    # attempt vs. how many SDK auto-retries do we burn on its tail".
+    #   * gen      — world generation, off the hot path; can take minutes
+    #   * gate     — runs every turn, must stay snappy; small model
+    #   * planner  — JSON-heavy substory plan, reasoning_effort=medium →
+    #                legitimately 30–90 s on frontier reasoning models.
+    #                We give it 90 s for ONE attempt and disable the SDK's
+    #                own retry layer (max_retries=0) because plan_next has
+    #                its own retry-with-transcript-logging on top, and
+    #                stacking both would mean 5 × 90 s = 7.5 min before
+    #                the player sees ANY feedback. With this config:
+    #                attempt 1 = up to 90 s, attempt 2 = up to 90 s, then
+    #                fallback. Spieler-Wartezeit beschränkt auf ≤180 s.
+    #   * story    — per-turn narration; retries help against transient
+    #                network blips
     if role == "gen":
         timeout, retries = 180.0, 1
     elif role == "gate":
         timeout, retries = 60.0, 1
+    elif role == "planner":
+        timeout, retries = 90.0, 0
     else:
         timeout, retries = 30.0, 5
     return _make(key, base, timeout, retries)

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import enum
 import json
+import logging
+import time as _time
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +22,8 @@ from ..config import Config
 from ..oai import chat_extras, get_chat_client
 from ..worlds.schema import Beat
 from .dynamics import INTEGRATION_RULE
+
+log = logging.getLogger("storyteller.planner")
 
 
 class NarrativeState(str, enum.Enum):
@@ -234,11 +238,23 @@ class SubstoryPlanner:
 
         # Try the planner LLM up to twice. The second try is a slightly
         # stricter retry with the same prompt — most JSON-shape failures
-        # are intermittent. Each failure lands a `[planner] FAILED` line
-        # in the transcript so the admin can see what happened instead
-        # of an opaque "Eine unerwartete Wendung" fallback.
+        # are intermittent. Each attempt is bookended with a Python log
+        # AND a transcript note so the admin can see the planner is
+        # working (heavy planning calls can take 30-90 s on frontier
+        # reasoning models — without an "in progress" marker the silence
+        # between attempts looked like a hang).
         last_err: Exception | None = None
+        prompt_chars = len(_PLANNER_SYS) + len(user)
         for attempt in (1, 2):
+            log.info("plan_next attempt %d/2 model=%s n_beats=%d prompt=%d chars",
+                     attempt, self.cfg.models.planner,
+                     _cap_n, prompt_chars)
+            if self.transcript:
+                self.transcript.note(
+                    f"[planner] planning new substory "
+                    f"(attempt {attempt}/2, model={self.cfg.models.planner}, "
+                    f"target {_cap_n} beats)…")
+            t0 = _time.perf_counter()
             try:
                 resp = client.chat.completions.create(
                     model=self.cfg.models.planner,
@@ -272,6 +288,12 @@ class SubstoryPlanner:
                         "planner JSON had no usable `beats` array")
                 title = (data.get("title") or "").strip() \
                     or "Eine neue Wendung"
+                dt = _time.perf_counter() - t0
+                log.info("plan_next attempt %d/2 OK in %.1fs title=%r "
+                         "beats=%d persons=%d places=%d",
+                         attempt, dt, title, len(beats),
+                         len(data.get("involved_persons") or []),
+                         len(data.get("involved_places") or []))
                 return SubstoryPlan(
                     title=title,
                     premise=(data.get("premise") or "").strip(),
@@ -282,10 +304,15 @@ class SubstoryPlanner:
                     resolution_hint=(data.get("resolution_hint") or "").strip(),
                 )
             except Exception as exc:
+                dt = _time.perf_counter() - t0
                 last_err = exc
+                log.warning("plan_next attempt %d/2 FAILED after %.1fs: "
+                            "%s: %s", attempt, dt,
+                            type(exc).__name__, str(exc)[:200])
                 if self.transcript:
                     self.transcript.note(
-                        f"[planner] FAILED attempt {attempt}/2: "
+                        f"[planner] FAILED attempt {attempt}/2 "
+                        f"after {dt:.0f}s: "
                         f"{type(exc).__name__}: {str(exc)[:160]}")
 
         # Both attempts failed. Surface as a notable, loud transcript line
