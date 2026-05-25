@@ -803,6 +803,14 @@ _SUGGEST_SHAPES: dict[str, list[str]] = {
     "fragment": ["title", "text", "tags"],
 }
 
+# Defensive cap on how many existing entries of each kind we list in
+# the suggest-context block. A 100-person world would otherwise blow
+# up the prompt to 10k+ tokens per ✨-click. 50 names per category
+# keeps the prompt bounded while still giving the LLM enough canon to
+# avoid duplicates (entries past the cap are summarised as "+N more").
+_SUGGEST_CATALOG_CAP = 50
+
+
 # List-typed fields per kind — the suggest endpoint coerces these to
 # list[str] so the editor always gets a real array, even if the LLM
 # returned a single string or null.
@@ -822,6 +830,148 @@ class SuggestPayload(BaseModel):
     prompt: str = ""
 
 
+def _cap(seq: list, cap: int = _SUGGEST_CATALOG_CAP) -> tuple[list, int]:
+    """Slice + count: returns (first `cap` items, count of dropped)."""
+    if len(seq) <= cap:
+        return list(seq), 0
+    return list(seq[:cap]), len(seq) - cap
+
+
+def _suggest_context(w, kind: str) -> str:
+    """Build the rich world-context block injected into the suggest
+    system prompt. Covers:
+      * Every world-wide field the LLM needs to hit the right tone
+        (description, player_role, starting_situation, mood, ambience,
+        physics/magic, narration_style, structured tech_magic rules).
+      * Registries the LLM must reference verbatim instead of
+        inventing (regions, factions).
+      * Kind-specific anti-duplication catalogue (existing entries of
+        the same kind — name + the one or two fields that matter for
+        identity, capped at _SUGGEST_CATALOG_CAP to keep the prompt
+        bounded on very large worlds).
+    """
+    lines: list[str] = [
+        f"WELT: {w.name} ({w.genre})",
+        f"BESCHREIBUNG: {w.description}",
+    ]
+    if w.player_role:
+        lines.append(f"SPIELERROLLE: {w.player_role}")
+    if w.starting_situation:
+        lines.append(f"AUSGANGSSITUATION: {w.starting_situation}")
+    if w.mood:
+        lines.append(f"STIMMUNG: {w.mood}")
+    if w.ambience:
+        lines.append(f"AMBIENTE: {w.ambience}")
+    if w.magic_physics:
+        lines.append(f"PHYSIK/MAGIE: {w.magic_physics}")
+    if w.narration_style:
+        lines.append(f"ERZÄHLSTIL: {w.narration_style}")
+
+    tm = getattr(w, "tech_magic", None)
+    if tm is not None and (tm.rules or tm.description):
+        lines.append(f"TECH/MAGIE-SYSTEM ({tm.kind}): "
+                     f"{tm.description or '–'}")
+        for rule in (tm.rules or [])[:7]:
+            lines.append(f"  - Regel: {rule}")
+        if tm.cost_or_risk:
+            lines.append(f"  - Kosten/Risiken: {tm.cost_or_risk}")
+
+    # Cross-cutting registries (always shown).
+    if w.regions:
+        names, dropped = _cap(w.regions)
+        lines.append("REGIONEN (Namen verbatim verwenden): "
+                     + "; ".join(r.name for r in names)
+                     + (f" (+{dropped} weitere)" if dropped else ""))
+    if w.factions:
+        names, dropped = _cap(w.factions)
+        lines.append("FRAKTIONEN (Namen verbatim verwenden, ggf. als "
+                     "ally/enemy referenzieren): "
+                     + "; ".join(
+                         f"{f.name} — {f.goals}" if f.goals else f.name
+                         for f in names)
+                     + (f" (+{dropped} weitere)" if dropped else ""))
+
+    # Per-kind anti-duplication catalogue.
+    if kind == "place":
+        if w.places:
+            items, dropped = _cap(w.places)
+            lines.append("BESTEHENDE ORTE (NICHT duplizieren — bei "
+                         "`contains`/`adjacent` Namen verbatim "
+                         "übernehmen):")
+            for p in items:
+                tail = f" — Region: {p.region}" if p.region else ""
+                lines.append(f"  - {p.name}{tail}")
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "person":
+        if w.persons:
+            items, dropped = _cap(w.persons)
+            lines.append("BESTEHENDE PERSONEN (NICHT duplizieren, "
+                         "in `relations` darfst du sie nennen):")
+            for p in items:
+                fac = f" — Fraktion: {p.faction}" if p.faction else ""
+                role = f" ({p.role})" if p.role else ""
+                lines.append(f"  - {p.name}{role}{fac}")
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "faction":
+        if w.factions:
+            items, dropped = _cap(w.factions)
+            lines.append("BESTEHENDE FRAKTIONEN (NICHT duplizieren):")
+            for f in items:
+                lines.append(f"  - {f.name}")
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "creature":
+        if w.creatures:
+            items, dropped = _cap(w.creatures)
+            lines.append("BESTEHENDE KREATUREN (NICHT duplizieren):")
+            for c in items:
+                hab = f" — Habitat: {c.habitat}" if c.habitat else ""
+                lines.append(f"  - {c.name}{hab}")
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "region":
+        if w.regions:
+            items, dropped = _cap(w.regions)
+            lines.append("BESTEHENDE REGIONEN (NICHT duplizieren):")
+            lines.extend(f"  - {r.name}" for r in items)
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "item":
+        if w.items:
+            items, dropped = _cap(w.items)
+            lines.append("BESTEHENDE GEGENSTÄNDE (NICHT duplizieren):")
+            lines.extend(f"  - {it.name}" for it in items)
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "glossary":
+        if w.glossary:
+            items, dropped = _cap(w.glossary)
+            lines.append("BESTEHENDE BEGRIFFE (NICHT duplizieren):")
+            lines.extend(f"  - {g.term}" for g in items)
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "history":
+        if w.history:
+            items, dropped = _cap(w.history)
+            lines.append("BESTEHENDE HISTORIE (NICHT duplizieren):")
+            for h in items:
+                when = f" ({h.when})" if h.when else ""
+                lines.append(f"  - {h.title}{when}")
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+    elif kind == "fragment":
+        if w.fragments:
+            items, dropped = _cap(w.fragments)
+            lines.append("BESTEHENDE FRAGMENTE (NICHT duplizieren):")
+            lines.extend(f"  - {fr.title}" for fr in items)
+            if dropped:
+                lines.append(f"  (… und {dropped} weitere)")
+
+    return "\n".join(lines)
+
+
 @app.post("/api/worlds/{world_id}/suggest")
 def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
     """Synchronously ask the gen model for ONE content piece of `kind`,
@@ -829,6 +979,12 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
 
     Runs in FastAPI's threadpool (sync def), so a slow gen model blocks one
     worker, not the event loop — fine for a single-user admin tool.
+
+    The system prompt includes _suggest_context(w, kind): every cross-
+    cutting world field plus the existing entries of the requested kind
+    — so the LLM can a) hit the world's tone, b) reference existing
+    regions/factions by their real names, and c) avoid duplicating an
+    entry that already lives in the world.
     """
     from storyteller_core.oai import chat_extras, get_chat_client
 
@@ -842,18 +998,31 @@ def suggest_piece(world_id: str, payload: SuggestPayload) -> dict:
     w = load_world(cfg, world_id)
     keys = _SUGGEST_SHAPES[kind]
     sysmsg = (
-        f"Du baust die Welt '{w.name}' ({w.genre}) aus. {w.description} "
-        f"Stimmung: {w.mood}. Erzeuge GENAU EINEN {kind}-Eintrag, konsistent "
-        f"zur Welt. Antworte als JSON mit genau diesen Schlüsseln: "
-        f"{', '.join(keys)}. 'tags' ist ein Array von Strings (sonst weglassen). "
+        f"Du erweiterst die Welt '{w.name}' ({w.genre}) konsistent. "
+        f"Erzeuge GENAU EINEN {kind}-Eintrag, der zu allem unten "
+        f"passt und KEIN Duplikat eines bestehenden Eintrags ist. "
+        f"Antworte als JSON mit genau diesen Schlüsseln: "
+        f"{', '.join(keys)}. 'tags' ist ein Array von Strings "
+        f"(sonst weglassen).\n\n"
+        f"CANON RULE:\n"
+        f"- Wenn du eine Region, Fraktion, Person oder einen Ort "
+        f"aus dem Welt-Kontext unten referenzierst, verwende den "
+        f"Namen VERBATIM (gleiche Schreibung).\n"
+        f"- Erfinde KEINE neuen Regionen/Fraktionen wenn passende "
+        f"existieren — nutze die existierenden.\n"
+        f"- Halte dich an die TECH/MAGIE-Regeln, sofern relevant.\n"
+        f"- Triff den Welt-Ton (Stimmung, Ambiente, Erzählstil).\n\n"
+        f"WELT-KONTEXT:\n{_suggest_context(w, kind)}\n\n"
         f"Nutze die Sprache der Welt."
     )
+    user_msg = (payload.prompt or
+                f"Schlage einen passenden {kind}-Eintrag vor, "
+                "der die Welt sinnvoll ergänzt.")
     try:
         r = get_chat_client(cfg, "gen").chat.completions.create(
             model=cfg.models.gen,
             messages=[{"role": "system", "content": sysmsg},
-                      {"role": "user", "content": payload.prompt or
-                       f"Schlage einen passenden {kind}-Eintrag vor."}],
+                      {"role": "user", "content": user_msg}],
             response_format={"type": "json_object"},
             **chat_extras(cfg, "gen", temperature=cfg.models.gen_temperature),
         )

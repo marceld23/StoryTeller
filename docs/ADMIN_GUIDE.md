@@ -72,8 +72,29 @@ The **world editor** (`/worlds/<id>`) is a structured form:
   blueprint into `variants[0]` so the same UI handles both. "+ Variante"
   / "Variante löschen" inside the sub-tab nav add or remove arcs.
 - **Content lists** — places / persons / items / glossary / history /
-  fragments via a reusable list editor; each entry has add / remove and a
-  **✨ suggest** button that asks the LLM for one schema-shaped entry.
+  fragments / regions / factions / creatures via a reusable list
+  editor; each entry has add / remove and a **✨ suggest** button
+  that asks the `gen` model for one schema-shaped entry.
+
+  **What context the LLM sees on a ✨-click:** the suggest endpoint
+  bundles a rich world-context block into the system prompt — every
+  cross-cutting world field (name, genre, description, player role,
+  starting situation, mood, ambience, narration style, free-text
+  magic/physics summary AND the structured `tech_magic` rules),
+  plus the cross-cutting registries (all regions and all factions —
+  the LLM is instructed to reference them VERBATIM instead of
+  inventing new ones), plus the existing entries of the kind being
+  suggested (so it can't accidentally duplicate one). A **CANON
+  RULE** at the top of the system message enforces all of this. On
+  big worlds (50+ entries of one kind) the catalogue is capped at
+  the first 50 plus a "(… und N weitere)" marker so the prompt
+  stays bounded.
+
+  **Your text input** (the "Vorschlag-Hinweis (optional)" field
+  next to the ✨ button) goes in as the user message — so a hint
+  like *"eine blinde Heilerin"* or *"ein Schmuggler-Treffpunkt im
+  Anomalie-Korridor Vex"* steers the suggestion precisely while
+  the world context keeps it consistent with everything else.
 - **Random tables** — named tables with weighted entries.
 - **Story patterns** — optional whitelist of substory structures.
 - **Roh-JSON toggle** — an escape hatch to edit the full world JSON directly.
