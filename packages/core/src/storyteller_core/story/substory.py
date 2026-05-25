@@ -189,6 +189,85 @@ class SubstoryPlanner:
         # vanishing into the engine log.
         self.transcript = transcript
 
+    # Suffixes that, when attached to an existing region's stem, look
+    # like a top-level region the planner invented (e.g. "Aurelion-
+    # Korridor" off the canonical "Aurelion-System"). Matched case-
+    # insensitively. Pattern: <token>-<suffix>.
+    _REGION_LIKE_SUFFIXES: tuple[str, ...] = (
+        "system", "sektor", "korridor", "korridoren", "korridors",
+        "bahn", "reich", "raum", "zone", "sphäre", "spähre",
+        "achse", "sector",
+    )
+
+    def _warn_coined_region_names(self, world, *,
+                                   title: str,
+                                   premise: str, hook: str,
+                                   involved_places: list[str],
+                                   beat_names: list[str],
+                                   beat_goals: list[str]) -> None:
+        """Surface planner-coined region-like names as a transcript
+        warning. No-op if no transcript is attached (callers outside
+        the engine path)."""
+        if not self.transcript:
+            return
+        import re
+        existing_lower: set[str] = set()
+        for collection in ("regions", "places", "factions",
+                             "persons", "items", "glossary"):
+            for entry in (getattr(world, collection, None) or []):
+                n = (getattr(entry, "name", None)
+                     or getattr(entry, "term", None) or "")
+                if isinstance(n, str) and n.strip():
+                    existing_lower.add(n.strip().lower())
+        # Region stems: tokens BEFORE the "-System"/"-Sektor" suffix in
+        # actual region names. If those stems appear in the plan with
+        # a *different* suffix, that's the coin we want to flag.
+        region_stems: set[str] = set()
+        for r in (getattr(world, "regions", []) or []):
+            rname = (getattr(r, "name", "") or "").strip()
+            if not rname:
+                continue
+            # Split on "-" / whitespace; first part is usually the stem
+            # ("Aurelion-System" → "Aurelion"). Keep all parts to be
+            # tolerant; short generic tokens get filtered below.
+            parts = re.split(r"[-\s]+", rname)
+            for p in parts:
+                if len(p) >= 4 and p.lower() not in {"system", "sektor",
+                                                       "sector", "the"}:
+                    region_stems.add(p.lower())
+
+        suffix_pattern = re.compile(
+            r"\b([A-ZÄÖÜ][\wÄÖÜäöüß]{2,})-(" +
+            "|".join(self._REGION_LIKE_SUFFIXES) + r")\w*\b",
+            flags=re.IGNORECASE)
+        haystack = " ".join([
+            title, premise, hook,
+            " ".join(involved_places or []),
+            " ".join(beat_names or []),
+            " ".join(beat_goals or []),
+        ])
+        coined: dict[str, str] = {}     # coined-name -> closest stem
+        for match in suffix_pattern.finditer(haystack):
+            full = match.group(0)
+            stem = match.group(1).lower()
+            full_low = full.lower()
+            if full_low in existing_lower:
+                continue                # already in the world, fine
+            if stem in region_stems:
+                # E.g. world has region "Aurelion-System", plan says
+                # "Aurelion-Korridor" → flag with the canonical name.
+                coined[full] = next(
+                    (r.name for r in (getattr(world, "regions", []) or [])
+                     if (getattr(r, "name", "") or "").lower().split(
+                         "-")[0] == stem), stem)
+        if coined:
+            details = "; ".join(
+                f"'{name}' (kanonisch: '{canon}')"
+                for name, canon in list(coined.items())[:5])
+            self.transcript.note(
+                f"[planner] coined region-like names not in world: {details}")
+            log.warning("planner coined region-like names: %s", coined)
+
     def plan_next(self, world, rag, macro_guidance: str, known_summary: str,
                   recent: str, previous_summary: str = "",
                   dynamic_hint: str = "", locale: str = "de") -> SubstoryPlan:
@@ -212,10 +291,42 @@ class SubstoryPlanner:
         skeleton = "\n".join(
             f"  {i+1}. {a} (Ziel: {g}, ~Spannung {t})"
             for i, (a, g, t) in enumerate(pat["beats"]))
+        # Canonical names the planner MUST stay consistent with. Without
+        # this block the planner only saw a free-text world.description
+        # and improvised compound names like "Aurelion-Korridor" when it
+        # needed a sub-spatial term — the narrator then took those as
+        # canon for the rest of the session. Surface the structured
+        # lists exactly the way the narrator's system prompt does.
+        regions_names = "; ".join(
+            r.name for r in (getattr(world, "regions", []) or [])[:12]) \
+            or "(keine)"
+        factions_names = "; ".join(
+            f.name for f in (getattr(world, "factions", []) or [])[:8]) \
+            or "(keine)"
+        places_names = "; ".join(
+            p.name for p in (getattr(world, "places", []) or [])[:20]) \
+            or "(keine)"
+        persons_names = "; ".join(
+            p.name for p in (getattr(world, "persons", []) or [])[:12]) \
+            or "(keine)"
         user = (
             f"WELT: {world.name} ({world.genre}). {world.description}\n"
             f"Spielerrolle: {world.player_role}\n"
             f"{world_tone_line(world)}\n\n"
+            f"KANONISCHE NAMEN (WÖRTLICH verwenden, NICHT verändern):\n"
+            f"  Regionen: {regions_names}\n"
+            f"  Fraktionen: {factions_names}\n"
+            f"  Orte (Top 20): {places_names}\n"
+            f"  Personen (Top 12): {persons_names}\n"
+            f"NAMENS-REGEL: Wenn die Substory in einer Region spielt, "
+            f"nutze deren Namen WÖRTLICH (z.B. 'Aurelion-System', NICHT "
+            f"'Aurelion-Korridor' oder 'Aurelion-Sektor'). Neue Mikro-"
+            f"Orte (eine Brücke, eine Wartungsluke, ein Korridor IN "
+            f"einem existierenden Ort) sind ok — aber NIE neue Top-"
+            f"Level-Regionen oder System-/Sektor-/Korridor-Namen "
+            f"erfinden. `involved_places` SOLL bevorzugt Namen aus der "
+            f"Orte-Liste oben nutzen; neue Orte beschreibe als 'in "
+            f"<Region>' oder 'innerhalb <Ort>'.\n\n"
             f"MAKRO-BOGEN:\n{macro_guidance}\n\n"
             f"Dem Spieler bekannt: {known_summary}\n"
             f"Vorige Substory (Abschluss): {previous_summary or '–'}\n"
@@ -294,13 +405,32 @@ class SubstoryPlanner:
                          attempt, dt, title, len(beats),
                          len(data.get("involved_persons") or []),
                          len(data.get("involved_places") or []))
+                involved_places = list(
+                    data.get("involved_places") or [])[:8]
+                involved_persons = list(
+                    data.get("involved_persons") or [])[:8]
+                # Post-hoc consistency check: flag any planner-coined
+                # region-/sector-/corridor-shaped names that don't exist
+                # in the world. Doesn't reject the plan (sometimes a
+                # newly-coined micro-location IS the right call) — just
+                # makes the drift visible as a [planner] transcript
+                # note so the operator can see WHY a future synopsis
+                # talks about an "Aurelion-Korridor" that's nowhere in
+                # the world data.
+                self._warn_coined_region_names(
+                    world, title=title,
+                    premise=(data.get("premise") or ""),
+                    hook=(data.get("hook") or ""),
+                    involved_places=involved_places,
+                    beat_names=[b.name for b in beats],
+                    beat_goals=[b.goal for b in beats])
                 return SubstoryPlan(
                     title=title,
                     premise=(data.get("premise") or "").strip(),
                     hook=(data.get("hook") or "").strip(),
                     beats=beats,
-                    involved_places=list(data.get("involved_places") or [])[:8],
-                    involved_persons=list(data.get("involved_persons") or [])[:8],
+                    involved_places=involved_places,
+                    involved_persons=involved_persons,
                     resolution_hint=(data.get("resolution_hint") or "").strip(),
                 )
             except Exception as exc:

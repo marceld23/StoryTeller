@@ -491,3 +491,109 @@ def test_extract_npc_candidates_empty_text():
                              glossary=[], regions=[], factions=[],
                              random_tables=[])
     assert _extract_npc_candidates("", world, {}) == []
+
+
+# ---- planner coined-region detector --------------------------------------
+
+def test_planner_coined_region_warns(tmp_path, monkeypatch):
+    """Planner output containing 'Aurelion-Korridor' when the world has
+    region 'Aurelion-System' should fire a [planner] transcript warning
+    via SubstoryPlanner._warn_coined_region_names. Does NOT reject the
+    plan — drift is surfaced, not blocked."""
+    from types import SimpleNamespace
+
+    import storyteller_core.config as cfgmod
+    from storyteller_core.config import load_config
+    from storyteller_core.story.substory import SubstoryPlanner
+
+    monkeypatch.setattr(cfgmod, "ROOT", tmp_path)
+    load_config.cache_clear()
+    cfg = load_config()
+    load_config.cache_clear()
+
+    # Fake transcript that records notes
+    notes: list[str] = []
+    transcript = SimpleNamespace(note=lambda t: notes.append(t))
+    planner = SubstoryPlanner(cfg, transcript=transcript)
+    world = SimpleNamespace(
+        regions=[SimpleNamespace(name="Aurelion-System"),
+                  SimpleNamespace(name="Karvoss-System")],
+        places=[SimpleNamespace(name="Mirrava")],
+        factions=[], persons=[], items=[], glossary=[],
+    )
+    planner._warn_coined_region_names(
+        world,
+        title="Kaltglas-Spur",
+        premise="Das Signal kommt aus dem Aurelion-Korridor.",
+        hook="",
+        involved_places=["Rand des Aurelion-Korridors", "Mirrava"],
+        beat_names=[],
+        beat_goals=[],
+    )
+    assert notes, "expected at least one [planner] coined warning"
+    txt = notes[-1]
+    assert "[planner]" in txt
+    assert "Aurelion-Korridor" in txt
+    assert "Aurelion-System" in txt   # canonical name shown
+
+
+def test_planner_no_warn_when_clean(tmp_path, monkeypatch):
+    """Plans that only use canonical region names produce no warnings."""
+    from types import SimpleNamespace
+
+    import storyteller_core.config as cfgmod
+    from storyteller_core.config import load_config
+    from storyteller_core.story.substory import SubstoryPlanner
+
+    monkeypatch.setattr(cfgmod, "ROOT", tmp_path)
+    load_config.cache_clear()
+    cfg = load_config()
+    load_config.cache_clear()
+
+    notes: list[str] = []
+    transcript = SimpleNamespace(note=lambda t: notes.append(t))
+    planner = SubstoryPlanner(cfg, transcript=transcript)
+    world = SimpleNamespace(
+        regions=[SimpleNamespace(name="Aurelion-System")],
+        places=[SimpleNamespace(name="Mirrava")],
+        factions=[], persons=[], items=[], glossary=[],
+    )
+    planner._warn_coined_region_names(
+        world,
+        title="Eine Reise",
+        premise="Im Aurelion-System bei Mirrava findet AIR Spuren.",
+        hook="",
+        involved_places=["Mirrava"],
+        beat_names=[],
+        beat_goals=[],
+    )
+    assert notes == []
+
+
+def test_planner_existing_name_not_flagged(tmp_path, monkeypatch):
+    """A region-shaped name that's actually IN the world (e.g. the
+    world has a region called 'Veyron-Sektor') must not be flagged."""
+    from types import SimpleNamespace
+
+    import storyteller_core.config as cfgmod
+    from storyteller_core.config import load_config
+    from storyteller_core.story.substory import SubstoryPlanner
+
+    monkeypatch.setattr(cfgmod, "ROOT", tmp_path)
+    load_config.cache_clear()
+    cfg = load_config()
+    load_config.cache_clear()
+
+    notes: list[str] = []
+    transcript = SimpleNamespace(note=lambda t: notes.append(t))
+    planner = SubstoryPlanner(cfg, transcript=transcript)
+    world = SimpleNamespace(
+        regions=[SimpleNamespace(name="Veyron-Sektor")],
+        places=[], factions=[], persons=[], items=[], glossary=[],
+    )
+    planner._warn_coined_region_names(
+        world,
+        title="x", premise="Action im Veyron-Sektor.", hook="",
+        involved_places=["Veyron-Sektor"],
+        beat_names=[], beat_goals=[])
+    assert notes == []
