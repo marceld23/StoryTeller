@@ -790,15 +790,23 @@ def cmd_run(args: argparse.Namespace) -> int:
                     prompts.play("manage_cancelled", backend)
             return
 
-    def _play_one_story() -> str:
+    def _play_one_story(direct_to_menu: bool = False) -> str:
         """Run ONE story session.
 
         Returns ``"shutdown"`` (player asked to power the appliance
-        off — outer loop says goodbye + poweroff) or ``"next_story"``
-        (player asked to end the current story / pick a new one —
-        outer loop reruns the world-selection flow). Plain fallthrough
-        of the inner loop (shouldn't happen) also counts as
-        ``"next_story"`` so the device stays usable."""
+        off — outer loop says goodbye + poweroff), ``"next_story"``
+        (player went back to idle — outer loop runs the wake-word
+        gate + start-question + world menu again), or
+        ``"world_menu_now"`` (player explicitly picked "end story /
+        new world" — outer loop drops STRAIGHT into the world menu
+        without re-asking via wake-word + start-question). Plain
+        fallthrough of the inner loop also counts as
+        ``"next_story"`` so the device stays usable.
+
+        When ``direct_to_menu`` is True the wake-word gate and
+        play-mode question are skipped, and the player drops straight
+        into ``VoiceMenu``.
+        """
         # The inner loop hot-reloads cfg / stt / tts each idle tick so
         # admin changes pick up live; declare them nonlocal so the
         # references BEFORE that re-assignment (VoiceMenu, opening _say)
@@ -817,6 +825,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             world = load_world(cfg, wid)
         elif text_mode or ww is None:
             world = load_world(cfg, "sternenfahrt")
+        elif direct_to_menu:
+            # Player just picked "Geschichte beenden / neue Welt
+            # spielen" — drop straight into VoiceMenu, no wake-word
+            # gate, no "Möchtest du loslegen?", no "Spielen oder
+            # verwalten?". They already said yes and play.
+            sel = VoiceMenu(cfg, backend, prompts, stt, leds, ww,
+                            speak).run()
+            wid = sel.get("world_id") or "sternenfahrt"
+            world = load_world(cfg, wid)
         else:
             yes, yes_answer = _await_start_yes()
             if not yes:
@@ -1248,7 +1265,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     if rc == "shutdown":
                         return "shutdown"
                     if rc == "end_story":
-                        return "next_story"
+                        return "world_menu_now"
                     pending_follow = follow_enabled
                     silent_follow_count = 0  # player just interacted
                     continue
@@ -1417,7 +1434,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                             except Exception:
                                 pass
                         log.info("end-story command: returning to world menu")
-                        return "next_story"
+                        return "world_menu_now"
                     # Shutdown keywords: "schluss" / "ausschalten" / "beenden"
                     # as a SHORT (1–3 token) utterance. Mid-sentence
                     # occurrences are ignored so a long player input that
@@ -1482,8 +1499,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             return "shutdown"
         return "next_story"
     try:
+        direct_next = False
         while True:
-            rc = _play_one_story()
+            rc = _play_one_story(direct_to_menu=direct_next)
+            direct_next = False
             if rc == "shutdown":
                 if speak:
                     try:
@@ -1498,6 +1517,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                 except Exception as exc:
                     log.warning("shutdown failed: %r", exc)
                 break
+            if rc == "world_menu_now":
+                # Player explicitly asked for a new world — next
+                # _play_one_story() drops STRAIGHT into VoiceMenu, no
+                # wake-word gate, no "Möchtest du loslegen?".
+                direct_next = True
+                continue
             # rc == "next_story": outer loop iterates, wake-word gate
             # opens a fresh world-selection round.
     finally:
