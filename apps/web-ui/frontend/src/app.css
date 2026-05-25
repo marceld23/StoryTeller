@@ -45,6 +45,81 @@ input, select, textarea {
   border-radius: 3px;
 }
 
+/* Animated aurora background for the start-page world picker.
+   Two large blurred radial orbs drift across the viewport with a
+   slow base-gradient sweep behind them. Lives in global CSS so the
+   pseudo-element + theme-aware overrides aren't subject to Svelte's
+   scoped-CSS rewrites. */
+.bg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg,
+      hsl(220 70% 18%) 0%,
+      hsl(280 60% 22%) 35%,
+      hsl(330 65% 24%) 65%,
+      hsl(190 65% 20%) 100%);
+  background-size: 300% 300%;
+  animation: bg-sweep 28s ease-in-out infinite alternate;
+}
+.bg-aurora::before,
+.bg-aurora::after {
+  content: '';
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.bg-aurora::before {
+  background: radial-gradient(circle, #6fc3df 0%, transparent 60%);
+  top: -25vmax;
+  left: -20vmax;
+  animation: orb-a 22s ease-in-out infinite alternate;
+}
+.bg-aurora::after {
+  background: radial-gradient(circle, #d8638c 0%, transparent 60%);
+  bottom: -25vmax;
+  right: -20vmax;
+  animation: orb-b 26s ease-in-out infinite alternate;
+}
+@keyframes bg-sweep {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+@keyframes orb-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(18vw, 12vh) scale(1.15); }
+}
+@keyframes orb-b {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-15vw, -10vh) scale(0.9); }
+}
+:root[data-theme='light'] .bg-aurora {
+  background:
+    linear-gradient(135deg,
+      hsl(220 75% 88%) 0%,
+      hsl(280 65% 90%) 35%,
+      hsl(330 70% 92%) 65%,
+      hsl(190 70% 88%) 100%);
+  background-size: 300% 300%;
+}
+:root[data-theme='light'] .bg-aurora::before,
+:root[data-theme='light'] .bg-aurora::after {
+  opacity: 0.45;
+  filter: blur(110px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bg-aurora,
+  .bg-aurora::before,
+  .bg-aurora::after { animation: none; }
+}
+
 /* floating dark/light toggle (bottom-right) */
 .theme-toggle {
   position: fixed;

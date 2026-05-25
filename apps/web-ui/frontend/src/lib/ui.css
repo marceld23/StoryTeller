@@ -11,6 +11,8 @@
   min-height: 100vh;
   min-height: 100dvh;          /* mobile-safari address-bar safe */
   box-sizing: border-box;
+  position: relative;          /* sit above .bg-aurora (z-index: 0) */
+  z-index: 1;
 }
 
 .app-header {

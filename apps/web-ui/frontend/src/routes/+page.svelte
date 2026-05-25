@@ -390,6 +390,7 @@
   {/if}
 
   {#if !threadId}
+    <div class="bg-aurora" aria-hidden="true"></div>
     <section class="picker">
       <h2>Welt wählen</h2>
       {#if worlds.length === 0}
