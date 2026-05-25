@@ -58,10 +58,15 @@ class StoryState(TypedDict, total=False):
     # Curator gate for this turn: {scene_intent, permitted_reveals,
     # forbidden_topics, tone_nudge}. Empty/missing => no gate active.
     gate: dict
+    # Set by narrate() when the story-LLM call fails. engine.turn() reads
+    # it after graph.invoke() and raises EndpointError so the Pi loop can
+    # play the right pre-recorded prompt (offline_cloud / offline_local /
+    # auth / busy / generic). Always None on a successful turn.
+    endpoint_error: dict | None
 
 
 TURN_SCOPED_KEYS: tuple[str, ...] = (
     "moderation_ok", "retrieved", "dyn_hint", "brief",
     "transition", "response", "system_prompt", "pending_tool_calls",
-    "narrate_iter", "just_completed_substory", "gate",
+    "narrate_iter", "just_completed_substory", "gate", "endpoint_error",
 )

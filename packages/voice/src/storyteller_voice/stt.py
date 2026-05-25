@@ -25,19 +25,29 @@ class OpenAISTT(STT):
         self.cfg = cfg
 
     def transcribe(self, wav_path: str) -> str:
+        from storyteller_core.health import HealthRegistry, wrap
         from storyteller_core.i18n import norm
 
         client = get_stt_client(self.cfg)
+        base = self.cfg.models.stt_endpoint.base_url or ""
         log.info("STT: model=%s endpoint=%s", self.cfg.models.stt,
-                 self.cfg.models.stt_endpoint.base_url or "OpenAI")
+                 base or "OpenAI")
         # STT language follows the locale (de/en); overrides stt.language.
         lang = norm(self.cfg.general.locale)
-        with open(wav_path, "rb") as f:
-            r = client.audio.transcriptions.create(
-                model=self.cfg.models.stt,
-                file=f,
-                language=lang,
-            )
+        try:
+            with open(wav_path, "rb") as f:
+                r = client.audio.transcriptions.create(
+                    model=self.cfg.models.stt,
+                    file=f,
+                    language=lang,
+                )
+        except Exception as exc:
+            err = wrap("stt", base_url=base,
+                       model=self.cfg.models.stt)(exc)
+            HealthRegistry.get(self.cfg).record_error(err)
+            raise err from exc
+        HealthRegistry.get(self.cfg).record_ok(
+            "stt", base_url=base, model=self.cfg.models.stt)
         return (r.text or "").strip()
 
 

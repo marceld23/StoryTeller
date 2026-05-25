@@ -46,6 +46,20 @@ class StoryEngine:
         CostLedger(self.ctx.cfg).assert_under_cap()
         graph = get_compiled()
         result = graph.invoke({"user_text": user_text}, config=self._config())
+        # narrate() sets `endpoint_error` on a story-LLM failure and rolls
+        # back the user message in the same return — the partial state IS
+        # committed cleanly. We surface the error here so the Pi loop can
+        # pick the right pre-recorded prompt (offline / auth / busy / …).
+        err = result.get("endpoint_error")
+        if err:
+            from ..health import EndpointError
+            raise EndpointError(
+                role=err.get("role", "story"),
+                kind=err.get("kind", "unknown"),
+                http_status=err.get("http_status"),
+                base_url=err.get("base_url", "") or "",
+                model=err.get("model"),
+                detail=err.get("detail", "") or "")
         return (result.get("response") or "").strip()
 
     def opening(self) -> str:

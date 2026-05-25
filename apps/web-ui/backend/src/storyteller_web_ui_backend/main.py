@@ -136,9 +136,29 @@ class CreatedSession(BaseModel):
 
 @app.get("/api/health")
 def health() -> dict:
+    """Liveness + a low-detail "is the storyteller actually usable right now"
+    flag for the player UI. We only report whether the story / tts / stt
+    roles look healthy — the player has no use for per-endpoint diagnostics
+    (those live in the admin UI). The hint says "Erzähler ist gerade nicht
+    verfügbar" without leaking provider names or HTTP codes.
+    """
     cfg = _cfg()
+    storyteller_available = True
+    try:
+        from storyteller_core.health import HealthRegistry
+        snap = HealthRegistry.get(cfg).snapshot()
+        for role in ("story", "tts", "stt"):
+            rs = snap.get(role)
+            if rs and not rs.get("ok", True) and rs.get(
+                    "consecutive_failures", 0) >= 2:
+                storyteller_available = False
+                break
+    except Exception:
+        # Health subsystem unavailable — don't block the UI on it.
+        pass
     return {
         "ok": True,
+        "storyteller_available": storyteller_available,
         "limits": {
             "max_prompt_chars": cfg.web.max_prompt_chars,
             "max_turn_chars": cfg.web.max_turn_chars,

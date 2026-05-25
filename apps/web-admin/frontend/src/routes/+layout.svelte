@@ -3,9 +3,22 @@
   import { page } from '$app/state';
   import { onMount } from 'svelte';
 
+  type EndpointStatus = {
+    role: string; ok: boolean; consecutive_failures: number;
+    last_err_kind: string | null; last_err_http: number | null;
+    last_err_detail: string; base_url: string; model: string | null;
+    last_ok_ts: string | null; last_err_ts: string | null;
+    paid_cloud: boolean;
+  };
+  type Health = {
+    checked_at: string; any_problems: boolean;
+    endpoints: Record<string, EndpointStatus>;
+  };
+
   let theme = $state('dark');
   let { children } = $props();
   let cost = $state<{ today_usd: number; cap_daily_usd: number; pct: number; over_cap: boolean; approaching: boolean } | null>(null);
+  let health = $state<Health | null>(null);
 
   async function refreshCost() {
     try {
@@ -14,10 +27,36 @@
     } catch { /* ignore */ }
   }
 
+  async function refreshHealth() {
+    try {
+      const r = await fetch('/api/health/endpoints');
+      if (r.ok) health = await r.json();
+    } catch { /* ignore */ }
+  }
+
+  // Action-required = admin must fix (auth, bad_request). Everything else
+  // (rate_limit, server, unreachable, timeout) is transient — show as a
+  // warning, not an error.
+  const ACTION_REQUIRED = new Set(['auth', 'bad_request']);
+
+  function problemRoles(h: Health | null) {
+    if (!h) return [];
+    return Object.values(h.endpoints).filter(e => !e.ok);
+  }
+  function severity(rs: EndpointStatus[]): 'error' | 'warn' | null {
+    if (rs.length === 0) return null;
+    return rs.some(r => r.last_err_kind && ACTION_REQUIRED.has(r.last_err_kind))
+      ? 'error' : 'warn';
+  }
+
+  let problems = $derived(problemRoles(health));
+  let sev = $derived(severity(problems));
+
   onMount(() => {
     theme = document.documentElement.dataset.theme || 'dark';
     refreshCost();
-    const id = setInterval(refreshCost, 30000);
+    refreshHealth();
+    const id = setInterval(() => { refreshCost(); refreshHealth(); }, 30000);
     return () => clearInterval(id);
   });
 
@@ -38,6 +77,10 @@
   <a href="/transcripts" class:active={page.url.pathname.startsWith('/transcript')}>Verläufe</a>
   <a href="/saves" class:active={page.url.pathname.startsWith('/saves')}>Spielstände</a>
   <a href="/cost" class:active={page.url.pathname.startsWith('/cost')}>Kosten</a>
+  <a href="/health" class:active={page.url.pathname.startsWith('/health')}
+     class:health-warn={sev === 'warn'} class:health-err={sev === 'error'}>
+    Status{#if sev}{' ⚠'}{/if}
+  </a>
   <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Einstellungen</a>
   <span class="grow"></span>
   {#if cost && cost.cap_daily_usd > 0}
@@ -49,6 +92,22 @@
     {theme === 'light' ? '🌙' : '☀️'}
   </button>
 </nav>
+
+{#if sev && problems.length > 0}
+  <div class="health-banner" class:err={sev === 'error'} class:warn={sev === 'warn'}>
+    <strong>
+      {sev === 'error' ? 'Endpoint-Problem — Aktion nötig:' : 'Endpoint nicht erreichbar:'}
+    </strong>
+    {#each problems as p (p.role)}
+      <span class="role">
+        {p.role}{#if p.model}{' ('}{p.model}{')'}{/if}:
+        {p.last_err_kind}{#if p.last_err_http}{' '}{p.last_err_http}{/if}
+        {#if p.consecutive_failures > 1}{` ×${p.consecutive_failures}`}{/if}
+      </span>
+    {/each}
+    <a href="/health">Details →</a>
+  </div>
+{/if}
 
 <main>{@render children()}</main>
 
@@ -83,6 +142,18 @@
   }
   nav .cost-pill.warn { background: rgba(255, 200, 0, 0.20); border-color: #d4a200; }
   nav .cost-pill.over { background: rgba(220, 50, 50, 0.25); border-color: #c25450; color: #fff; }
+  nav a.health-warn { color: #ffd166; }
+  nav a.health-err  { color: #ff7a7a; }
+  .health-banner {
+    padding: 0.6rem 1rem; font-size: 0.92rem;
+    display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; align-items: center;
+  }
+  .health-banner.warn { background: rgba(255, 200, 0, 0.18); color: #6b4d00;
+                        border-bottom: 1px solid #d4a200; }
+  .health-banner.err  { background: rgba(220, 50, 50, 0.22); color: #6b1111;
+                        border-bottom: 1px solid #c25450; }
+  .health-banner a { color: inherit; text-decoration: underline; }
+  .health-banner .role { font-family: ui-monospace, Consolas, monospace; }
   main { max-width: 1100px; margin: 0 auto; padding: 1.2rem 1rem; }
   @media (max-width: 600px) {
     nav { gap: 0.35rem 0.6rem; padding: 0.4rem 0.6rem; }

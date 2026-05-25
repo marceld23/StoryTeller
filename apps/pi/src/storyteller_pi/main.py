@@ -26,6 +26,10 @@ import time
 
 from rich import print as rp
 from storyteller_core.config import load_config
+from storyteller_core.health import (
+    EndpointError,
+    is_paid_cloud_role,
+)
 from storyteller_core.i18n import (
     CMD_KEYWORDS,
     DESIGN_PROMPTS,
@@ -60,6 +64,46 @@ log = logging.getLogger("storyteller.pi")
 # --------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------
+
+
+# Exponential backoff for the per-turn error branch — keeps the loop from
+# hammering a dead endpoint on every wake-word and from re-announcing the
+# same error every 1s. Reset by a successful turn.
+_BACKOFF_STEPS_S: tuple[float, ...] = (1.0, 5.0, 30.0, 60.0)
+
+
+class _ErrorBackoff:
+    def __init__(self) -> None:
+        self.n = 0
+        self.last_kind: str | None = None
+
+    def next_delay(self, kind: str | None) -> float:
+        # A different error kind resets the counter — different problem,
+        # different retry budget.
+        if kind != self.last_kind:
+            self.n = 0
+            self.last_kind = kind
+        step = _BACKOFF_STEPS_S[min(self.n, len(_BACKOFF_STEPS_S) - 1)]
+        self.n += 1
+        return step
+
+    def reset(self) -> None:
+        self.n = 0
+        self.last_kind = None
+
+
+def _prompt_for_endpoint_error(cfg, exc: EndpointError) -> str:
+    """Map an EndpointError to one of the cached voice prompts."""
+    kind = exc.kind
+    if kind in ("auth", "bad_request"):
+        return "error_auth"
+    if kind in ("rate_limit", "server", "timeout"):
+        return "error_busy"
+    if kind == "unreachable":
+        return ("error_offline_cloud"
+                if is_paid_cloud_role(cfg, exc.role)
+                else "error_offline_local")
+    return "error_retry"
 
 def _classify(cfg, said: str, options: list[tuple[str, str]]) -> str:
     """Map a spoken choice to one option id via the LLM, or 'unknown'."""
@@ -1108,6 +1152,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         silent_follow_count = 0            # consecutive silent follow-up rounds
         hinted = False                     # wake_hint announced ONCE per idle
         cap_pause_announced = False        # daily-cap pause prompt: once per idle
+        # Backoff for endpoint failures — see _ErrorBackoff above. Reset by
+        # any successful turn so the next outage starts at 1 s again.
+        err_backoff = _ErrorBackoff()
         try:
             while True:
                 leds.idle()
@@ -1288,6 +1335,27 @@ def cmd_run(args: argparse.Namespace) -> int:
                             prompts.play("daily_cap_pause", backend)
                         pending_follow = False
                         continue
+                    except EndpointError as exc:
+                        # Structured endpoint failure — pick the right
+                        # prompt by kind, then back off so a dead endpoint
+                        # doesn't trigger the same announcement on every
+                        # wake-word cycle.
+                        pid = _prompt_for_endpoint_error(cfg, exc)
+                        delay = err_backoff.next_delay(exc.kind)
+                        log.warning("Endpoint-Fehler %s/%s (http=%s) — "
+                                    "Prompt=%s, Backoff=%.0fs: %s",
+                                    exc.role, exc.kind, exc.http_status,
+                                    pid, delay, exc.detail)
+                        try:
+                            leds.error()
+                            if speak:
+                                prompts.play(pid, backend)
+                        except Exception:
+                            pass
+                        pending_follow = False
+                        time.sleep(delay)
+                        continue
+                    err_backoff.reset()
                     rp(f"[green][Erzähler][/green] {reply}")
                     # One-shot approach warning when today's spend crosses the
                     # configured percentage of the daily cap.

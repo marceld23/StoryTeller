@@ -37,6 +37,19 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "no_saves": "Es gibt keine gespeicherten Spielstände.",
         "goodbye": "Bis zum nächsten Mal.",
         "error_retry": "Es gab gerade eine Störung. Sag es bitte noch einmal.",
+        # Differenzierte Fehler-Ansagen (siehe storyteller_core.health). Der
+        # Pi-Loop wählt basierend auf EndpointError.kind die passende WAV
+        # aus; error_retry bleibt der Fallback für unbekannte Fehler.
+        "error_offline_cloud": "Ich kann gerade nicht ins Netz. Bitte sag "
+                                 "einem Erwachsenen, dass das Internet weg "
+                                 "ist.",
+        "error_offline_local": "Mein Erzähler-Computer zuhause antwortet "
+                                 "gerade nicht. Bitte sag einem Erwachsenen, "
+                                 "dass er nachschauen soll.",
+        "error_auth": "Mein Zugang passt nicht. Ein Erwachsener muss "
+                       "das in den Einstellungen prüfen.",
+        "error_busy": "Die Erzähler-Wolke ist gerade voll. Ich versuch's "
+                       "gleich nochmal — frag mich in einer Minute.",
         "sys_menu": "Systemmenü. Sage: speichern, beenden, Spielzug zurück, "
                     "Welt zurücksetzen, Audio umschalten, Einführung, oder "
                     "Menü schließen.",
@@ -157,6 +170,19 @@ VOICE_PROMPTS: dict[str, dict[str, str]] = {
         "no_saves": "There are no saved games.",
         "goodbye": "Until next time.",
         "error_retry": "There was a glitch. Please say it again.",
+        # Differentiated error announcements (see storyteller_core.health).
+        # The Pi loop picks the matching WAV based on EndpointError.kind;
+        # error_retry stays the fallback for unknown failures.
+        "error_offline_cloud": "I can't reach the internet right now. "
+                                 "Please tell a grown-up that the internet "
+                                 "is down.",
+        "error_offline_local": "My storyteller computer at home isn't "
+                                 "answering. Please tell a grown-up to "
+                                 "have a look.",
+        "error_auth": "My access doesn't fit. A grown-up needs to check "
+                       "the settings.",
+        "error_busy": "The storyteller cloud is busy right now. I'll try "
+                       "again — ask me in a minute.",
         "sys_menu": "System menu. Say: save, quit, undo turn, reset world, "
                     "switch audio, intro, or close menu.",
         "undone": "The last turn was undone.",

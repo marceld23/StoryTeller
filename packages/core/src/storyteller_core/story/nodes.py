@@ -107,6 +107,7 @@ _TURN_DEFAULTS: dict = {
     "retrieved": [],
     "dyn_hint": None,
     "brief": False,
+    "endpoint_error": None,
     "transition": False,
     "response": "",
     "system_prompt": "",
@@ -602,18 +603,37 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
                                      None), "reasoning_tokens", "?"))
         else:
             log.info("narrate <- %.2fs (no usage reported)", dt)
+        from ..health import HealthRegistry
+        HealthRegistry.get(cfg).record_ok(
+            "story",
+            base_url=getattr(cfg.models.story_endpoint, "base_url", "") or "",
+            model=cfg.models.story_llm)
     except Exception as exc:
         dt = _time.perf_counter() - t_call
         log.warning("narrate FAILED after %.2fs: %r", dt, exc)
-        # Roll back the user message we appended, so the conversation has no hole.
+        # Roll back the user message we appended in build_prompt, so the
+        # checkpoint has no hole. The engine layer raises EndpointError
+        # after inspecting `endpoint_error` in the returned state — that
+        # keeps LangGraph's commit semantics intact (this dict gets
+        # persisted; the error surfaces only at engine.turn()).
         mem = list(state.get("memory") or [])
         if mem and mem[-1].get("role") == "user":
             mem.pop()
+        from ..health import HealthRegistry, wrap
+        err = wrap("story",
+                   base_url=getattr(cfg.models.story_endpoint, "base_url",
+                                    "") or "",
+                   model=cfg.models.story_llm)(exc)
+        HealthRegistry.get(cfg).record_error(err)
         return {
-            "response": ("Einen Augenblick — die Verbindung stockt gerade. "
-                         "Sag es bitte gleich noch einmal."),
+            "response": "",
             "memory": mem,
             "pending_tool_calls": [],
+            "endpoint_error": {
+                "role": err.role, "kind": err.kind,
+                "http_status": err.http_status, "base_url": err.base_url,
+                "model": err.model, "detail": err.detail,
+            },
         }
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})

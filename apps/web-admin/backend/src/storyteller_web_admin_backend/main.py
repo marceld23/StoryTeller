@@ -153,6 +153,56 @@ def health() -> dict:
     }
 
 
+@app.get("/api/health/endpoints")
+def health_endpoints(probe: int = 0) -> dict:
+    """Per-role reachability of the configured LLM / TTS / STT endpoints.
+
+    Default (passive) reads `data/health.json`, written by the Pi voice
+    loop after every real call. Pass `?probe=1` to also issue a quick
+    `/models` (or `/get_tts_settings` for XTTS) HEAD-style GET against
+    each role's endpoint in parallel — slower but answers "is it
+    reachable RIGHT NOW" without waiting for a player to trigger a call.
+    """
+    from storyteller_core.health import (
+        HealthRegistry,
+        is_paid_cloud_role,
+        known_roles,
+        probe_role,
+    )
+    cfg = _cfg()
+    reg = HealthRegistry.get(cfg)
+    snap = reg.snapshot()
+    out: dict[str, dict] = {}
+    for role in known_roles():
+        rs = snap.get(role) or {"role": role, "ok": True,
+                                "consecutive_failures": 0,
+                                "last_ok_ts": None, "last_err_ts": None,
+                                "last_err_kind": None, "last_err_http": None,
+                                "last_err_detail": "", "base_url": "",
+                                "model": None}
+        rs["paid_cloud"] = is_paid_cloud_role(cfg, role)
+        out[role] = rs
+    if probe:
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor(max_workers=len(known_roles())) as ex:
+            futs = {role: ex.submit(probe_role, cfg, role)
+                    for role in known_roles()}
+            for role, fut in futs.items():
+                try:
+                    out[role]["probe"] = fut.result(timeout=10)
+                except Exception as exc:                # pragma: no cover
+                    out[role]["probe"] = {"ok": False, "kind": "unknown",
+                                           "detail": str(exc)[:200]}
+    return {"checked_at": _iso_now(),
+            "any_problems": any(not r["ok"] for r in out.values()),
+            "endpoints": out}
+
+
+def _iso_now() -> str:
+    from datetime import UTC, datetime
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
 # --------------------------------------------------------------------------
 # REST: worlds
 # --------------------------------------------------------------------------

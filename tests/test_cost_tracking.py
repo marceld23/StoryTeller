@@ -17,7 +17,6 @@ from storyteller_core.story.cost import (
 )
 from storyteller_core.story.ledger import CostLedger
 
-
 # ----------------------------- paid-cloud host detection -------------------
 
 
