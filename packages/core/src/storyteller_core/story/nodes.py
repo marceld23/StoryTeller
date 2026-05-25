@@ -1408,7 +1408,7 @@ def _trim_and_fold(
     keep = cfg.story.short_term_memory_turns * 2
     if not cfg.story.long_term_memory:
         if len(memory) > keep:
-            memory = memory[-keep:]
+            memory = _trim_orphan_tool_messages(memory[-keep:])
         return memory, synopsis, pending_fold
 
     batch = max(2, int(cfg.story.synopsis_batch))
@@ -1419,16 +1419,33 @@ def _trim_and_fold(
     to_fold = pending_fold + dropped
     ok, new_syn = _fold_into_synopsis(cfg, synopsis, to_fold, transcript)
     if ok:
-        return memory[batch:], new_syn, []
+        return _trim_orphan_tool_messages(memory[batch:]), new_syn, []
 
     # summariser unreachable: queue for retry, but trim memory anyway so the
     # prompt doesn't grow unbounded. Content is preserved in pending_fold.
     pending_fold = pending_fold + dropped
-    memory = memory[batch:]
+    memory = _trim_orphan_tool_messages(memory[batch:])
     if len(pending_fold) >= batch * 3:
         synopsis = _heuristic_fold(cfg, synopsis, pending_fold, transcript)
         pending_fold = []
     return memory, synopsis, pending_fold
+
+
+def _trim_orphan_tool_messages(memory: list[dict]) -> list[dict]:
+    """Strip leading `role: tool` messages whose preceding
+    `assistant` (with `tool_calls`) got dropped during synopsis fold.
+
+    OpenAI's chat completions API rejects a request with HTTP 400
+    "Invalid parameter: messages with role 'tool' must be a response
+    to a preceeding message with 'tool_calls'." if a `tool` message
+    isn't directly after the `assistant` that requested it. After
+    every batch-drop in _trim_and_fold the new memory head might be
+    one of those orphans — we silently shave them off so the next
+    narrate-call doesn't 400.
+    """
+    while memory and memory[0].get("role") == "tool":
+        memory = memory[1:]
+    return memory
 
 
 # Floor: if the new synopsis loses more than this fraction of the old
