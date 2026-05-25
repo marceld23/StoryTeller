@@ -549,6 +549,12 @@ def _build_config(config_path: str | None) -> Config:
     cfg.web.auth_token = os.environ.get("STORYTELLER_WEB_TOKEN", cfg.web.auth_token)
     cfg.web.admin_token = (os.environ.get("STORYTELLER_ADMIN_TOKEN", "")
                            or cfg.web.admin_token or cfg.web.auth_token)
+    # Per-operator locale override. Repo default in config.toml is "en"
+    # so the public project ships English-first; operators set
+    # STORYTELLER_LOCALE=de in .env (gitignored) to get German.
+    _env_locale = os.environ.get("STORYTELLER_LOCALE", "").strip().lower()
+    if _env_locale in ("de", "en"):
+        cfg.general.locale = _env_locale
     _apply_model_overrides(cfg)
     _apply_story_overrides(cfg)
     _apply_cost_overrides(cfg)

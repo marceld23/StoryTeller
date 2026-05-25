@@ -1,7 +1,9 @@
 # Storyteller — central configuration. All model names are changeable here.
 
 [general]
-locale = "de"        # de | en  (language for prompts/menu/STT/TTS)
+locale = "en"        # de | en  (language for prompts/menu/STT/TTS)
+# Per-operator override: set STORYTELLER_LOCALE=de in .env (gitignored)
+# to run a single Pi in German without touching this committed default.
 
 [runtime]
 profile = "auto"     # auto | pi | pc
