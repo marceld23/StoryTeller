@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import {
     listWorlds, createSession, openPlaySocket, fetchReplayUrl, adminUrl,
+    threadHasContent,
     type WorldSummary,
   } from '$lib/api';
   import { theme } from '$lib/theme.svelte';
@@ -58,7 +59,43 @@
       localStorage.setItem('st-last-played', world);
     } catch { /* ignore */ }
   }
-  let resumable = $derived(chosenWorld ? savedThread(chosenWorld) : null);
+  function forgetThread(world: string) {
+    try { localStorage.removeItem('st-thread-' + world); } catch { /* */ }
+  }
+  // World-IDs whose saved-thread we verified server-side as actually
+  // having content. Set populated by `verifyResumables` on mount;
+  // stale localStorage entries get purged silently as a side effect.
+  // The "Fortsetzen" button only shows if the world is in this set,
+  // so a save deleted via admin / Pi reset / world delete no longer
+  // leaves a phantom resume option in the browser.
+  let verifiedResumables = $state<Set<string>>(new Set());
+  let resumable = $derived(
+    chosenWorld
+    && savedThread(chosenWorld)
+    && verifiedResumables.has(chosenWorld)
+      ? savedThread(chosenWorld)
+      : null
+  );
+
+  async function verifyResumables(ws: WorldSummary[]) {
+    // For each world that has a saved thread in localStorage, ask the
+    // backend whether the thread still has any state. `threadHasContent`
+    // returns true/false/null:
+    //   true   → keep, mark resumable
+    //   false  → server confirmed empty/missing → purge localStorage
+    //   null   → couldn't verify (network, auth) → leave alone, just
+    //             don't show "Fortsetzen" this session
+    const ok = new Set<string>();
+    await Promise.all(ws.map(async (w) => {
+      const tid = savedThread(w.id);
+      if (!tid) return;
+      const alive = await threadHasContent(tid, w.id);
+      if (alive === true) ok.add(w.id);
+      else if (alive === false) forgetThread(w.id);
+      // alive === null → noop
+    }));
+    verifiedResumables = ok;
+  }
 
   onMount(async () => {
     try {
@@ -76,6 +113,11 @@
       } else if (worlds.length === 1) {
         chosenWorld = worlds[0].id;
       }
+      // Verify the resume-ability of saved-thread-localstorage entries
+      // before the picker renders any "Fortsetzen" buttons. Threads
+      // whose saved state was deleted (admin or Pi sysmenu) get their
+      // localStorage entry purged here.
+      verifyResumables(worlds);
     } catch (e) {
       error = friendlyError(e);
     }
@@ -246,6 +288,9 @@
         pushLine({ who: 'narrator', text: sess.opening });
       }
       rememberThread(chosenWorld, threadId);
+      // A just-started session has 1 narration → counts as resumable
+      // immediately, no need to wait for the next mount-time verify.
+      verifiedResumables = new Set([...verifiedResumables, chosenWorld]);
       stickToBottom = true;
       connect();
     } catch (e) {

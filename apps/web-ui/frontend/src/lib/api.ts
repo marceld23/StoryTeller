@@ -82,6 +82,37 @@ export async function createSession(
   return r.json();
 }
 
+/** Check whether a thread still has saved content on the server.
+ *
+ * Used to decide whether the "Fortsetzen" button is real or a stale
+ * localStorage leftover — if the player or an admin deleted the save
+ * elsewhere, the browser's `st-thread-<world>` entry would still point
+ * at a now-empty thread.
+ *
+ * Three-state result so the caller can tell "couldn't reach the
+ * server / 401 / 5xx" apart from "definitely empty":
+ *   - true   → thread has content (memory_len > 0)
+ *   - false  → thread is empty or missing (200 OK with memory_len=0)
+ *   - null   → couldn't verify (network error, 401, 5xx — caller
+ *              should leave localStorage alone)
+ */
+export async function threadHasContent(
+  thread_id: string, world_id: string
+): Promise<boolean | null> {
+  try {
+    const r = await fetch(
+      `${BACKEND}/api/sessions/${encodeURIComponent(thread_id)}/state?world_id=${encodeURIComponent(world_id)}`,
+      { headers: authHeaders() }
+    );
+    if (!r.ok) return null;
+    const s = await r.json();
+    if (typeof s.memory_len !== 'number') return null;
+    return s.memory_len > 0;
+  } catch {
+    return null;
+  }
+}
+
 /** Open a text-play WebSocket. */
 export function openPlaySocket(thread_id: string, world_id: string): WebSocket {
   const wsBase = BACKEND.replace(/^http/, 'ws');
