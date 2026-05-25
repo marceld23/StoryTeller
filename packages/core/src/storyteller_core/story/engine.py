@@ -177,10 +177,20 @@ class StoryEngine:
 
         Uses the same default DB as the compiled graph (ROOT/data/
         checkpoints.db), so it stays in sync with the live checkpointer.
+        Also purges this world's transcript files so the historical play
+        traces don't outlive the save they describe — the user wants the
+        world's "Spielstand zurücksetzen" command to wipe the visible
+        history alongside the checkpoint.
         """
         from .graph import delete_thread
+        from .transcript import delete_transcripts_for_world
 
-        return delete_thread(self.thread_id)
+        result = delete_thread(self.thread_id)
+        world_id = getattr(self.ctx.world, "id", None)
+        if world_id:
+            t = delete_transcripts_for_world(self.ctx.cfg, world_id)
+            result["transcripts_removed"] = t.get("deleted", 0)
+        return result
 
     # ---------------------------------------------------------- read-only
     def state(self) -> dict:

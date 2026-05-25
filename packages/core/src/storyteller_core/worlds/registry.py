@@ -109,6 +109,7 @@ def delete_world(cfg: Config, world_id: str) -> dict:
     world correlation in their thread_id and are short-lived anyway."""
     from ..story.graph import delete_threads_matching
     from ..story.rag import WorldRAG
+    from ..story.transcript import delete_transcripts_for_world
 
     d = cfg.path(cfg.paths.worlds_dir)
     files_removed: list[str] = []
@@ -125,12 +126,14 @@ def delete_world(cfg: Config, world_id: str) -> dict:
         log.warning("purge_world failed for %r: %r", world_id, exc)
 
     threads = delete_threads_matching(f"pi-{world_id}")
+    transcripts = delete_transcripts_for_world(cfg, world_id)
     out = {
         "world_id": world_id,
         "files_removed": files_removed,
         "rag_rows_removed": rag_rows,
         "checkpoint_rows_removed": (threads.get("checkpoints_deleted", 0)
                                      + threads.get("writes_deleted", 0)),
+        "transcripts_removed": transcripts.get("deleted", 0),
     }
     log.info("delete_world: %s", out)
     return out

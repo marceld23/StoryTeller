@@ -200,6 +200,16 @@ export async function getTranscript(
   return _json(await afetch(`${BACKEND}/api/transcripts/${encodeURIComponent(name)}`));
 }
 
+export async function deleteTranscript(
+  name: string
+): Promise<{ deleted: boolean; name: string }> {
+  return _json(
+    await afetch(`${BACKEND}/api/transcripts/${encodeURIComponent(name)}`, {
+      method: 'DELETE'
+    })
+  );
+}
+
 export type SaveGame = {
   thread_id: string;
   checkpoints: number;

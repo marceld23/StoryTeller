@@ -1221,6 +1221,31 @@ def get_transcript(name: str) -> dict:
     return {"name": p.name, "stem": p.stem, "events": events}
 
 
+@app.delete("/api/transcripts/{name}")
+def delete_transcript(name: str) -> dict:
+    """Delete one transcript file. Used by the admin UI's per-row 🗑.
+
+    Filename is sanitised against path traversal; the resolved path must
+    still live inside `data/transcripts/`. Returns
+    `{deleted: true, name: ...}` on success, 404 if the file doesn't
+    exist."""
+    safe = name.replace("/", "").replace("..", "")
+    if not safe.endswith(".jsonl"):
+        raise HTTPException(400, "only .jsonl transcripts can be deleted")
+    transcripts_dir = (ROOT / "data" / "transcripts").resolve()
+    p = (transcripts_dir / safe).resolve()
+    # Defence in depth — `safe` already had `/` and `..` stripped, but
+    # double-check the resolved path is still inside the transcripts dir.
+    try:
+        p.relative_to(transcripts_dir)
+    except ValueError:
+        raise HTTPException(400, "invalid transcript path") from None
+    if not p.exists() or not p.is_file():
+        raise HTTPException(404, "transcript not found")
+    p.unlink()
+    return {"deleted": True, "name": p.name}
+
+
 # --------------------------------------------------------------------------
 # static SPA frontend (built by `yarn build` in apps/web-admin/frontend)
 # Registered LAST so /api/* routes win; serves real files, else index.html.
