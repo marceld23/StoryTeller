@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { generatePlayerWorld } from '$lib/api';
-  import { theme } from '$lib/theme';
+  import { theme } from '$lib/theme.svelte';
 
   let prompt = $state('');
   let busy = $state(false);

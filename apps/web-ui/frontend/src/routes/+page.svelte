@@ -4,7 +4,7 @@
     listWorlds, createSession, openPlaySocket, fetchReplayUrl,
     type WorldSummary,
   } from '$lib/api';
-  import { theme } from '$lib/theme';
+  import { theme } from '$lib/theme.svelte';
   import WorldCard from '$lib/components/WorldCard.svelte';
   import ChatLine from '$lib/components/ChatLine.svelte';
 
