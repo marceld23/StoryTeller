@@ -483,6 +483,16 @@ def cost_sessions(date: str | None = None) -> dict:
     return {"date": date, "sessions": CostLedger(cfg).sessions_for(date)}
 
 
+@app.get("/api/cost/worlds")
+def cost_worlds(days: int = 7) -> dict:
+    """Per-world spend rollup over the last `days` days. Sums every
+    ledger entry (chat / embed / tts / stt / moderation) grouped by
+    world_id — useful to spot which worlds are expensive to play."""
+    from storyteller_core.story.ledger import CostLedger
+    cfg = _cfg()
+    return {"days": int(days), "worlds": CostLedger(cfg).worlds_for(days=days)}
+
+
 @app.post("/api/cost/reset/daily")
 def cost_reset_daily(payload: dict | None = None) -> dict:
     from storyteller_core.story.ledger import CostLedger
@@ -512,6 +522,8 @@ def get_cost_config() -> dict:
         "usd_per_1m_embedding": cfg.cost.usd_per_1m_embedding,
         "usd_per_1m_tts_chars": cfg.cost.usd_per_1m_tts_chars,
         "usd_per_minute_stt": cfg.cost.usd_per_minute_stt,
+        "usd_per_1m_moderation_chars": cfg.cost.usd_per_1m_moderation_chars,
+        "model_prices": cfg.cost.model_prices,
         "overrides": _read_json(_cost_overlay_path(), {}),
     }
 
@@ -525,8 +537,31 @@ def put_cost_config(payload: dict) -> dict:
         "enforce", "daily_cap_usd", "warn_threshold_pct",
         "usd_per_1m_input", "usd_per_1m_output", "usd_per_1m_embedding",
         "usd_per_1m_tts_chars", "usd_per_minute_stt",
+        "usd_per_1m_moderation_chars",
+        "model_prices",
     }
-    clean = {k: v for k, v in (payload or {}).items() if k in allowed}
+    clean: dict = {}
+    for k, v in (payload or {}).items():
+        if k not in allowed:
+            continue
+        if k == "model_prices":
+            # Coerce: {model: {input: x, output: y}} — drop empty/bad rows.
+            if not isinstance(v, dict):
+                continue
+            mp: dict = {}
+            for model, entry in v.items():
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    mp[str(model)] = {
+                        "input": float(entry.get("input", 0)),
+                        "output": float(entry.get("output", 0)),
+                    }
+                except (TypeError, ValueError):
+                    continue
+            clean[k] = mp
+        else:
+            clean[k] = v
     _write_json(_cost_overlay_path(), clean)
     return {"ok": True, "stored": clean}
 

@@ -122,7 +122,8 @@ class Curator:
                               temperature=self.cfg.models.gate_temperature),
             )
             if self.cost is not None:
-                _usd = self.cost.record_chat(resp.usage, role="gate")
+                _usd = self.cost.record_chat(resp.usage, role="gate",
+                                              model=self.cfg.models.gate)
                 if self.ledger is not None and resp.usage is not None:
                     self.ledger.record(
                         kind="chat", usd=_usd,

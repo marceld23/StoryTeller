@@ -13,6 +13,15 @@
     days: { date: string; usd: number }[];
   };
   type Session = { thread_id: string; world_id: string | null; usd: number; last_ts: string | null };
+  type WorldSpend = {
+    world_id: string;
+    usd: number;
+    calls: number;
+    chat_in: number;
+    chat_out: number;
+    last_ts: string;
+  };
+  type ModelPrice = { input: number; output: number };
   type CostConfig = {
     enforce: boolean;
     daily_cap_usd: number;
@@ -22,24 +31,45 @@
     usd_per_1m_embedding: number;
     usd_per_1m_tts_chars: number;
     usd_per_minute_stt: number;
+    usd_per_1m_moderation_chars: number;
+    model_prices: Record<string, ModelPrice>;
     overrides: Record<string, unknown>;
   };
 
   let summary = $state<Summary | null>(null);
   let sessions = $state<Session[]>([]);
+  let worlds = $state<WorldSpend[]>([]);
   let cfg = $state<CostConfig | null>(null);
   let busy = $state(false);
   let msg = $state('');
 
+  // Locally edited per-model prices as an ordered array of
+  // {model, input, output} rows — easier to render + add/remove than
+  // a dict in Svelte. Synced back to a dict on save.
+  type PriceRow = { model: string; input: number; output: number };
+  let priceRows = $state<PriceRow[]>([]);
+
   async function load() {
-    const [s, sess, c] = await Promise.all([
+    const [s, sess, w, c] = await Promise.all([
       fetch('/api/cost/summary?days=7').then(r => r.json()),
       fetch('/api/cost/sessions').then(r => r.json()),
+      fetch('/api/cost/worlds?days=30').then(r => r.json()),
       fetch('/api/cost/config').then(r => r.json()),
     ]);
     summary = s;
     sessions = sess.sessions ?? [];
+    worlds = w.worlds ?? [];
     cfg = c;
+    priceRows = Object.entries(cfg!.model_prices ?? {})
+      .map(([model, p]) => ({ model, input: p.input, output: p.output }))
+      .sort((a, b) => a.model.localeCompare(b.model));
+  }
+
+  function addPriceRow() {
+    priceRows = [...priceRows, { model: '', input: 0, output: 0 }];
+  }
+  function rmPriceRow(i: number) {
+    priceRows = priceRows.filter((_, idx) => idx !== i);
   }
 
   onMount(load);
@@ -70,6 +100,12 @@
     if (!cfg) return;
     busy = true; msg = '';
     try {
+      const mp: Record<string, ModelPrice> = {};
+      for (const r of priceRows) {
+        const m = r.model.trim();
+        if (!m) continue;
+        mp[m] = { input: Number(r.input) || 0, output: Number(r.output) || 0 };
+      }
       const payload = {
         enforce: cfg.enforce,
         daily_cap_usd: Number(cfg.daily_cap_usd),
@@ -79,6 +115,8 @@
         usd_per_1m_embedding: Number(cfg.usd_per_1m_embedding),
         usd_per_1m_tts_chars: Number(cfg.usd_per_1m_tts_chars),
         usd_per_minute_stt: Number(cfg.usd_per_minute_stt),
+        usd_per_1m_moderation_chars: Number(cfg.usd_per_1m_moderation_chars),
+        model_prices: mp,
       };
       const r = await fetch('/api/cost/config', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json();
@@ -149,22 +187,77 @@
   {/if}
 </section>
 
+<section>
+  <h3>Kosten pro Welt (letzte 30 Tage)</h3>
+  {#if worlds.length === 0}
+    <p class="muted">Noch keine Kosten verbucht.</p>
+  {:else}
+    <table class="worlds">
+      <thead><tr><th>Welt</th><th>USD</th><th>Calls</th><th>Tokens in/out</th><th>letzte Aktivität</th></tr></thead>
+      <tbody>
+        {#each worlds as w (w.world_id)}
+          <tr>
+            <td><code>{w.world_id}</code></td>
+            <td>{w.usd.toFixed(4)}</td>
+            <td>{w.calls}</td>
+            <td><small>{w.chat_in.toLocaleString('de-DE')} / {w.chat_out.toLocaleString('de-DE')}</small></td>
+            <td><small>{w.last_ts}</small></td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
+</section>
+
 {#if cfg}
   <section>
     <h3>Konfiguration</h3>
-    <p class="muted">Lokale Endpunkte (Ollama, XTTS, faster-whisper) werden NICHT mitgezählt — nur Aufrufe an OpenAI-Default.</p>
+    <p class="muted">
+      Kosten-Tracking gilt für <strong>OpenAI default</strong> + <strong>OpenRouter</strong>
+      Endpoints. Lokale Server (Ollama, XTTS, faster-whisper auf einer
+      anderen base_url) werden als kostenlos behandelt und tauchen
+      nicht im Ledger auf.
+    </p>
     <div class="grid">
       <label><span>Enforcement</span>
         <select bind:value={cfg.enforce}><option value={true}>aktiv</option><option value={false}>aus</option></select>
       </label>
       <label><span>Tageslimit (USD)</span><input type="number" step="0.1" min="0" bind:value={cfg.daily_cap_usd} /></label>
       <label><span>Warnschwelle (%)</span><input type="number" step="1" min="0" max="100" bind:value={cfg.warn_threshold_pct} /></label>
-      <label><span>USD / 1M Input-Token</span><input type="number" step="0.01" bind:value={cfg.usd_per_1m_input} /></label>
-      <label><span>USD / 1M Output-Token</span><input type="number" step="0.01" bind:value={cfg.usd_per_1m_output} /></label>
+      <label><span>USD / 1M Input-Token (Default)</span><input type="number" step="0.01" bind:value={cfg.usd_per_1m_input} /></label>
+      <label><span>USD / 1M Output-Token (Default)</span><input type="number" step="0.01" bind:value={cfg.usd_per_1m_output} /></label>
       <label><span>USD / 1M Embedding-Token</span><input type="number" step="0.001" bind:value={cfg.usd_per_1m_embedding} /></label>
       <label><span>USD / 1M TTS-Zeichen</span><input type="number" step="0.5" bind:value={cfg.usd_per_1m_tts_chars} /></label>
       <label><span>USD / Minute STT</span><input type="number" step="0.001" bind:value={cfg.usd_per_minute_stt} /></label>
+      <label><span>USD / 1M Moderation-Zeichen</span><input type="number" step="0.001" bind:value={cfg.usd_per_1m_moderation_chars} /></label>
     </div>
+
+    <h4>Modell-spezifische Preise <button class="small" onclick={addPriceRow}>+ Modell</button></h4>
+    <p class="muted">
+      Überschreibt die globalen Input/Output-Preise für bestimmte
+      Modelle. Wichtig bei Hybrid-Stacks: gpt-5.4-mini ist ~4× billiger
+      als gpt-5.4, DeepSeek V4 nochmal halber Preis. Modellname wie in
+      <code>chat.completions.create(model=…)</code> (z. B.
+      <code>gpt-5.4-mini</code>, <code>deepseek/deepseek-v4-pro</code>).
+    </p>
+    {#if priceRows.length === 0}
+      <p class="muted">Keine modell-spezifischen Preise — globaler Default wird benutzt.</p>
+    {:else}
+      <table class="prices">
+        <thead><tr><th>Modell</th><th>USD / 1M in</th><th>USD / 1M out</th><th></th></tr></thead>
+        <tbody>
+          {#each priceRows as r, i (i)}
+            <tr>
+              <td><input type="text" bind:value={r.model} placeholder="z. B. gpt-5.4-mini" /></td>
+              <td><input type="number" step="0.001" bind:value={r.input} /></td>
+              <td><input type="number" step="0.001" bind:value={r.output} /></td>
+              <td><button class="danger small" onclick={() => rmPriceRow(i)}>×</button></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+
     <div class="toolbar"><button onclick={saveConfig} disabled={busy}>Speichern</button></div>
   </section>
 {/if}

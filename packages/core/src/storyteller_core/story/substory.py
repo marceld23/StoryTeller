@@ -140,7 +140,8 @@ def choose_blueprint_variant(cfg: Config, world, *, known_summary: str = "",
                           temperature=cfg.models.planner_temperature),
         )
         if cost is not None:
-            usd = cost.record_chat(resp.usage, role="planner")
+            usd = cost.record_chat(resp.usage, role="planner",
+                                    model=cfg.models.planner)
             if ledger is not None and resp.usage is not None:
                 ledger.record(
                     kind="chat", usd=usd,
@@ -225,7 +226,8 @@ class SubstoryPlanner:
                               temperature=self.cfg.models.planner_temperature),
             )
             if self.cost is not None:
-                _usd = self.cost.record_chat(resp.usage, role="planner")
+                _usd = self.cost.record_chat(resp.usage, role="planner",
+                                              model=self.cfg.models.planner)
                 if self.ledger is not None and resp.usage is not None:
                     self.ledger.record(
                         kind="chat", usd=_usd,

@@ -71,6 +71,23 @@ class Moderator:
             # fail-open: never break play on an API hiccup, but make it visible
             log.warning("moderation check failed, allowing turn: %r", exc)
             return True, [], {}
+        # Cost ledger: omni-moderation-latest is currently FREE in OpenAI
+        # pricing, so the default rate (cfg.cost.usd_per_1m_moderation_chars
+        # = 0.0) keeps the ledger silent. If OpenAI ever starts charging,
+        # set the rate and the ledger picks it up — no other code change.
+        chars = len(text or "")
+        rate = float(getattr(self.cfg.cost,
+                              "usd_per_1m_moderation_chars", 0.0) or 0.0)
+        usd = chars / 1e6 * rate if (chars and rate) else 0.0
+        if usd > 0:
+            from .ledger import CostLedger
+            try:
+                CostLedger(self.cfg).record(
+                    kind="moderation", usd=usd,
+                    model=self.cfg.moderation.model)
+            except Exception as ledger_exc:                # pragma: no cover
+                log.warning("moderation ledger write failed: %r",
+                            ledger_exc)
         flagged = [
             {"category": c, "score": round(float(s), 4),
              "threshold": self.threshold(c)}

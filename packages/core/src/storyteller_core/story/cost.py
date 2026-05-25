@@ -36,18 +36,84 @@ class DailyCapExceeded(Exception):
         self.cap_usd = float(cap_usd)
 
 
+# Known paid-cloud endpoints actually wired into Storyteller. Calls
+# hitting these hosts MUST be cost-tracked even though they have a
+# non-empty base_url — otherwise the OpenRouter setup would record
+# every call as 0 USD and silently disable the daily cap.
+#
+# Storyteller does NOT have a direct Anthropic or Google integration;
+# those models are reached via OpenRouter and so are covered by the
+# `openrouter.ai` entry below. If a direct integration is added later,
+# add the matching host(s) here.
+_PAID_CLOUD_HOSTS: set[str] = {
+    "api.openai.com",
+    "openrouter.ai",
+}
+# Suffix matches catch regional / shard variants (e.g. eu.openai.com).
+_PAID_CLOUD_HOST_SUFFIXES: tuple[str, ...] = (
+    ".openai.com", ".openai.azure.com",
+    ".openrouter.ai",
+)
+
+
+def _host_of(base_url: str) -> str:
+    if not base_url:
+        return ""
+    from urllib.parse import urlparse
+    return (urlparse(base_url).hostname or "").lower()
+
+
+def is_paid_cloud(base_url: str) -> bool:
+    """True if `base_url` points at a known commercial inference host.
+    These calls are billed by the provider, so they MUST cost-track
+    regardless of having a non-empty base_url."""
+    host = _host_of(base_url)
+    if not host:
+        return False
+    if host in _PAID_CLOUD_HOSTS:
+        return True
+    return any(host.endswith(suf) for suf in _PAID_CLOUD_HOST_SUFFIXES)
+
+
 def is_local_role(cfg: Config, role: str) -> bool:
-    """`True` when the endpoint for this role points at a custom (i.e.
-    non-OpenAI) base_url — taken to mean "self-hosted, no per-token cost".
+    """`True` when the endpoint for this role is a self-hosted server
+    (Ollama / vLLM / XTTS / faster-whisper on the LAN, etc.) — calls
+    there are taken to have no per-token cost.
+
+    Decision:
+      * Empty base_url → OpenAI default → paid → False.
+      * base_url on OpenAI or OpenRouter → paid → False.
+      * Any other base_url → assumed self-hosted → True.
 
     Roles correspond to ModelsCfg attributes: ``story``, ``planner``,
-    ``gen``, ``gate``, ``stt``, ``tts``, ``embedding``. Unknown roles or
-    missing endpoints default to "remote" (paid).
+    ``gen``, ``gate``, ``stt``, ``tts``, ``embedding``. Unknown roles
+    or missing endpoints default to "remote" (paid).
     """
     ep = getattr(cfg.models, f"{role}_endpoint", None)
     if ep is None:
         return False
-    return bool((getattr(ep, "base_url", "") or "").strip())
+    base = (getattr(ep, "base_url", "") or "").strip()
+    if not base:
+        return False               # OpenAI default = paid
+    if is_paid_cloud(base):
+        return False               # OpenRouter = paid
+    return True                    # everything else: self-hosted = free
+
+
+def chat_unit_prices(cfg: Config, model: str | None) -> tuple[float, float]:
+    """Resolve (input_price, output_price) per 1M tokens for a chat
+    model. Looks the model up in `cfg.cost.model_prices` first; falls
+    back to the global `usd_per_1m_input` / `_output`. Missing or
+    malformed entries silently fall through to the global default —
+    bad data shouldn't crash a turn."""
+    table = getattr(cfg.cost, "model_prices", None) or {}
+    entry = table.get(model) if model else None
+    if isinstance(entry, dict):
+        pin = entry.get("input")
+        pout = entry.get("output")
+        if isinstance(pin, (int, float)) and isinstance(pout, (int, float)):
+            return float(pin), float(pout)
+    return float(cfg.cost.usd_per_1m_input), float(cfg.cost.usd_per_1m_output)
 
 
 class CostTracker:
@@ -63,7 +129,8 @@ class CostTracker:
 
     # --------------- recording (mutates counters, returns USD delta) ---
 
-    def record_chat(self, usage, *, role: str = "story") -> float:
+    def record_chat(self, usage, *, role: str = "story",
+                    model: str | None = None) -> float:
         if usage is None:
             return 0.0
         pin = int(getattr(usage, "prompt_tokens", 0) or 0)
@@ -72,9 +139,8 @@ class CostTracker:
         self.output += pout
         if is_local_role(self.cfg, role):
             return 0.0
-        c = self.cfg.cost
-        return (pin / 1e6 * c.usd_per_1m_input
-                + pout / 1e6 * c.usd_per_1m_output)
+        in_price, out_price = chat_unit_prices(self.cfg, model)
+        return pin / 1e6 * in_price + pout / 1e6 * out_price
 
     def record_embedding(self, usage) -> float:
         if usage is None:
@@ -103,16 +169,22 @@ class CostTracker:
 
     @property
     def usd(self) -> float:
-        """Approximate session spend in USD across paid endpoints only."""
+        """Approximate session spend in USD across paid endpoints only.
+        For per-call accuracy use the ledger (data/cost.jsonl) — this
+        roll-up aggregates input/output tokens across whatever chat
+        model touched the session and prices them with the narrator's
+        model rate as a proxy."""
         c = self.cfg.cost
         total = 0.0
         if not is_local_role(self.cfg, "story"):
-            # Use the narrator/story endpoint as the proxy for chat-side
-            # locality; in mixed setups (e.g. local story but cloud
-            # planner) the ledger has per-call resolution while this
-            # roll-up stays a rough upper bound.
-            total += (self.input / 1e6 * c.usd_per_1m_input
-                      + self.output / 1e6 * c.usd_per_1m_output)
+            # Use the narrator's model price (looked up in
+            # cfg.cost.model_prices) as the chat-side proxy. In a mixed
+            # setup the ledger keeps per-call accuracy; this property is
+            # a rough running tally.
+            in_price, out_price = chat_unit_prices(
+                self.cfg, getattr(self.cfg.models, "story_llm", None))
+            total += (self.input / 1e6 * in_price
+                      + self.output / 1e6 * out_price)
         if not is_local_role(self.cfg, "embedding"):
             total += self.embed / 1e6 * c.usd_per_1m_embedding
         if not is_local_role(self.cfg, "tts"):

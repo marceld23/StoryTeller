@@ -31,7 +31,7 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as _date
 
 from ..config import Config
-from .cost import DailyCapExceeded, is_local_role
+from .cost import DailyCapExceeded, chat_unit_prices, is_local_role
 
 log = logging.getLogger("storyteller.cost.ledger")
 
@@ -190,9 +190,8 @@ class CostLedger:
             return 0.0
         pin = int(getattr(usage, "prompt_tokens", 0) or 0)
         pout = int(getattr(usage, "completion_tokens", 0) or 0)
-        c = self.cfg.cost
-        usd = (pin / 1e6 * c.usd_per_1m_input
-               + pout / 1e6 * c.usd_per_1m_output)
+        in_price, out_price = chat_unit_prices(self.cfg, model)
+        usd = pin / 1e6 * in_price + pout / 1e6 * out_price
         self.record(kind="chat", usd=usd, thread_id=thread_id,
                     world_id=world_id, model=model,
                     chat_in=pin, chat_out=pout)
@@ -240,6 +239,40 @@ class CostLedger:
             d = today - timedelta(days=i)
             out["days"].append({"date": d.isoformat(),
                                 "usd": self.daily_total(d.isoformat())})
+        return out
+
+    def worlds_for(self, days: int = 7) -> list[dict]:
+        """Per-world spend rollup over the last `days` days. Includes
+        non-paid lines (usd=0) implicitly because record() already
+        skips them. Bypasses session reset markers — world totals are
+        a longitudinal view, not a "since last reset" view."""
+        from datetime import timedelta
+        today = _date.today()
+        cutoff = (today - timedelta(days=max(1, int(days)) - 1)).isoformat()
+        by_world: dict[str, dict] = {}
+        for e in self._iter_entries():
+            if e.get("marker"):
+                continue
+            if (e.get("date") or "") < cutoff:
+                continue
+            wid = e.get("world_id") or "(ohne Welt)"
+            agg = by_world.setdefault(wid, {
+                "world_id": wid, "usd": 0.0, "calls": 0,
+                "chat_in": 0, "chat_out": 0, "embed": 0,
+                "tts_chars": 0, "stt_sec": 0.0, "last_ts": "",
+            })
+            agg["usd"] += float(e.get("usd") or 0.0)
+            agg["calls"] += 1
+            agg["chat_in"] += int(e.get("chat_in") or 0)
+            agg["chat_out"] += int(e.get("chat_out") or 0)
+            agg["embed"] += int(e.get("embed") or 0)
+            agg["tts_chars"] += int(e.get("tts_chars") or 0)
+            agg["stt_sec"] += float(e.get("stt_sec") or 0.0)
+            ts = e.get("ts") or ""
+            if ts > agg["last_ts"]:
+                agg["last_ts"] = ts
+        out = list(by_world.values())
+        out.sort(key=lambda r: r["usd"], reverse=True)
         return out
 
     def sessions_for(self, date: str | None = None) -> list[dict]:

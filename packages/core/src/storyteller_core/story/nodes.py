@@ -617,7 +617,8 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         }
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
-    _usd = cost.record_chat(resp.usage, role="story")
+    _usd = cost.record_chat(resp.usage, role="story",
+                             model=cfg.models.story_llm)
     if resp.usage is not None:
         CostLedger(cfg).record(
             kind="chat", usd=_usd,

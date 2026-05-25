@@ -305,6 +305,29 @@ class CostCfg(BaseModel):
     usd_per_1m_embedding: float = 0.02
     usd_per_1m_tts_chars: float = 15.0
     usd_per_minute_stt: float = 0.006
+    # Per-1M-character price for OpenAI moderation API. Today the
+    # `omni-moderation-latest` endpoint is FREE — default $0 keeps the
+    # ledger silent on it. Set to a non-zero value if OpenAI ever
+    # starts charging for moderation.
+    usd_per_1m_moderation_chars: float = 0.0
+    # Per-model price overrides. When a chat call's model name is in
+    # this dict, the matching `input` / `output` prices win over the
+    # global `usd_per_1m_input` / `_output` fields above. Useful on
+    # hybrid stacks (cheap DeepSeek via OpenRouter for one role, gpt-
+    # 5.4 directly for another, Claude Opus for a third) where the
+    # per-1M token prices vary by 10-100×. Keys are the literal model
+    # IDs you'd send in `chat.completions.create(model=...)` —
+    # exactly what shows up in the ledger's `model` field.
+    # Example overlay in data/cost.json (OpenAI + OpenRouter only —
+    # Storyteller has no direct Anthropic/Google integration, those
+    # models are reached via OpenRouter):
+    #   "model_prices": {
+    #     "gpt-5.4-mini":                    {"input": 0.075, "output": 0.30},
+    #     "gpt-5.4":                         {"input": 0.30,  "output": 1.20},
+    #     "deepseek/deepseek-v4-pro":        {"input": 0.14,  "output": 0.28},
+    #     "openai/gpt-5":                    {"input": 0.30,  "output": 1.20}
+    #   }
+    model_prices: dict[str, dict[str, float]] = Field(default_factory=dict)
     # Daily hard cap. When reached, the engine refuses new turns: the
     # ongoing turn (if any) is saved cleanly, the player hears a "limit
     # reached" announcement, and the next wake-word activation greets
