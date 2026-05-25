@@ -1,0 +1,132 @@
+# syntax=docker/dockerfile:1.7
+#
+# Storyteller web-services image — runs BOTH apps/web-admin/backend and
+# apps/web-ui/backend off a single shared image. The orchestrating
+# `docker-compose.yml` overrides CMD to pick which service starts in
+# each container. Pi voice-loop, CLI and local-AI servers are NOT
+# included — they're host-coupled and out of scope here.
+#
+# Three stages:
+#   1. node-build     — yarn 4 builds both SvelteKit frontends to static
+#                       files. Runtime image carries no Node, no yarn,
+#                       no SvelteKit dev-deps.
+#   2. python-deps    — uv resolves + installs the workspace into a
+#                       venv. Layer caches well when only Python sources
+#                       change (uv.lock is the cache key).
+#   3. runtime        — slim Python image with the venv and the source
+#                       trees the FastAPI backends import from.
+#
+# Build: `docker compose up --build` from docker/ does it for you.
+
+# -------------------------------- stage 1 -----------------------------------
+FROM node:20-bookworm-slim AS node-build
+WORKDIR /build
+
+# Enable yarn 4 via corepack (matches AGENTS.md: "Web frontends: always
+# yarn 4.x, never npm/npx/pnpm"). Both frontends pin yarn@4.12.0 via
+# the packageManager field; corepack auto-downloads on first yarn call.
+RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+
+# Frontend sources only — no Python files in this stage's cache key, so
+# Python edits don't bust the yarn install cache.
+COPY apps/web-admin/frontend/package.json  apps/web-admin/frontend/yarn.lock  apps/web-admin/frontend/.yarnrc.yml  ./web-admin/
+COPY apps/web-ui/frontend/package.json     apps/web-ui/frontend/yarn.lock     apps/web-ui/frontend/.yarnrc.yml     ./web-ui/
+
+# Install deps (immutable = fails if yarn.lock would change)
+RUN --mount=type=cache,target=/build/.yarn/berry/cache \
+    set -eux; \
+    cd web-admin && yarn install --immutable && cd .. ; \
+    cd web-ui    && yarn install --immutable && cd ..
+
+# Now the rest of the frontend sources (these change more often than
+# package.json — keeping them in a later layer means dep installs cache
+# even when components are edited).
+COPY apps/web-admin/frontend/ ./web-admin/
+COPY apps/web-ui/frontend/    ./web-ui/
+
+RUN set -eux; \
+    cd web-admin && yarn build && cd .. ; \
+    cd web-ui    && yarn build && cd ..
+
+
+# -------------------------------- stage 2 -----------------------------------
+FROM python:3.13-slim AS python-deps
+WORKDIR /app
+
+# uv: fastest workspace resolver, the same one used outside Docker.
+# Pinned + downloaded once into a tiny cache layer.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && cp /root/.local/bin/uv /usr/local/bin/uv
+
+# Workspace skeleton — copy ONLY the dependency manifests first so the
+# uv install layer caches well when Python sources change but deps don't.
+COPY pyproject.toml uv.lock ./
+COPY packages/core/pyproject.toml          packages/core/pyproject.toml
+COPY packages/voice/pyproject.toml         packages/voice/pyproject.toml
+COPY packages/hardware/pyproject.toml      packages/hardware/pyproject.toml
+COPY apps/cli/pyproject.toml               apps/cli/pyproject.toml
+COPY apps/pi/pyproject.toml                apps/pi/pyproject.toml
+COPY apps/web-ui/backend/pyproject.toml    apps/web-ui/backend/pyproject.toml
+COPY apps/web-admin/backend/pyproject.toml apps/web-admin/backend/pyproject.toml
+
+# Without sources uv can't actually install the workspace members (the
+# wheels need a src tree). So copy the sources for the ones we want at
+# runtime, then sync. The two Pi-only members (apps/cli, apps/pi) keep
+# only their pyproject — uv accepts them as workspace members without
+# the source, since we never invoke their script entry points.
+COPY packages/core/src/                        packages/core/src/
+COPY packages/voice/src/                       packages/voice/src/
+COPY packages/hardware/src/                    packages/hardware/src/
+COPY apps/web-ui/backend/src/                  apps/web-ui/backend/src/
+COPY apps/web-admin/backend/src/               apps/web-admin/backend/src/
+# Stubs for the Pi/CLI workspace members so uv's workspace graph stays
+# consistent without dragging in unused Python source.
+RUN set -eux; \
+    mkdir -p apps/cli/src/storyteller_cli apps/pi/src/storyteller_pi; \
+    : > apps/cli/src/storyteller_cli/__init__.py; \
+    : > apps/pi/src/storyteller_pi/__init__.py
+
+# Install everything into /app/.venv. --no-dev drops pytest/ruff/mypy.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+
+# -------------------------------- stage 3 -----------------------------------
+FROM python:3.13-slim AS runtime
+WORKDIR /app
+
+# Minimal runtime deps:
+#   libsndfile1 — soundfile uses it for in-memory WAV decoding on /api/sessions/.../replay
+#   ca-certificates — outbound HTTPS to OpenAI / OpenRouter
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libsndfile1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1000 storyteller \
+    && useradd  --system --uid 1000 --gid storyteller --home /app storyteller \
+    && mkdir -p /app/data \
+    && chown -R storyteller:storyteller /app
+
+# venv + sources from stage 2 (one copy, keeps layer count low)
+COPY --from=python-deps --chown=storyteller:storyteller /app /app
+
+# Frontend builds from stage 1 land where the FastAPI backends serve
+# them from (apps/<x>/frontend/build/ is mounted by their static-route).
+COPY --from=node-build --chown=storyteller:storyteller \
+     /build/web-admin/build/ apps/web-admin/frontend/build/
+COPY --from=node-build --chown=storyteller:storyteller \
+     /build/web-ui/build/    apps/web-ui/frontend/build/
+
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+USER storyteller
+
+# The compose file overrides CMD per service. This default is just
+# documentation — if someone runs the image directly it boots the
+# admin UI.
+CMD ["storyteller-web-admin"]

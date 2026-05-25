@@ -1,0 +1,54 @@
+## Build context exclusions for docker/Dockerfile.web.
+## Context root is the repo root (../ from this file).
+
+# Local virtualenv + lockfile artifacts that shouldn't pollute the image
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.egg-info
+build/
+dist/
+
+# Node / SvelteKit build artifacts — we build them fresh inside stage 1
+**/node_modules
+**/.svelte-kit
+**/.yarn/cache
+**/.yarn/install-state.gz
+apps/*/frontend/build/
+
+# Runtime data — Docker starts with an empty data dir per design
+data/
+
+# Local-only dev artifacts
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+
+# Git + editor metadata
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# CI / scripts that don't belong in the image
+scripts/install_https.sh
+scripts/install_services.sh
+scripts/install_netcheck.sh
+scripts/install_wakeword.sh
+scripts/setup_system.sh
+
+# Pi-only artifacts (not used by the web services)
+local_llm_servers_win/
+
+# Tests + dev-only files
+tests/
+**/test_*.py
+
+# Docker meta itself (avoids recursive context bloat)
+docker/data/

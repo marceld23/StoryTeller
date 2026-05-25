@@ -126,6 +126,27 @@ admin: 5174). Rebuild for production with `scripts/build_frontends.sh`.
 
 ---
 
+## Docker (web services only)
+
+If you don't want to install Python, Node and Caddy on the host —
+the player UI + admin UI also ship as a Docker stack:
+
+```bash
+cd docker/
+cp .env.example .env       # fill OPENAI_API_KEY + admin token
+docker compose up --build
+```
+
+Player UI at `https://localhost/`, admin UI at `https://localhost:8443/`.
+Persistence is a bind-mount on `./data/` (created empty on first run;
+generate worlds via the admin UI). x86_64-only, single image reused
+for both services. Full walkthrough: [docker/README.md](docker/README.md).
+
+The Pi voice-loop, CLI and local-AI server stacks are **out of scope**
+for Docker — they're host-coupled (audio devices, GPIO, GPU). The web
+containers can co-host with a Pi on the same machine by bind-mounting
+the Pi's `data/` directory; see the Docker README.
+
 ## HTTPS for remote phones / PCs
 
 Browsers gate `navigator.mediaDevices` behind HTTPS or localhost — so

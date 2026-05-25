@@ -1,0 +1,36 @@
+# Caddy 2 — TLS-terminating reverse proxy for the Storyteller Docker
+# stack. Generates self-signed certs via `tls internal` so the stack
+# works out of the box without external CA setup. Browsers will warn
+# once; accept the cert OR import Caddy's root from
+# `docker volume inspect storyteller_caddy-data` if you want it clean.
+
+{
+    # No automatic Let's Encrypt — this is for LAN / local deployments.
+    auto_https disable_redirects
+}
+
+:443 {
+    tls internal
+    encode gzip
+    # WebSocket-aware reverse-proxy. flush_interval -1 disables the
+    # standard buffering so the streaming voice WAVs reach the client
+    # without artificial gaps.
+    reverse_proxy web-ui:8090 {
+        flush_interval -1
+    }
+}
+
+:8443 {
+    tls internal
+    encode gzip
+    reverse_proxy web-admin:8080 {
+        flush_interval -1
+    }
+}
+
+:80 {
+    # Player UI on plain HTTP redirects to HTTPS so the (HTTPS-only)
+    # microphone API works for /voice. Admin has no mic — but the
+    # 8443 listener is the canonical entry anyway.
+    redir https://{host}{uri} permanent
+}

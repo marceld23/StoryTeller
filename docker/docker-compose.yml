@@ -1,0 +1,63 @@
+# Storyteller — web services (admin + player) in Docker.
+# Pi voice-loop, CLI and local-AI servers are out of scope; if you run
+# the Pi on the same host see ./README.md for the bind-mount variant.
+#
+# Quick start:
+#   1. cp .env.example .env  (and fill OPENAI_API_KEY / admin token)
+#   2. docker compose up --build
+#   3. browse https://localhost/    (player web-ui, accept TLS warning)
+#            https://localhost:8443/ (admin)
+#
+# The `./data/` directory is created on first run and is owned by the
+# container user (uid 1000). Persists across `docker compose down`.
+
+services:
+  web-ui:
+    image: storyteller-web:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    container_name: storyteller-web-ui
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8090"
+    # FastAPI uvicorn entry point installed from
+    # apps/web-ui/backend/pyproject.toml [project.scripts]
+    command: ["storyteller-web-ui"]
+
+  web-admin:
+    image: storyteller-web:local
+    # Reuses the image built by the web-ui service — only one build runs.
+    container_name: storyteller-web-admin
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8080"
+    depends_on: [web-ui]
+    command: ["storyteller-web-admin"]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: storyteller-caddy
+    restart: unless-stopped
+    # 80   → redirect to 443
+    # 443  → player web-ui (https://<host>/)
+    # 8443 → admin web-ui  (https://<host>:8443/)
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [web-ui, web-admin]
+
+volumes:
+  caddy-data:
+  caddy-config:
