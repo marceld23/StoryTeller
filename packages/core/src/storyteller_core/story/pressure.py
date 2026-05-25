@@ -78,6 +78,13 @@ class TurnSignal:
     off_arc_world_query: bool = False    # retrieve_world_fact on non-arc fact_type
     explicit_free: bool = False
     explicit_plot: bool = False
+    # True when the active substory carries no concrete arc terms
+    # (involved_persons / involved_places empty AND hook/beat-names
+    # generic). The lexical heuristic can't reliably tell on-arc from
+    # off-arc in that case, so we shift the default pull toward plot-
+    # positive instead of penalising the player for the planner having
+    # produced a thin plan.
+    substory_lex_thin: bool = False
     # Tiebreaker LLM verdict — populated only when run; overrides the
     # heuristic pull when confidence >= threshold.
     tiebreaker_direction: Direction | None = None
@@ -103,6 +110,13 @@ class TurnSignal:
             return _PULL_ON_ARC
         if self.off_arc_world_query:
             return _PULL_OFF_ARC
+        # Default when no specific signal fires: lateral (0.5). EXCEPT
+        # when the substory is lexically thin — then absence of
+        # on_arc_lex doesn't mean the player drifted, it means we
+        # couldn't measure. Bias slightly plot-positive (0.65) so the
+        # pressure doesn't drag down on a thin plan.
+        if self.substory_lex_thin:
+            return 0.65
         return _PULL_LATERAL
 
 
@@ -183,6 +197,28 @@ def _off_arc_world_query(tool_calls: list[dict], substory: dict | None) -> bool:
     return False
 
 
+def _substory_lex_thin(substory: dict | None) -> bool:
+    """A substory is "lexically thin" when it lacks the concrete terms
+    the heuristic needs to detect on-arc engagement — primarily no
+    `involved_persons` and no `involved_places`. Hook and beat-name
+    tokens DO get extracted by _arc_terms(), but words like
+    "Aufhänger" / "Zuspitzung" / "Eskalation" are never what a player
+    naturally says back to the narrator, so they can't actually drive
+    on_arc_lex matches. The empty-involved-* state is the reliable
+    indicator that the substory was a fallback stub (or a thinly-
+    planned arc) — both cases need the classifier to bias plot-
+    positive instead of penalising the player."""
+    if not substory:
+        return False
+    persons = substory.get("involved_persons") or []
+    places = substory.get("involved_places") or []
+    # Treat empty-or-only-whitespace as empty (defensive against the
+    # planner returning [""] etc.)
+    has_persons = any(isinstance(p, str) and p.strip() for p in persons)
+    has_places = any(isinstance(p, str) and p.strip() for p in places)
+    return not (has_persons or has_places)
+
+
 def classify(*, player_text: str,
              tool_calls: list[dict],
              substory: dict | None,
@@ -192,12 +228,18 @@ def classify(*, player_text: str,
     caller (`finalize`) optionally fills them after an LLM call."""
     names = {tc.get("name") or tc.get("function", {}).get("name") or ""
              for tc in (tool_calls or [])}
+    thin = _substory_lex_thin(substory)
     return TurnSignal(
         advanced=("advance_beat" in names) or ("complete_substory" in names),
         on_arc_lex=_player_mentions_arc(player_text, substory),
-        off_arc_world_query=_off_arc_world_query(tool_calls, substory),
+        # When the substory itself is thin, we cannot reliably tell that
+        # a world-fact retrieve was off-arc (no "arc" to be off from).
+        # Suppress the false off-arc signal in that case.
+        off_arc_world_query=(False if thin
+                              else _off_arc_world_query(tool_calls, substory)),
         explicit_free=_phrase_hit(player_text, _PHRASE_EXPLICIT_FREE),
         explicit_plot=_phrase_hit(player_text, _PHRASE_EXPLICIT_PLOT),
+        substory_lex_thin=thin,
         beat_dwell=int(beat_dwell or 0),
     )
 

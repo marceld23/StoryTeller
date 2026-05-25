@@ -94,7 +94,8 @@ def choose_blueprint_variant(cfg: Config, world, *, known_summary: str = "",
                               locale: str = "de",
                               cost=None, ledger=None,
                               thread_id: str | None = None,
-                              world_id: str | None = None) -> int:
+                              world_id: str | None = None,
+                              transcript=None) -> int:
     """Pick which of `world.blueprints` should drive the NEXT substory
     arc. Returns 0 for legacy single-arc worlds (no LLM call). For
     multi-variant worlds: one small `planner` chat call with the
@@ -152,10 +153,19 @@ def choose_blueprint_variant(cfg: Config, world, *, known_summary: str = "",
                                      "completion_tokens", 0) or 0)
         data = json.loads(resp.choices[0].message.content or "{}")
         choice = int(data.get("choice", 0))
+        why = (data.get("why") or "").strip()[:160]
         if 0 <= choice < len(variants):
+            if transcript:
+                transcript.note(
+                    f"[planner] variant pick: #{choice} "
+                    f"'{variants[choice].name}'"
+                    + (f" — {why}" if why else ""))
             return choice
-    except Exception:
-        pass
+    except Exception as exc:
+        if transcript:
+            transcript.note(
+                f"[planner] variant pick FAILED — "
+                f"{type(exc).__name__}: {str(exc)[:160]}")
     return 0
 
 
@@ -163,12 +173,17 @@ class SubstoryPlanner:
     """The "think-and-plan step" for a new substory (its own LLM call)."""
 
     def __init__(self, cfg: Config, cost=None, *, ledger=None,
-                 thread_id: str | None = None, world_id: str | None = None):
+                 thread_id: str | None = None, world_id: str | None = None,
+                 transcript=None):
         self.cfg = cfg
         self.cost = cost
         self.ledger = ledger
         self.thread_id = thread_id
         self.world_id = world_id
+        # Optional transcript handle — when present, planning failures land
+        # as `[planner] FAILED` notes in the session transcript instead of
+        # vanishing into the engine log.
+        self.transcript = transcript
 
     def plan_next(self, world, rag, macro_guidance: str, known_summary: str,
                   recent: str, previous_summary: str = "",
@@ -216,55 +231,82 @@ class SubstoryPlanner:
         _cap_n = pat["n_beats"]
         _cap_t = pat["tension_cap"]
         client = get_chat_client(self.cfg, "planner")
-        try:
-            resp = client.chat.completions.create(
-                model=self.cfg.models.planner,
-                messages=[{"role": "system", "content": _PLANNER_SYS},
-                          {"role": "user", "content": user}],
-                response_format={"type": "json_object"},
-                **chat_extras(self.cfg, "planner",
-                              temperature=self.cfg.models.planner_temperature),
-            )
-            if self.cost is not None:
-                _usd = self.cost.record_chat(resp.usage, role="planner",
-                                              model=self.cfg.models.planner)
-                if self.ledger is not None and resp.usage is not None:
-                    self.ledger.record(
-                        kind="chat", usd=_usd,
-                        thread_id=self.thread_id, world_id=self.world_id,
-                        model=self.cfg.models.planner,
-                        chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
-                        chat_out=getattr(resp.usage,
-                                         "completion_tokens", 0) or 0)
-            data = json.loads(resp.choices[0].message.content or "{}")
-            beats = [Beat(name=b.get("name", f"Beat {i+1}"),
-                          goal=b.get("goal", ""),
-                          tension=max(0, min(_cap_t,
-                                             int(b.get("tension", 5)))))
-                     for i, b in enumerate(
-                         data.get("beats", [])[:_cap_n])]
-            if not beats:
-                beats = [Beat(name="Aufhänger", goal=data.get("hook", ""),
-                              tension=3),
-                         Beat(name="Höhepunkt", goal="Zuspitzung", tension=8),
-                         Beat(name="Auflösung", goal="Abschluss", tension=3)]
-            return SubstoryPlan(
-                title=data.get("title", "Eine neue Wendung"),
-                premise=data.get("premise", ""),
-                hook=data.get("hook", ""),
-                beats=beats,
-                involved_places=list(data.get("involved_places", []))[:8],
-                involved_persons=list(data.get("involved_persons", []))[:8],
-                resolution_hint=data.get("resolution_hint", ""),
-            )
-        except Exception:
-            # Robust fallback in case JSON/model misbehaves
-            return SubstoryPlan(
-                title="Eine unerwartete Wendung",
-                premise=f"Eine neue Herausforderung in {world.name}.",
-                hook="Etwas zwingt zum Handeln.",
-                beats=[Beat(name="Aufhänger", goal="Lage etablieren", tension=3),
-                       Beat(name="Zuspitzung", goal="Eskalation", tension=7),
-                       Beat(name="Auflösung", goal="Abschluss", tension=3)],
-                resolution_hint="Eine Entscheidung des Spielers löst es auf.",
-            )
+
+        # Try the planner LLM up to twice. The second try is a slightly
+        # stricter retry with the same prompt — most JSON-shape failures
+        # are intermittent. Each failure lands a `[planner] FAILED` line
+        # in the transcript so the admin can see what happened instead
+        # of an opaque "Eine unerwartete Wendung" fallback.
+        last_err: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                resp = client.chat.completions.create(
+                    model=self.cfg.models.planner,
+                    messages=[{"role": "system", "content": _PLANNER_SYS},
+                              {"role": "user", "content": user}],
+                    response_format={"type": "json_object"},
+                    **chat_extras(self.cfg, "planner",
+                                  temperature=self.cfg.models.planner_temperature),
+                )
+                if self.cost is not None:
+                    _usd = self.cost.record_chat(
+                        resp.usage, role="planner",
+                        model=self.cfg.models.planner)
+                    if self.ledger is not None and resp.usage is not None:
+                        self.ledger.record(
+                            kind="chat", usd=_usd,
+                            thread_id=self.thread_id, world_id=self.world_id,
+                            model=self.cfg.models.planner,
+                            chat_in=getattr(resp.usage, "prompt_tokens", 0) or 0,
+                            chat_out=getattr(resp.usage,
+                                             "completion_tokens", 0) or 0)
+                data = json.loads(resp.choices[0].message.content or "{}")
+                beats = [Beat(name=b.get("name", f"Beat {i+1}"),
+                              goal=b.get("goal", ""),
+                              tension=max(0, min(_cap_t,
+                                                 int(b.get("tension", 5)))))
+                         for i, b in enumerate(
+                             data.get("beats", [])[:_cap_n])]
+                if not beats:
+                    raise ValueError(
+                        "planner JSON had no usable `beats` array")
+                title = (data.get("title") or "").strip() \
+                    or "Eine neue Wendung"
+                return SubstoryPlan(
+                    title=title,
+                    premise=(data.get("premise") or "").strip(),
+                    hook=(data.get("hook") or "").strip(),
+                    beats=beats,
+                    involved_places=list(data.get("involved_places") or [])[:8],
+                    involved_persons=list(data.get("involved_persons") or [])[:8],
+                    resolution_hint=(data.get("resolution_hint") or "").strip(),
+                )
+            except Exception as exc:
+                last_err = exc
+                if self.transcript:
+                    self.transcript.note(
+                        f"[planner] FAILED attempt {attempt}/2: "
+                        f"{type(exc).__name__}: {str(exc)[:160]}")
+
+        # Both attempts failed. Surface as a notable, loud transcript line
+        # AND return a marked-fallback substory so the next ensure_substory
+        # call will retry from scratch instead of letting the engine cement
+        # this stub for the entire session (which was the bug in
+        # 'pi-justus_scify' — 18 turns on a stub with empty involved_*).
+        if self.transcript:
+            self.transcript.note(
+                f"[planner] FAILED both attempts — using marked stub. "
+                f"last_err={type(last_err).__name__ if last_err else 'unknown'}")
+        return SubstoryPlan(
+            title="(planning failed — temporary)",
+            premise=f"Planung für {world.name} ist gerade fehlgeschlagen.",
+            hook="Etwas zwingt zum Handeln.",
+            beats=[Beat(name="Aufhänger", goal="Lage etablieren", tension=3),
+                   Beat(name="Zuspitzung", goal="Eskalation", tension=7),
+                   Beat(name="Auflösung", goal="Abschluss", tension=3)],
+            resolution_hint="Eine Entscheidung des Spielers löst es auf.",
+            # The status="planning_failed" is recognised by ensure_substory
+            # so the next turn re-attempts the plan instead of treating
+            # this as an active arc to stay on for hours.
+            status="planning_failed",
+        )

@@ -252,7 +252,16 @@ class StoryCfg(BaseModel):
     synopsis_batch: int = 8        # fold this many old messages at once
     # Gentle nudge: after this many narrator turns on the same sub-beat,
     # remind the model it MAY advance_beat/complete_substory (0 = off).
+    # At >= 2× this value the nudge upgrades to BEAT_NUDGE_HARD ("urgent:
+    # call advance_beat NOW"), and at `beat_stagnation_replan` turns the
+    # engine forces a substory replan to break the loop.
     beat_nudge_after: int = 3
+    # Hard stagnation guard: when this many turns have elapsed on the
+    # same sub-beat WITHOUT the narrator ever calling advance_beat,
+    # finalize() forces a replan by marking the current substory as
+    # `planning_failed`. The next ensure_substory call then re-plans
+    # from scratch using the latest memory + synopsis. 0 = disabled.
+    beat_stagnation_replan: int = 10
     # Upper bound for KnownFacts entries (oldest noteless evicted first).
     known_facts_cap: int = 30
     # Narration "gate": runs a small LLM each turn to decide which authored

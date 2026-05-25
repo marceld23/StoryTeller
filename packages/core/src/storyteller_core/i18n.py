@@ -605,6 +605,23 @@ BEAT_NUDGE = {
            "resolved) — do not stretch it artificially."),
 }
 
+# Stronger version of the beat-nudge for substantial dwell (>= 2× the
+# configured threshold OR the substory is at its last beat). Makes the
+# tool-call obligation explicit instead of "if it seems reached".
+BEAT_NUDGE_HARD = {
+    "de": ("\nDRINGEND: Der Spieler steckt seit vielen Zügen auf demselben "
+           "Sub-Beat. Prüfe das Beat-Ziel scharf — ist es im Wesentlichen "
+           "erreicht, RUFE JETZT advance_beat AUF. Steht die Substory am "
+           "Ende, rufe complete_substory mit einer kurzen Zusammenfassung "
+           "auf. Erfinde NICHT künstlich neue Komplikationen, nur um den "
+           "Beat zu verlängern."),
+    "en": ("\nURGENT: the player has been stuck on this sub-beat for many "
+           "turns. Re-examine the beat goal — if it's substantially "
+           "reached, CALL advance_beat NOW. If the substory is at its "
+           "end, call complete_substory with a short summary. Do NOT "
+           "invent artificial new complications just to extend the beat."),
+}
+
 
 # --- In-loop voice command keywords ---
 CMD_KEYWORDS = {

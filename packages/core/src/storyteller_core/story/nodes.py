@@ -15,6 +15,7 @@ from langchain_core.runnables.config import RunnableConfig
 from ..config import Config
 from ..i18n import (
     BEAT_NUDGE,
+    BEAT_NUDGE_HARD,
     CHARSTATE_LABEL,
     GATE_NARRATOR_RULE,
     LANG_INSTRUCTION,
@@ -261,9 +262,24 @@ def build_system_prompt(state: dict, ctx: EngineContext) -> str:
         _story_mode = "auto"
     pressure = effective_pressure(raw_pressure, _story_mode)
     nudge_thr = beat_nudge_threshold(pressure, cfg)
-    nudge = (BEAT_NUDGE[locale]
-             if (not brief and nudge_thr < 10**5
-                 and beat_turns >= nudge_thr) else "")
+    # Three nudge tiers, scaling with dwell:
+    #   < threshold              → no nudge
+    #   threshold .. 2× threshold→ soft BEAT_NUDGE (existing copy)
+    #   >= 2× threshold OR last
+    #     beat of the substory   → hard BEAT_NUDGE_HARD (imperative)
+    # The hard tier exists because the soft nudge alone wasn't enough
+    # to keep some narrators from looping (saw 18 dwell turns in the
+    # field). At a high dwell the LLM needs an unambiguous directive.
+    nudge = ""
+    if not brief and nudge_thr < 10**5 and beat_turns >= nudge_thr:
+        _sub = state.get("substory") or {}
+        _beats = _sub.get("beats") or []
+        _at_last = bool(_beats and int(_sub.get("cursor", 0))
+                        >= len(_beats) - 1)
+        if beat_turns >= 2 * nudge_thr or _at_last:
+            nudge = BEAT_NUDGE_HARD[locale]
+        else:
+            nudge = BEAT_NUDGE[locale]
     block_mode = substory_block_mode(pressure, cfg)
 
     macro = BlueprintTracker(w.active_blueprint(state.get("blueprint_choice", 0)),
@@ -509,13 +525,18 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
         return {"substory": revived, "dormant_substory": None,
                 "transition": True, "beat_turns": 0}
 
-    if sub_dict and sub_dict.get("status") not in ("complete", "dormant"):
+    # A previously failed plan (`status="planning_failed"`) must be re-
+    # attempted, not treated as an active arc. Same for "complete" and
+    # "dormant" which we already handle above.
+    if sub_dict and sub_dict.get("status") not in (
+            "complete", "dormant", "planning_failed"):
         return {}  # no change
 
     cost = CostTracker.restore(cfg, state.get("cost") or {})
     planner = SubstoryPlanner(cfg, cost, ledger=CostLedger(cfg),
                               thread_id=_thread_id(config),
-                              world_id=getattr(ctx.world, "id", None))
+                              world_id=getattr(ctx.world, "id", None),
+                              transcript=ctx.transcript)
 
     prev_summary = sub_dict.get("closing_summary", "") if sub_dict else ""
     macro_idx = state.get("macro_index", 0)
@@ -534,7 +555,8 @@ def ensure_substory(state: dict, config: RunnableConfig) -> dict:
         previous_summary=prev_summary, locale=locale,
         cost=cost, ledger=CostLedger(cfg),
         thread_id=_thread_id(config),
-        world_id=getattr(ctx.world, "id", None))
+        world_id=getattr(ctx.world, "id", None),
+        transcript=ctx.transcript)
     active_bp = ctx.world.active_blueprint(blueprint_choice)
     if transition:
         # advance the macro one beat after a substory completes
@@ -840,6 +862,29 @@ def dispatch_tools(state: dict, config: RunnableConfig) -> dict:
         })
         if ctx.transcript:
             ctx.transcript.tool(name, args, result)
+            # Promote planner-shape tool calls to dedicated [planner]
+            # markers in the transcript so admins scanning a session
+            # don't have to expand each tool entry to see the arc beats.
+            if substory is not None and name in (
+                    "advance_beat", "complete_substory",
+                    "adjust_substory_plan"):
+                _beats = substory.beats or []
+                _cur = int(substory.cursor)
+                _name = (_beats[_cur].name
+                         if 0 <= _cur < len(_beats) else "?")
+                if name == "advance_beat":
+                    ctx.transcript.note(
+                        f"[planner] advance_beat → beat #{_cur + 1}/"
+                        f"{len(_beats)} '{_name}'")
+                elif name == "complete_substory":
+                    summ = (args.get("summary") or "")[:120]
+                    ctx.transcript.note(
+                        f"[planner] complete_substory: '{substory.title}'"
+                        + (f" — {summ}" if summ else ""))
+                else:
+                    chg = (args.get("change") or "")[:160]
+                    ctx.transcript.note(
+                        f"[planner] adjust_substory_plan: {chg}")
 
     memory = list(state.get("memory") or []) + tool_messages
     out: dict = {
@@ -905,7 +950,8 @@ def replan(state: dict, config: RunnableConfig) -> dict:
     cost = CostTracker.restore(cfg, state.get("cost") or {})
     planner = SubstoryPlanner(cfg, cost, ledger=CostLedger(cfg),
                               thread_id=_thread_id(config),
-                              world_id=getattr(ctx.world, "id", None))
+                              world_id=getattr(ctx.world, "id", None),
+                              transcript=ctx.transcript)
 
     sub_dict = state.get("substory") or {}
     prev_summary = sub_dict.get("closing_summary", "")
@@ -923,7 +969,8 @@ def replan(state: dict, config: RunnableConfig) -> dict:
         previous_summary=prev_summary, locale=locale,
         cost=cost, ledger=CostLedger(cfg),
         thread_id=_thread_id(config),
-        world_id=getattr(ctx.world, "id", None))
+        world_id=getattr(ctx.world, "id", None),
+        transcript=ctx.transcript)
     active_bp = ctx.world.active_blueprint(blueprint_choice)
     if macro_idx < len(active_bp.beats) - 1:
         macro_idx += 1
@@ -971,6 +1018,30 @@ def finalize(state: dict, config: RunnableConfig) -> dict:
 
     # Clear transition flag so the next turn doesn't keep saying "ÜBERGANG"
     update["transition"] = False
+
+    # Soft-replan after extreme dwell: if the same sub-beat has run for
+    # >= cfg.story.beat_stagnation_replan turns without advance_beat
+    # firing, mark the current substory as `planning_failed`. The next
+    # ensure_substory call treats that the same way as a fallback stub
+    # — re-plans from scratch with the latest memory + synopsis.
+    # Why this exists: even with hard BEAT_NUDGE some narrators get
+    # stuck in a loop (saw 18 dwell turns in the wild). Auto-replanning
+    # at a clear threshold breaks the loop without losing player state.
+    if text and not state.get("brief", False):
+        next_dwell = state.get("beat_turns", 0) + 1
+        stag_thr = int(getattr(cfg.story, "beat_stagnation_replan", 0))
+        sub = state.get("substory") or {}
+        if (stag_thr > 0 and next_dwell >= stag_thr
+                and sub and sub.get("status") == "active"):
+            forced = dict(sub)
+            forced["status"] = "planning_failed"
+            update["substory"] = forced
+            update["beat_turns"] = 0
+            if ctx.transcript:
+                ctx.transcript.note(
+                    f"[planner] forced replan: {next_dwell} dwell turns "
+                    f"on beat #{sub.get('cursor', 0) + 1} without "
+                    f"advance_beat — re-planning next turn.")
 
     if ctx.transcript and text:
         from .state import EngineContext  # noqa: F401
@@ -1079,6 +1150,8 @@ def _signal_kind(sig) -> str:
         return "on_arc"
     if sig.off_arc_world_query:
         return "off_arc"
+    if sig.substory_lex_thin:
+        return "thin_lateral"
     return "lateral"
 
 

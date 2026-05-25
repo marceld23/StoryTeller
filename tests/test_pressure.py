@@ -113,6 +113,71 @@ def test_classify_lateral_default():
     assert sig.pull() == 0.5
 
 
+def test_classify_thin_substory_biases_pull_positive():
+    """The justus_scify session bug: a fallback-stub substory has
+    empty involved_persons/places and generic beat names. With the old
+    code that meant on_arc_lex was always False and the pressure
+    drifted DOWN even though the player was deeply engaged with the
+    plot. Fix: substory_lex_thin signal → default pull lifts to 0.65."""
+    thin_sub = {
+        # Same shape as the bug observed in production
+        "title": "Eine unerwartete Wendung",
+        "involved_persons": [],
+        "involved_places": [],
+        "hook": "Etwas zwingt zum Handeln.",
+        "beats": [{"name": "Aufhänger", "goal": "Lage etablieren"},
+                  {"name": "Zuspitzung", "goal": "Eskalation"}],
+        "cursor": 1,
+    }
+    sig = classify(
+        player_text="Ich gehe weiter, breche die Tür auf.",
+        tool_calls=[],
+        substory=thin_sub,
+        beat_dwell=3,
+    )
+    assert sig.substory_lex_thin is True
+    assert sig.pull() == 0.65   # plot-positive default, not 0.5
+
+
+def test_classify_thin_substory_suppresses_off_arc_world_query():
+    """When the arc is thin a history retrieve isn't really off-arc —
+    there's no arc to be off from. Keeps the heuristic from punishing
+    the player for the planner's mistake."""
+    thin_sub = {
+        "involved_persons": [],
+        "involved_places": [],
+        "hook": "x",
+        "beats": [{"name": "a", "goal": "b"}],
+    }
+    sig = classify(
+        player_text="erzähl mir mehr über die Geschichte",
+        tool_calls=[{"name": "retrieve_world_fact",
+                     "args": {"query": "stadt", "fact_type": "history"}}],
+        substory=thin_sub,
+        beat_dwell=2,
+    )
+    assert sig.substory_lex_thin is True
+    assert sig.off_arc_world_query is False
+    assert sig.pull() == 0.65
+
+
+def test_classify_concrete_substory_not_thin():
+    """A substory with concrete involved_persons is NOT thin even if
+    the player input doesn't lexically match it (lateral happens)."""
+    sub = {"involved_persons": ["Otkar"],
+           "involved_places": ["Hafen"],
+           "hook": "Schmuggler im Hafen finden",
+           "beats": []}
+    sig = classify(
+        player_text="Ich bestelle ein Bier.",
+        tool_calls=[],
+        substory=sub,
+        beat_dwell=1,
+    )
+    assert sig.substory_lex_thin is False
+    assert sig.pull() == 0.5
+
+
 def test_classify_tiebreaker_overrides_when_confident():
     sig = TurnSignal(off_arc_world_query=True,
                      tiebreaker_direction="toward_beat",
