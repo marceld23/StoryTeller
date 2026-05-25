@@ -170,6 +170,27 @@ def _effective_pressure(state: dict, ctx) -> float:
     return effective_pressure(raw, story_mode)
 
 
+def _decide_tool_choice(state: dict, ctx, iteration: int) -> str | None:
+    """Hybrid tool_choice policy for narrate().
+
+    Returns "required" only on the first narration round of an
+    *action turn* — i.e. not a brief reply (Q&A) and not a free-tier
+    pressure regime where substory tools are hidden anyway.
+
+    Follow-up rounds (iteration > 0) MUST return None so the model
+    can produce final assistant text after digesting tool results.
+    """
+    if iteration > 0:
+        return None
+    if state.get("brief", False):
+        return None
+    cfg = ctx.cfg
+    thr = float(getattr(cfg.story, "pressure_substory_tools", 0.30))
+    if _effective_pressure(state, ctx) < thr:
+        return None
+    return "required"
+
+
 def _guidance(cfg: Config, locale: str) -> str:
     if locale == "de":
         return cfg.story.narration_guidance
@@ -754,6 +775,12 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
         thr = float(getattr(cfg.story, "pressure_substory_tools", 0.30))
         kw["tools"] = tools_for_pressure(pressure,
                                           substory_tools_threshold=thr)
+        # Force a tool call on action turns (not brief Q&A, not free
+        # tier). Only on the first round — follow-up rounds need to be
+        # free to emit final assistant text after digesting results.
+        tc = _decide_tool_choice(state, ctx, iteration)
+        if tc is not None:
+            kw["tool_choice"] = tc
 
     if ctx.transcript and getattr(cfg, "transcripts", None) \
             and cfg.transcripts.capture_prompts:
@@ -763,8 +790,9 @@ def narrate(state: dict, config: RunnableConfig) -> dict:
     t_call = _time.perf_counter()
     mode = ("reason=" + kw["reasoning_effort"]) if "reasoning_effort" in kw \
            else f"temp={kw.get('temperature', '?')}"
-    log.info("narrate -> %s iter=%d tools=%s %s msgs=%d",
-             cfg.models.story_llm, iteration, use_tools, mode, len(messages))
+    log.info("narrate -> %s iter=%d tools=%s tc=%s %s msgs=%d",
+             cfg.models.story_llm, iteration, use_tools,
+             kw.get("tool_choice", "auto"), mode, len(messages))
     try:
         resp = get_chat_client(cfg, "story").chat.completions.create(**kw)
         dt = _time.perf_counter() - t_call
