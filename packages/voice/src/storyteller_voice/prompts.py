@@ -217,8 +217,15 @@ class VoicePromptCache:
                 sr = target_sr
             pad = np.zeros(int(sr * lead_silence_s), dtype=np.float32)
             audio = np.concatenate([pad, audio])
-            sf.write(str(wav), np.clip(audio, -1, 1).astype(np.float32), sr,
+            # Atomic write: build the WAV in a sibling temp file, then
+            # rename onto the target. Matters now that build() runs
+            # in a background thread — a play() that happened to hit
+            # this same prompt mid-bake could otherwise read a
+            # half-written file. rename() is atomic on POSIX.
+            tmp = wav.with_suffix(".wav.tmp")
+            sf.write(str(tmp), np.clip(audio, -1, 1).astype(np.float32), sr,
                      subtype="PCM_16")
+            tmp.replace(wav)
             built.append(pid)
         # Reap WAVs that no longer correspond to a known prompt — keeps
         # the slot in sync when an announcement is removed from

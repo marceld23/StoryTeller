@@ -342,20 +342,30 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # Bake any voice prompts whose i18n text changed since the
         # cache was last built (per-prompt staleness — only the
-        # touched ones cost TTS time). Wrapped so a temporarily
-        # unreachable TTS endpoint at boot doesn't block the loop:
-        # missing prompts still live-fallback at play time when
-        # cfg.voice_prompts.allow_live_fallback is on.
+        # touched ones cost TTS time). Runs in a daemon thread so
+        # the main loop can open the wake-word listener immediately:
+        # a fresh slot (after switching tts_endpoint / tts / voice)
+        # contains ~70 prompts × ~1 s OpenAI TTS, which used to
+        # freeze the device for a full minute before "Hey Jarvis"
+        # would even register. Prompts touched mid-bake live-fallback
+        # via `allow_live_fallback` (one extra TTS call worst case);
+        # the bake's atomic temp-rename keeps concurrent reads safe.
         if cfg.voice_prompts.enabled:
-            try:
-                built = prompts.build()
-                if built:
-                    log.info("voice prompts re-baked: %s",
-                             ", ".join(built))
-            except Exception as exc:
-                log.warning("voice-prompt bake at startup failed (%r); "
-                            "missing prompts will be live-synth'd on "
-                            "first play.", exc)
+            def _bake_async():
+                try:
+                    built = prompts.build()
+                    if built:
+                        log.info("voice prompts re-baked: %s",
+                                 ", ".join(built))
+                except Exception as exc:
+                    log.warning(
+                        "voice-prompt bake at startup failed (%r); "
+                        "missing prompts will be live-synth'd on "
+                        "first play.", exc)
+            threading.Thread(
+                target=_bake_async, daemon=True,
+                name="voice-prompts-bake",
+            ).start()
 
         _st = load_settings(cfg)
         if _st.get("intro_enabled", True):
