@@ -176,15 +176,19 @@ The same gameplay features are available in all three player-facing
 entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
 (text REPL) and the player web UI at `/` + `/voice`:
 
+All gameplay commands are localised — examples below show English
+first, with the German equivalent in parentheses where the user-
+facing label differs.
+
 | Feature | Pi voice | CLI | Web UI |
 |---|:-:|:-:|:-:|
 | Existing-world selection | ✓ voice menu | ✓ numbered picker | ✓ dropdown |
-| **World generation** from a player brief | ✓ voice interview + "Generieren" | ✓ `/create <prompt>` | ✓ `/create` page (text) |
-| **Welten verwalten** (copy / rename / delete) | ✓ voice ("verwalten" → kopieren / umbenennen / löschen + ja/nein) | — | ✓ buttons in worlds list (Admin) |
-| **Multi-Blueprint-Varianten** (replay value: same world, structurally different arc) | engine + planner pick per new substory | engine + planner pick per new substory | ✓ sub-tabs in Ton & Bogen tab (Admin) |
-| **Vermerken / world notes** (player-introduced facts → RAG) | ✓ "Vermerken: …" | ✓ `/note <text>` | ✓ "+ Notiz" button (text + voice pages) |
-| **Wiederhole / Repeat** (re-play last narration, TTS only) | ✓ "Wiederhole" / "Repeat" | scroll up | ✓ "Wiederhole" in voice page (STT-matched) |
-| **Geschichte beenden** → back to world picker | ✓ voice command | ✓ `/end` | ✓ "Geschichte beenden" button |
+| **World generation** from a player brief | ✓ voice interview + "Generate" (de: "Generieren") | ✓ `/create <prompt>` | ✓ `/create` page (text) |
+| **Manage worlds** (copy / rename / delete) | ✓ voice ("manage" → copy / rename / delete + yes/no; de: "verwalten" → kopieren / umbenennen / löschen + ja/nein) | — | ✓ buttons in worlds list (Admin) |
+| **Multi-blueprint variants** (replay value: same world, structurally different arc) | engine + planner pick per new substory | engine + planner pick per new substory | ✓ sub-tabs in *Tone & arc* / *Ton & Bogen* tab (Admin) |
+| **Player-introduced facts** → RAG | ✓ "Note: …" (de: "Vermerken: …") | ✓ `/note <text>` | ✓ "+ Note" / "+ Notiz" button (text + voice pages) |
+| **Repeat last narration** (TTS only, no LLM call) | ✓ "Repeat" / "Wiederhole" | scroll up | ✓ "Repeat" / "Wiederhole" in voice page (STT-matched) |
+| **End story** → back to world picker | ✓ voice command "End story" / "Geschichte beenden" | ✓ `/end` | ✓ "End story" / "Geschichte beenden" button |
 | **Daily cost cap** pause + player message | ✓ `daily_cap_pause` prompt | ✓ rich-text cap notice | ✓ red banner + WS `daily_cap_exceeded` |
 | Wait-sound under LLM thinking | ✓ per-world / generic ambient | — (text) | ✓ voice page loops `generic_waiting.wav` |
 | Barge-in / interrupt | ✓ GPIO button long-press | ✓ Ctrl-C | ✓ ⏹ button (voice page) |
@@ -193,9 +197,10 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
 
 `storyteller-pi run` is the full voice appliance. Boot flow:
 
-1. Short spoken greeting (*"Hallo, ich bin dein Erzähler. Wenn du
-   bereit bist, weck mich mit Hey Jarvis."*) — toggleable in the system
-   menu (`intro`).
+1. Short spoken greeting (*"Hello, I'm your storyteller. When you're
+   ready, wake me with Hey Jarvis."* / DE: *"Hallo, ich bin dein
+   Erzähler. Wenn du bereit bist, weck mich mit Hey Jarvis."*) —
+   toggleable in the system menu (`intro`).
 2. **Idle wait** for the *"Hey Jarvis"* wake word — the Pi stays silent
    until you call it.
 3. On wake-word: *"Would you like to get started?"* — yes continues, no
@@ -206,26 +211,29 @@ entry points — `storyteller-pi run` (voice), `storyteller-cli chat`
    * a guided **voice-mode world design**: a short Q&A interview drives
      [generate_world](packages/core/src/storyteller_core/worlds/generate.py)
      live on-device. The interview obeys the same idle / silence
-     contract as the story loop (silence → *"sag Hey Jarvis"* + replay
+     contract as the story loop (silence → *"say Hey Jarvis"* + replay
      last question on wake) and accepts short cancel commands
-     (*"abbrechen / stopp / beenden"*). Player ends the interview by
-     saying *"Generieren / Generate"*; a neutral wait-sound covers the
-     1–3 min generation, then the new world is saved and started.
+     (*"cancel / stop / end"* — DE: *"abbrechen / stopp / beenden"*).
+     Player ends the interview by saying *"Generate"* (DE:
+     *"Generieren"*); a neutral wait-sound covers the 1–3 min
+     generation, then the new world is saved and started.
 5. **Once a world is picked, before the first narration** the in-story
-   command briefing plays (Vermerken / Wiederhole / Menü / Geschichte
-   beenden / Schluss + the wake-hint). Toggleable in the system menu
+   command briefing plays (Note / Repeat / Menu / End story / Shutdown
+   — DE: Vermerken / Wiederhole / Menü / Geschichte beenden / Schluss
+   — plus the wake-hint). Toggleable in the system menu
    (`commands info`).
 
 In-session: wake word with a follow-up window, speech capture that ends
 on a pause, a wait-sound loop under TTS, and a spoken system menu
 (save / end story / shutdown / undo / reset world / audio / intro /
-commands info / close). Voice commands during play: **"Vermerken / Note"**
-to add a player-introduced world fact (RAG-indexed live), **"Wiederhole
-/ Repeat / Sag das nochmal"** to re-play the last narration (TTS only,
-no LLM call), **"Geschichte beenden / End story"** to save + return to
-the wake-word idle for the next world, **"Schluss / Ausschalten /
-Shutdown"** to power the device off. Per-world session state auto-
-resumes across restarts (LangGraph checkpointer, `thread_id =
+commands info / close). Voice commands during play: **"Note"** (DE:
+**"Vermerken"**) to add a player-introduced world fact (RAG-indexed
+live), **"Repeat / Say that again"** (DE: **"Wiederhole / Sag das
+nochmal"**) to re-play the last narration (TTS only, no LLM call),
+**"End story"** (DE: **"Geschichte beenden"**) to save + return to the
+wake-word idle for the next world, **"Shutdown / Power off"** (DE:
+**"Schluss / Ausschalten"**) to power the device off. Per-world session
+state auto-resumes across restarts (LangGraph checkpointer, `thread_id =
 pi-<world>`); `--new` starts a fresh branch.
 Resuming a saved world plays a short spoken recap of where you are.
 

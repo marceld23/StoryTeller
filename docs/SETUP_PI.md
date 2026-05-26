@@ -84,7 +84,7 @@ only the ones you actually wire up.
 | Role | Short press | Long press (≥ `long_press_s`, default 2.0 s) |
 |---|---|---|
 | **interrupt** | Pause / resume the current narration (SIGSTOP / SIGCONT on `aplay`). No-op if nothing is playing. | Abort the current narration and open the spoken system menu. |
-| **shutdown** | Announce *„Spielstand gespeichert"* (the game is auto-checkpointed every turn — this is just audible feedback). | Say goodbye, then `sudo -n systemctl poweroff`. |
+| **shutdown** | Announce *"Save game saved"* (DE: *"Spielstand gespeichert"*) — the game is auto-checkpointed every turn, this is just audible feedback. | Say goodbye, then `sudo -n systemctl poweroff`. |
 
 **Wiring (Pi 4, no resistor needed):**
 

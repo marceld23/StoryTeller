@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Installiert + aktiviert die systemd-System-Services (als root ausführen):
+# Install + enable the systemd system services (run as root):
 #   echo <rootpw> | sudo -S bash scripts/install_services.sh
-# oder:  sudo bash scripts/install_services.sh
+# or:    sudo bash scripts/install_services.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-[ "$(id -u)" -eq 0 ] || { echo "Bitte als root (sudo) ausführen." >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "Please run as root (sudo)." >&2; exit 1; }
 
 cp scripts/storyteller.service \
    scripts/storyteller-admin.service \

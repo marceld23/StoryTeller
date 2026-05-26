@@ -24,55 +24,60 @@ immediately — no restart. See [README](../README.md#production-deploy-systemd)
 
 ## Pages
 
-### Welten (`/`)
-Table of every world with **Kopieren / Umbenennen / Löschen** per row,
-plus an Edit link into the structured editor. Use the *Generieren*
-page below to build a brand-new world from a free-form prompt.
+### Worlds (`/`)
+Table of every world with **Copy / Rename / Delete** per row (DE:
+**Kopieren / Umbenennen / Löschen**), plus an Edit link into the
+structured editor. Use the *Generate* (DE: *Generieren*) page below
+to build a brand-new world from a free-form prompt.
 
-- **Kopieren** opens an inline form: pick a new name, the id is auto-
+- **Copy** opens an inline form: pick a new name, the id is auto-
   derived (slugified, lowercase, `[a-z0-9_]`) but stays editable.
   The copy is a fresh world definition — saved games stay attached
   to the source. RAG is rebuilt for the copy automatically so it's
   queryable from the first turn.
-- **Umbenennen** does the same but in place: the old JSON file moves
+- **Rename** does the same but in place: the old JSON file moves
   to the new id (per locale), the RAG partition is repointed
   server-side (no costly re-embed), and saved Pi sessions migrate
   along (`pi-<old>` → `pi-<new>` thread_ids in
   `data/checkpoints.db`). Web-UI sessions use UUID thread_ids and
   are unaffected.
-- **Löschen** removes everything for that world in one shot: JSON
+- **Delete** removes everything for that world in one shot: JSON
   file(s) per locale, the matching `world_facts` rows in the RAG
   database (`data/rag.<slot>.db` — one file per embedding-config
   slot, see [RAG slots](#rag-database-slots) below), and every Pi
   save (`pi-<id>`, plus the `-<ts>` variants from `--new`). A
   confirmation dialog spells out what's about to disappear. The
   same actions are also reachable via voice on the Pi — see
-  [USER_GUIDE → Welten verwalten](USER_GUIDE.md#welten-verwalten).
+  [USER_GUIDE → Managing worlds](USER_GUIDE.md#managing-worlds).
 
 The **world editor** (`/worlds/<id>`) is a structured form:
 - **Core fields** — name, genre, player role, description, starting
   situation, narration style, **voice sample** (a 1–2 sentence style anchor),
   mood, ambience, physics/magic.
-- **Wartesound** — dropdown that lists every audio file in
-  `data/wait_sounds/` (`.wav` / `.flac` / `.ogg` / `.mp3`). Plays gaplessly
-  while the narrator "thinks". Drop a new file into that directory and
-  reload the page; it appears in the dropdown. *— kein —* turns the
-  ambience off. The repo ships `fantasy_ambient.wav` and `scifi_ambient.wav`.
+- **Wait sound** (DE: *Wartesound*) — dropdown that lists every
+  audio file in `data/wait_sounds/` (`.wav` / `.flac` / `.ogg` /
+  `.mp3`). Plays gaplessly while the narrator "thinks". Drop a new
+  file into that directory and reload the page; it appears in the
+  dropdown. *— none —* (DE: *— kein —*) turns the ambience off.
+  The repo ships `fantasy_ambient.wav` and `scifi_ambient.wav`.
 - **Tone** — sliders 0–5 (darkness / humor / romance / action / horror),
   pacing, free-text notes.
-- **Blueprint-Varianten** — every world ships with up to 4 macro arcs
-  ("Variante 1 / 2 / 3 …") shown as sub-tabs in *Ton & Bogen*. Each
-  variant has its own length (short / medium / long / epic), structure
-  (linear / parallel / spiral / frame / mosaic), twist_kind
-  (betrayal / revelation / sacrifice / hidden_enemy / red_herring /
-  role_reversal / circular / "" for no twist), trigger_hints (when
-  this variant feels right), description, premise, escalation rule
-  and beats list. The substory planner picks the best-fitting variant
-  for each new arc, so the same world can play structurally different
-  on a replay. Single-variant worlds (the legacy seed worlds today)
+- **Blueprint variants** (DE: *Blueprint-Varianten*) — every world
+  ships with up to 4 macro arcs ("Variant 1 / 2 / 3 …" / DE:
+  "Variante 1 / 2 / 3 …") shown as sub-tabs in *Tone & arc* (DE:
+  *Ton & Bogen*). Each variant has its own length (short / medium
+  / long / epic), structure (linear / parallel / spiral / frame /
+  mosaic), twist_kind (betrayal / revelation / sacrifice /
+  hidden_enemy / red_herring / role_reversal / circular / "" for
+  no twist), trigger_hints (when this variant feels right),
+  description, premise, escalation rule and beats list. The
+  substory planner picks the best-fitting variant for each new
+  arc, so the same world can play structurally different on a
+  replay. Single-variant worlds (the legacy seed worlds today)
   keep working unchanged — the editor hoists the legacy single
-  blueprint into `variants[0]` so the same UI handles both. "+ Variante"
-  / "Variante löschen" inside the sub-tab nav add or remove arcs.
+  blueprint into `variants[0]` so the same UI handles both.
+  "+ Variant" / "Delete variant" (DE: "+ Variante" / "Variante
+  löschen") inside the sub-tab nav add or remove arcs.
 - **Content lists** — places / persons / items / glossary / history /
   fragments / regions / factions / creatures via a reusable list
   editor; each entry has add / remove and a **✨ suggest** button
@@ -89,14 +94,15 @@ The **world editor** (`/worlds/<id>`) is a structured form:
   suggested (so it can't accidentally duplicate one). A **CANON
   RULE** at the top of the system message enforces all of this. On
   big worlds (50+ entries of one kind) the catalogue is capped at
-  the first 50 plus a "(… und N weitere)" marker so the prompt
-  stays bounded.
+  the first 50 plus a "(… and N more)" marker (DE: "(… und N
+  weitere)") so the prompt stays bounded.
 
-  **Your text input** (the "Vorschlag-Hinweis (optional)" field
-  next to the ✨ button) goes in as the user message — so a hint
-  like *"eine blinde Heilerin"* or *"ein Schmuggler-Treffpunkt im
-  Anomalie-Korridor Vex"* steers the suggestion precisely while
-  the world context keeps it consistent with everything else.
+  **Your text input** (the "Suggestion hint (optional)" / DE:
+  "Vorschlag-Hinweis (optional)" field next to the ✨ button) goes
+  in as the user message — so a hint like *"a blind healer"* or
+  *"a smuggler hangout in the Vex Anomaly Corridor"* steers the
+  suggestion precisely while the world context keeps it
+  consistent with everything else.
 - **Random tables** — named tables with weighted entries.
 - **Story patterns** — optional whitelist of substory structures.
 - **Roh-JSON toggle** — an escape hatch to edit the full world JSON directly.
@@ -104,14 +110,14 @@ The **world editor** (`/worlds/<id>`) is a structured form:
 
 Saving validates through Pydantic; invalid worlds are rejected with a message.
 
-### Generieren (`/generate`)
+### Generate (`/generate`)
 Describe a world in a few sentences → the LLM builds a complete world
 (description, places/persons/items/glossary/history/fragments, blueprint,
 random tables, tone, complexity, audience, voice sample). Runs as a **job**
 with a live status page; on success it opens the new world. Uses the `gen`
 model/endpoint (see Settings). Generation can take 1–2 minutes.
 
-### Verläufe (`/transcripts`)
+### Transcripts (`/transcripts`)
 Every played session is recorded as a transcript. Open one to see, per turn:
 - 🧑 player input, 🛡 moderation result,
 - 🔧 **tool calls** (name, args, result) — expandable,
@@ -119,17 +125,17 @@ Every played session is recorded as a transcript. Open one to see, per turn:
 
 **Optional full-prompt logging:** set `[transcripts] capture_prompts = true`
 in `config/config.toml` and restart the engine services. New turns then also
-record a collapsible **📤 Prompt an LLM** entry — the exact system prompt
+record a collapsible **📤 Prompt to LLM** entry — the exact system prompt
 plus all follow-up messages (including tool round-trips) sent to the narrator
 model. Off by default (it makes transcripts much larger).
 
-**Löschen.** Jeder Verlauf hat ein 🗑-Symbol rechts in der Listen-Zeile —
-einmal klicken bewaffnet den Button (rot „wirklich? 🗑"), zweiter Klick
-innerhalb 5 s löscht die Datei. **Automatischer Cleanup**: Verläufe einer
-Welt werden zusätzlich entfernt, wenn die Welt selbst gelöscht oder ihr
-Spielstand zurückgesetzt wird (Sysmenu „Welt zurücksetzen" auf dem Pi,
-oder `engine.reset()`). Es gibt **keine** zeitbasierte Auto-Aufräumung —
-nur die expliziten Pfade. Wer alte Verläufe behalten will, behält sie.
+**Delete.** Each transcript has a 🗑 icon at the right of its list
+row — one click arms the button (red "really? 🗑"), a second click
+within 5 s deletes the file. **Automatic cleanup:** transcripts of
+a world are also removed when the world itself is deleted or its
+save state is reset (Pi sysmenu "Reset world", or `engine.reset()`).
+There is **no** time-based auto-pruning — only the explicit paths.
+Old transcripts stay until you remove them.
 
 ### Einstellungen (`/settings`)
 
@@ -238,7 +244,7 @@ embeddings (where there's no good drop-in alternative).
 **Audio** → `data/audio.json`: output backend (`auto` / `alsa_softvol` /
 `portable` / `pipewire`) and an optional PipeWire sink.
 
-**Erzählung & Memory** — section in the Settings page (also
+**Narration & memory** — section in the Settings page (also
 backed by `data/story.json`). Overrides any field of `[story]`
 from `config.toml`; empty fields fall back to the default
 (placeholder shows what that default is). Hot-reloaded — changes
@@ -246,33 +252,32 @@ apply on the next turn, no service restart.
 
 Knobs the UI exposes:
 
-| Knopf | Default | Wann tunen |
+| Knob | Default | When to tune |
 |---|---:|---|
-| `short_term_memory_turns` | **24** | Cloud (gpt-5.x, claude, gemini): 24–48 trägt jedes Modell trivial. Local 32k-ctx (qwen3-30b-32k): 12–16. Tiny 8k-ctx local: 6–8. Höher = bessere Kontinuität gegen Input-Tokens pro Turn. |
-| `synopsis_max_chars` | 900 | Längere Rolling-Summary für sehr lange Sessions (1200–1800). |
-| `synopsis_batch` | 8 | Wieviele alte Messages pro Fold-Pass weggefoldet werden — größer = seltener LLM-Call, gröbere Synopsis. |
-| `rag_top_k` | 4 | Mehr Welt-Fakten pro Turn injiziert. |
-| `beat_nudge_after` | 3 | Turns auf demselben Sub-Beat bevor Narrator höflich an `advance_beat` erinnert wird (0 = aus). |
-| `known_facts_cap` | 30 | Cap auf KnownFacts-Liste; älteste ohne Note werden evicted. |
-| `narration_gate_max_reveals` | 3 | Max authored Reveals pro Turn vom Curator. |
-| `long_term_memory` (Checkbox) | ✓ | Aus = kein Synopsis-Folding (nur sinnvoll bei minimalen Sessions). |
-| `narration_gate_enabled` (Checkbox) | ✓ | Aus = Curator-LLM-Call wird übersprungen (Algorithmus-Only Spoiler-Schutz). |
+| `short_term_memory_turns` | **24** | Cloud (gpt-5.x, claude, gemini): 24–48 fits every model trivially. Local 32k-ctx (qwen3-30b-32k): 12–16. Tiny 8k-ctx local: 6–8. Higher = better continuity at the cost of more input tokens per turn. |
+| `synopsis_max_chars` | 900 | Longer rolling summary for very long sessions (1200–1800). |
+| `synopsis_batch` | 8 | How many old messages get folded away per pass — larger = fewer LLM calls, coarser synopsis. |
+| `rag_top_k` | 4 | Inject more world facts per turn. |
+| `beat_nudge_after` | 3 | Turns on the same sub-beat before the narrator gets a polite `advance_beat` nudge (0 = off). |
+| `known_facts_cap` | 30 | Cap on the KnownFacts list; the oldest entries without a note are evicted first. |
+| `narration_gate_max_reveals` | 3 | Max authored reveals per turn from the curator. |
+| `long_term_memory` (checkbox) | ✓ | Off = no synopsis folding (only sensible for very short sessions). |
+| `narration_gate_enabled` (checkbox) | ✓ | Off = curator LLM call skipped (algorithm-only spoiler protection). |
 
-Beispiel-`data/story.json` für ein Local-32k-Setup mit etwas
-sparsameren Reveals:
+Example `data/story.json` for a local-32k setup with somewhat
+sparser reveals:
 
 ```json
 { "short_term_memory_turns": 12, "narration_gate_max_reveals": 2 }
 ```
 
-**Synopsis-Härtung** — wenn der Summarizer-LLM eine deutlich
-kürzere Zusammenfassung als die vorige produziert (`< 70 %` der
-alten Länge, ab `old ≥ 300 chars`), wird er einmal mit
-verschärfter Korrektur-Anweisung nochmal gefragt; greift auch das
-nicht, fällt das System auf einen verlustfreien Heuristik-Fold
-zurück (alte Synopsis + Auszug der gedropptem Messages
-konkateniert). So geht nie etablierter Kontext aus der bisherigen
-Synopsis verloren, auch wenn das Modell sich verkürzt.
+**Synopsis hardening** — when the summariser LLM produces a
+significantly shorter summary than the previous one (`< 70 %` of
+the old length, with `old ≥ 300 chars`), the engine retries once
+with a tightened correction instruction; if that also fails, it
+falls back to a lossless heuristic fold (old synopsis + extract
+of the dropped messages, concatenated). Established context from
+the prior synopsis is never lost, even when the model truncates.
 
 **Moderation** → `data/moderation.json`: an **"Moderation aktiviert"
 checkbox** (uncheck to fully disable the OpenAI moderation gate — inputs
@@ -378,7 +383,7 @@ via `data/story.json` (PUT `/api/settings/story`):
 
 ### Watching what the heuristic does
 
-Every turn emits a transcript marker (visible in **Verläufe** as a small
+Every turn emits a transcript marker (visible in **Transcripts** as a small
 blue inline line):
 
 ```
