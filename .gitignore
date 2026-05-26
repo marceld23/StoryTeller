@@ -36,6 +36,8 @@ data/checkpoints.db-*
 data/saves/
 data/rag.db
 data/rag.db-*
+data/rag.*.db
+data/rag.*.db-*
 data/*.log
 *.wav
 *.tmp

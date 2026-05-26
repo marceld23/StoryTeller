@@ -41,11 +41,13 @@ page below to build a brand-new world from a free-form prompt.
   `data/checkpoints.db`). Web-UI sessions use UUID thread_ids and
   are unaffected.
 - **Löschen** removes everything for that world in one shot: JSON
-  file(s) per locale, the matching `world_facts` rows in
-  `data/rag.db`, and every Pi save (`pi-<id>`, plus the `-<ts>`
-  variants from `--new`). A confirmation dialog spells out what's
-  about to disappear. The same actions are also reachable via voice
-  on the Pi — see [USER_GUIDE → Welten verwalten](USER_GUIDE.md#welten-verwalten).
+  file(s) per locale, the matching `world_facts` rows in the RAG
+  database (`data/rag.<slot>.db` — one file per embedding-config
+  slot, see [RAG slots](#rag-database-slots) below), and every Pi
+  save (`pi-<id>`, plus the `-<ts>` variants from `--new`). A
+  confirmation dialog spells out what's about to disappear. The
+  same actions are also reachable via voice on the Pi — see
+  [USER_GUIDE → Welten verwalten](USER_GUIDE.md#welten-verwalten).
 
 The **world editor** (`/worlds/<id>`) is a structured form:
 - **Core fields** — name, genre, player role, description, starting
@@ -406,6 +408,37 @@ restart them:
 ```bash
 sudo systemctl restart storyteller storyteller-web-ui
 ```
+
+## RAG database slots
+
+The RAG index lives at `data/rag.<slot>.db`, one DB file per
+embedding-config slot. A slot key is built from
+`(endpoint_host, embedding_model, embedding_dim)`. Switching any of
+those (e.g. moving `models.embedding` from `text-embedding-3-small`
+to `text-embedding-3-large`, or pointing `models.embedding_endpoint`
+at a self-hosted server) picks a different file; the previously
+indexed worlds stay on disk and are reused the next time you switch
+back.
+
+Consequences:
+
+- After a model/dim/endpoint swap, **the new slot starts empty**.
+  The first `index_world` call for each world re-embeds it via the
+  new endpoint. This costs whatever the new endpoint charges; on
+  cloud endpoints it's a one-time burst of OpenAI / OpenRouter
+  spend.
+- The legacy `data/rag.db` (pre-multi-slot installs) is
+  auto-migrated **once** to the slot path matching the *current*
+  config. If you simultaneously changed the embedding model with
+  the upgrade, the migrated DB still contains the OLD model's
+  vectors and produces semantic nonsense at retrieval time — use
+  the per-world *Reindex* button or `force=True` to refill it.
+- Old slots are kept indefinitely (one DB file ≈ 1–5 MB per world).
+  Manual cleanup if you want to reclaim disk: `rm
+  data/rag.<old-slot>.db`.
+
+The same slot pattern applies to the voice-prompt WAV cache (see
+[SETUP_PI.md](SETUP_PI.md) → after-code-changes section).
 
 ## See also
 - [README.md](../README.md) — install, deploy, ports.

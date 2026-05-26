@@ -1,17 +1,62 @@
 """Per-(world, locale) RAG with sqlite-vec + OpenAI embeddings.
 
-One DB file, `world_id` partition key composed as "<id>:<locale>" (clean
-world/locale isolation), filterable fact_type, original text as +content.
-Install: --extra rag.
+One DB file PER embedding-config slot ``(endpoint, model, dim)``,
+``world_id`` partition key composed as ``"<id>:<locale>"`` (clean
+world/locale isolation), filterable ``fact_type``, original text as
+``+content``. Install: ``--extra rag``.
+
+Why a slot per embedding-config: ``vec0`` bakes the vector dimension
+into the table schema, and the cosine-distance retrieval is only
+meaningful when query and stored vectors come from the *same* model.
+Switching the embedding model / dim used to leave the old vectors in
+place — queries went on producing semantic nonsense without any
+error. The slot layout parks the old DB next to the new one, so
+switching back to a previous config reuses its index instead of
+re-embedding every world.
+
+Slot layout:
+
+    data/rag.db                                  (legacy, auto-migrated)
+    data/rag.openai__text-embedding-3-small__512.db
+    data/rag.192.168.178.95-8000__nomic__768.db
 """
 
 from __future__ import annotations
 
+import logging
+import re
 import sqlite3
 from pathlib import Path
 
 from ..config import Config
 from ..oai import get_embedding_client
+
+log = logging.getLogger("storyteller.rag")
+
+
+def _safe(s: str) -> str:
+    """Filesystem-safe slug: alnum + . _ -, everything else collapsed to '-'."""
+    s = re.sub(r"[^A-Za-z0-9._-]+", "-", (s or "").strip()).strip("-")
+    return s or "default"
+
+
+def _embedding_host(cfg: Config) -> str:
+    """Stable host identifier for the embedding endpoint. Empty base_url
+    means "default OpenAI"."""
+    ep = getattr(cfg.models, "embedding_endpoint", None)
+    base = (getattr(ep, "base_url", "") or "").strip()
+    if not base:
+        return "openai"
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(base if "://" in base else f"http://{base}")
+        host = (parsed.hostname or "").strip()
+        if not host:
+            return _safe(base)
+        port = parsed.port
+        return _safe(f"{host}-{port}") if port else _safe(host)
+    except Exception:
+        return _safe(base)
 
 
 class WorldRAG:
@@ -21,14 +66,61 @@ class WorldRAG:
         self._db: sqlite3.Connection | None = None
 
     # --- intern ---
+    def _slot_key(self) -> str:
+        """Stable identifier for one embedding-config slot — encodes
+        (endpoint host, model, dim) so each combination gets its own DB
+        file. Switching any of the three picks a different file."""
+        host = _embedding_host(self.cfg)
+        model = (self.cfg.models.embedding or "default").strip()
+        return f"{_safe(host)}__{_safe(model)}__{self.dim}"
+
+    def _slot_db_path(self) -> Path:
+        """`data/rag.<slot>.db` derived from `cfg.paths.rag_db`."""
+        base = self.cfg.path(self.cfg.paths.rag_db)
+        return base.with_name(f"{base.stem}.{self._slot_key()}{base.suffix}")
+
+    def _migrate_legacy_db(self, slot_path: Path) -> None:
+        """If the operator is upgrading from the pre-slot layout (one
+        `data/rag.db` regardless of model), rename it onto the slot
+        path that matches the CURRENT config. Best-effort; if the
+        operator simultaneously switched embedding model, the migration
+        ends up under the new slot but the vectors inside still match
+        the OLD model — the first `index_world` for each world will
+        notice and reindex via `force=True`. To minimise that footgun
+        we only auto-migrate when no slot DB exists yet."""
+        if slot_path.exists():
+            return
+        legacy = self.cfg.path(self.cfg.paths.rag_db)
+        if not legacy.exists() or legacy.resolve() == slot_path.resolve():
+            return
+        try:
+            legacy.replace(slot_path)
+            log.info("rag-db migrated to multi-slot layout: %s -> %s",
+                     legacy.name, slot_path.name)
+        except OSError as exc:
+            log.warning("rag-db migrate %s -> %s failed: %r",
+                        legacy, slot_path, exc)
+        # Stray sqlite WAL/SHM sidecars (only present if WAL mode was
+        # used at some point) — move them along so the DB stays
+        # consistent.
+        for suffix in ("-wal", "-shm"):
+            legacy_side = legacy.with_name(legacy.name + suffix)
+            if legacy_side.exists():
+                try:
+                    legacy_side.replace(
+                        slot_path.with_name(slot_path.name + suffix))
+                except OSError:
+                    pass
+
     def _conn(self) -> sqlite3.Connection:
         if self._db is not None:
             return self._db
         import sqlite_vec
 
-        db_path = self.cfg.path(self.cfg.paths.rag_db)
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        db = sqlite3.connect(str(db_path), check_same_thread=False)
+        slot_path = self._slot_db_path()
+        slot_path.parent.mkdir(parents=True, exist_ok=True)
+        self._migrate_legacy_db(slot_path)
+        db = sqlite3.connect(str(slot_path), check_same_thread=False)
         db.enable_load_extension(True)
         sqlite_vec.load(db)
         db.enable_load_extension(False)
