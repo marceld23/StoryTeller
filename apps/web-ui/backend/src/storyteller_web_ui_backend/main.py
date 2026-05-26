@@ -104,7 +104,20 @@ def _make_engine(world_id: str, thread_id: str) -> StoryEngine:
         rag = WorldRAG(cfg)
     except Exception:
         rag = None
-    return StoryEngine(cfg, world, rag=rag, thread_id=thread_id)
+    # Per-session transcript so the admin "Transcripts" tab shows web-UI
+    # play sessions alongside the Pi voice ones. The session filename is
+    # `<world>-<thread>`: deterministic across reconnects (same WS thread
+    # appends to the same file) and starts with `<world_id>-` so the
+    # world-deletion / reset cleanup in delete_transcripts_for_world
+    # picks it up the same way it picks up Pi transcripts.
+    transcript = None
+    try:
+        from storyteller_core.story.transcript import Transcript
+        transcript = Transcript(cfg, f"{world_id}-{thread_id}")
+    except Exception:
+        transcript = None
+    return StoryEngine(cfg, world, rag=rag, transcript=transcript,
+                       thread_id=thread_id)
 
 
 # --------------------------------------------------------------------------
