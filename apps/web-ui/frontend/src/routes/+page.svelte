@@ -285,7 +285,13 @@
       } else {
         const sess = await createSession(chosenWorld);
         threadId = sess.thread_id;
-        pushLine({ who: 'narrator', text: sess.opening });
+        // Opening narration arrives via the WebSocket on connect — do
+        // NOT push from sess.opening (which is empty now anyway). If
+        // we pushed here, the WS auto-send of last_narration would
+        // produce a second narrator line and the chat would show the
+        // first scene twice (the dedup check can't tell that the WS
+        // text is a suffix of the REST text).
+        thinking = true;  // bridge the visual gap until WS sends its own "thinking"
       }
       rememberThread(chosenWorld, threadId);
       // A just-started session has 1 narration → counts as resumable
