@@ -220,6 +220,21 @@ class VoicePromptCache:
             sf.write(str(wav), np.clip(audio, -1, 1).astype(np.float32), sr,
                      subtype="PCM_16")
             built.append(pid)
+        # Reap WAVs that no longer correspond to a known prompt — keeps
+        # the slot in sync when an announcement is removed from
+        # VOICE_PROMPTS in i18n.py. `world_<id>.wav` files are managed
+        # by play()'s live-fallback path (one per runtime-generated
+        # world; not listed in VOICE_PROMPTS), so they get a pass.
+        keep = set(self.prompts.keys())
+        for wav in self.dir.glob("*.wav"):
+            pid = wav.stem
+            if pid in keep or pid.startswith("world_"):
+                continue
+            try:
+                wav.unlink()
+                log.info("voice-prompt reaper: removed orphan %s", wav.name)
+            except OSError as exc:
+                log.warning("voice-prompt reaper: %s failed: %r", wav, exc)
         self._manifest.write_text(json.dumps(
             {"locale": self.locale, "voice": self._voice(),
              "model": self.cfg.models.tts, "texts": self.prompts},
