@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 # Re-synthesise the cached voice-prompt WAVs under
-# data/voice_prompts/<locale>/ via the configured TTS endpoint.
+# data/voice_prompts/<locale>/<slot>/ via the configured TTS endpoint.
+# A slot is one (endpoint, model, voice) combination — switching any
+# of those picks a different subdirectory, so old WAVs aren't
+# clobbered and are reused when you switch back.
 #
-# Default: per-prompt staleness — only re-bakes prompts whose i18n text
-# changed, or whose WAV is missing. Fast (one TTS call per touched
-# prompt), free if you're on a local TTS server.
+# Default: per-prompt staleness — only re-bakes prompts whose i18n
+# text changed since the slot's manifest was written, or whose WAV
+# is missing. Fast (one TTS call per touched prompt), free if you're
+# on a local TTS server.
 #
-# --force      : re-bake EVERY prompt unconditionally. Use this after
-#                changing the voice (models.tts_voice) or the TTS model
-#                (models.tts / models.tts_endpoint), since voice swaps
-#                make the WAVs sound inconsistent with what the prompt
-#                cache thinks it has.
+# --force      : re-bake EVERY prompt in the CURRENT slot
+#                unconditionally. Other slots are untouched — they
+#                keep their cached files. Use this if you suspect
+#                the audio in the active slot is corrupted; a plain
+#                voice / model swap doesn't need --force any more
+#                (it just creates / reuses a different slot).
 #
 # Usage:
 #   bash scripts/bake_voice_prompts.sh            # incremental
-#   bash scripts/bake_voice_prompts.sh --force    # full rebuild
+#   bash scripts/bake_voice_prompts.sh --force    # rebuild current slot
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -35,6 +40,7 @@ from storyteller_voice.prompts import VoicePromptCache
 
 cfg = load_config()
 pc = VoicePromptCache(cfg)
+print(f"slot: {pc.dir.relative_to(cfg.root)}")
 built = pc.build(force=${force_arg})
 if built:
     print(f"re-baked {len(built)} prompt(s): {', '.join(built)}")
